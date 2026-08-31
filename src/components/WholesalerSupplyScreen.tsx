@@ -21,7 +21,7 @@ interface ConsolidatedItem {
 }
 
 export const WholesalerSupplyScreen: React.FC<WholesalerSupplyScreenProps> = ({
-  orders,
+  orders = [],
 }) => {
   const [filterMode, setFilterMode] = useState<'open_only' | 'all'>('open_only');
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});

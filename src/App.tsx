@@ -5,17 +5,44 @@ import { NewOrderScreen } from './components/NewOrderScreen';
 import { OrderDetailScreen } from './components/OrderDetailScreen';
 import { OrderEditScreen } from './components/OrderEditScreen';
 import { WholesalerSupplyScreen } from './components/WholesalerSupplyScreen';
-import { BackupModal } from './components/BackupModal';
+import { ReportsScreen } from './components/ReportsScreen';
+import { UserManagementScreen } from './components/UserManagementScreen';
+import { ComprasScreen } from './components/ComprasScreen';
+import { LoginScreen } from './components/LoginScreen';
 import { VikaAssistantModal } from './components/VikaAssistantModal';
-import { Order, ActiveTab } from './types';
-import { getStoredOrders, saveOrdersToStorage } from './lib/storage';
-import { Mic, ListOrdered, Sparkles, CheckCircle2, Bot } from 'lucide-react';
+import { Order, Purchase, ActiveTab } from './types';
+import {
+  subscribeToOrders,
+  saveOrderToFirestore,
+  updateOrderInFirestore,
+  anularOrderInFirestore,
+  deleteOrderFromFirestore,
+  INITIAL_SAMPLE_ORDERS,
+  subscribeToPurchases,
+  savePurchaseToFirestore,
+  INITIAL_SAMPLE_PURCHASES,
+} from './lib/storage';
+import { useAuth } from './contexts/AuthContext';
+import { CheckCircle2, Sparkles } from 'lucide-react';
 
 export default function App() {
+  const {
+    currentUser,
+    userProfile,
+    loading,
+    canManageUsers,
+    canViewReports,
+    canAccessCompras,
+    canAdminResetPasswords,
+    isJefe,
+    isSupervisor,
+    isComprador,
+  } = useAuth();
+
   const [orders, setOrders] = useState<Order[]>([]);
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [activeTab, setActiveTab] = useState<ActiveTab>('list');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  const [isBackupOpen, setIsBackupOpen] = useState(false);
   const [isVikaOpen, setIsVikaOpen] = useState(false);
   const [vikaDraftOrder, setVikaDraftOrder] = useState<{
     productos?: Array<{
@@ -32,17 +59,58 @@ export default function App() {
   } | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Load orders on initial mount
+  // If the user is specifically a Comprador, set their default landing tab to 'compras'
   useEffect(() => {
-    const loaded = getStoredOrders();
-    setOrders(loaded);
-  }, []);
+    if (isComprador && activeTab === 'list') {
+      setActiveTab('compras');
+    }
+  }, [isComprador]);
 
-  // Sync to local storage whenever orders change
-  const updateOrdersState = (newOrders: Order[]) => {
-    setOrders(newOrders);
-    saveOrdersToStorage(newOrders);
-  };
+  // Real-time Firestore sync for Orders
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const unsubscribe = subscribeToOrders(
+      async (loadedOrders) => {
+        if (loadedOrders.length === 0 && isJefe) {
+          // If fresh database, seed initial demo orders for the Jefe
+          for (const ord of INITIAL_SAMPLE_ORDERS) {
+            await saveOrderToFirestore(ord).catch(() => {});
+          }
+        } else {
+          setOrders(loadedOrders);
+        }
+      },
+      (err) => {
+        console.error('Orders sync error:', err);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [currentUser, isJefe]);
+
+  // Real-time Firestore sync for Purchases (Compras)
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const unsubscribe = subscribeToPurchases(
+      async (loadedPurchases) => {
+        if (loadedPurchases.length === 0 && (isJefe || isSupervisor)) {
+          // Seed initial demo purchase records if empty
+          for (const pur of INITIAL_SAMPLE_PURCHASES) {
+            await savePurchaseToFirestore(pur).catch(() => {});
+          }
+        } else {
+          setPurchases(loadedPurchases);
+        }
+      },
+      (err) => {
+        console.error('Purchases sync error:', err);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [currentUser, isJefe, isSupervisor]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -51,52 +119,72 @@ export default function App() {
     }, 3000);
   };
 
-  // Handlers
-  const handleSaveNewOrder = (newOrder: Order) => {
-    const updated = [newOrder, ...orders];
-    updateOrdersState(updated);
-    setSelectedOrderId(newOrder.id);
-    setActiveTab('detail');
-    setVikaDraftOrder(null);
-    showToast(`¡Pedido #${newOrder.orderNumber} guardado correctamente!`);
-  };
-
-  const handleUpdateOrder = (updatedOrder: Order) => {
-    const updated = orders.map((o) =>
-      o.id === updatedOrder.id ? updatedOrder : o
-    );
-    updateOrdersState(updated);
-    setActiveTab('detail');
-    showToast(`Pedido #${updatedOrder.orderNumber} actualizado.`);
-  };
-
-  const handleToggleStatus = (orderId: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    const updated = orders.map((o) => {
-      if (o.id === orderId) {
-        const nextStatus = o.estado === 'Abierto' ? 'Entregado' : 'Abierto';
-        return {
-          ...o,
-          estado: nextStatus as 'Abierto' | 'Entregado',
-          updatedAt: new Date().toISOString(),
-        };
-      }
-      return o;
-    });
-    updateOrdersState(updated);
-    const target = orders.find((o) => o.id === orderId);
-    if (target) {
-      const nextText = target.estado === 'Abierto' ? 'Entregado' : 'Abierto';
-      showToast(`Pedido #${target.orderNumber} marcado como ${nextText}`);
+  // Handlers for Orders Firestore CRUD & Actions
+  const handleSaveNewOrder = async (newOrder: Order) => {
+    try {
+      await saveOrderToFirestore(newOrder);
+      setSelectedOrderId(newOrder.id);
+      setActiveTab('detail');
+      setVikaDraftOrder(null);
+      showToast(`¡Venta #${newOrder.orderNumber} registrada y guardada en BD!`);
+    } catch (err: any) {
+      console.error('Error saving order:', err);
+      showToast('Error al guardar pedido en la base de datos.');
     }
   };
 
-  const handleDeleteOrder = (orderId: string) => {
-    const updated = orders.filter((o) => o.id !== orderId);
-    updateOrdersState(updated);
-    setSelectedOrderId(null);
-    setActiveTab('list');
-    showToast('Pedido eliminado correctamente.');
+  const handleUpdateOrder = async (updatedOrder: Order) => {
+    try {
+      await updateOrderInFirestore(updatedOrder.id, updatedOrder);
+      setActiveTab('detail');
+      showToast(`Venta #${updatedOrder.orderNumber} actualizada.`);
+    } catch (err: any) {
+      console.error('Error updating order:', err);
+      showToast('Error al actualizar pedido.');
+    }
+  };
+
+  const handleToggleStatus = async (orderId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const target = orders.find((o) => o.id === orderId);
+    if (!target) return;
+    if (target.estado === 'Anulado') {
+      showToast('No se puede cambiar el estado de una venta anulada.');
+      return;
+    }
+
+    const nextStatus = target.estado === 'Abierto' ? 'Entregado' : 'Abierto';
+    try {
+      await updateOrderInFirestore(orderId, {
+        estado: nextStatus as 'Abierto' | 'Entregado',
+      });
+      showToast(`Pedido #${target.orderNumber} marcado como ${nextStatus}`);
+    } catch (err) {
+      console.error('Error toggling status:', err);
+    }
+  };
+
+  const handleAnularOrder = async (orderId: string, motivo: string) => {
+    try {
+      const sellerName = userProfile?.displayName || userProfile?.email || 'Vendedor';
+      await anularOrderInFirestore(orderId, sellerName, motivo);
+      showToast('Venta anulada correctamente.');
+    } catch (err) {
+      console.error('Error anulando venta:', err);
+      showToast('Error al anular la venta.');
+    }
+  };
+
+  const handleDeleteOrder = async (orderId: string) => {
+    try {
+      await deleteOrderFromFirestore(orderId);
+      setSelectedOrderId(null);
+      setActiveTab('list');
+      showToast('Venta eliminada permanentemente de la base de datos.');
+    } catch (err) {
+      console.error('Error deleting order:', err);
+      showToast('Error al eliminar la venta.');
+    }
   };
 
   const handleTransferVikaDraft = (draft: {
@@ -115,6 +203,23 @@ export default function App() {
     showToast('¡VIKA preparó los artículos en tu nuevo pedido!');
   };
 
+  // If loading auth state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white space-y-3">
+        <div className="w-10 h-10 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+        <p className="text-sm font-semibold text-slate-400 font-['Outfit',sans-serif]">
+          Iniciando ventasIA Chiquiminisos...
+        </p>
+      </div>
+    );
+  }
+
+  // If not logged in, render the login & registration screen
+  if (!currentUser) {
+    return <LoginScreen />;
+  }
+
   const selectedOrder = orders.find((o) => o.id === selectedOrderId) || null;
 
   return (
@@ -127,7 +232,6 @@ export default function App() {
           if (tab === 'new') setSelectedOrderId(null);
         }}
         orders={orders}
-        onOpenBackup={() => setIsBackupOpen(false)}
         onOpenVika={() => setIsVikaOpen(true)}
       />
 
@@ -144,6 +248,7 @@ export default function App() {
 
       {/* Main Screen Content */}
       <main className="flex-1 w-full">
+        {/* Tab 1: Lista de Ventas */}
         {activeTab === 'list' && (
           <OrdersListScreen
             orders={orders}
@@ -159,6 +264,7 @@ export default function App() {
           />
         )}
 
+        {/* Tab 2: Al Mayorista */}
         {activeTab === 'supply' && (
           <WholesalerSupplyScreen
             orders={orders}
@@ -169,6 +275,7 @@ export default function App() {
           />
         )}
 
+        {/* Tab 3: Nueva Venta */}
         {activeTab === 'new' && (
           <NewOrderScreen
             orders={orders}
@@ -182,6 +289,12 @@ export default function App() {
           />
         )}
 
+        {/* Tab 4: MÓDULO DE COMPRAS (Independiente para Jefe, Supervisor y Comprador) */}
+        {activeTab === 'compras' && canAccessCompras && (
+          <ComprasScreen purchases={purchases} />
+        )}
+
+        {/* Detail Screen */}
         {activeTab === 'detail' && selectedOrder && (
           <OrderDetailScreen
             order={selectedOrder}
@@ -191,16 +304,28 @@ export default function App() {
               setActiveTab('edit');
             }}
             onToggleStatus={(id) => handleToggleStatus(id)}
+            onAnular={handleAnularOrder}
             onDelete={handleDeleteOrder}
           />
         )}
 
+        {/* Edit Screen */}
         {activeTab === 'edit' && selectedOrder && (
           <OrderEditScreen
             order={selectedOrder}
             onSave={handleUpdateOrder}
             onCancel={() => setActiveTab('detail')}
           />
+        )}
+
+        {/* Tab 5: Reportes y Dashboards (Jefe, Supervisor y Comprador) */}
+        {activeTab === 'reports' && canViewReports && (
+          <ReportsScreen orders={orders} purchases={purchases} />
+        )}
+
+        {/* Tab 6: Gestión de Personal / Usuarios (Jefe y Supervisor) */}
+        {activeTab === 'users' && canAdminResetPasswords && (
+          <UserManagementScreen />
         )}
       </main>
 
@@ -222,19 +347,6 @@ export default function App() {
         </button>
       </div>
 
-      {/* Backup & Persistence Modal */}
-      {isBackupOpen && (
-        <BackupModal
-          orders={orders}
-          onClose={() => setIsBackupOpen(false)}
-          onRestoreOrders={(restored) => {
-            updateOrdersState(restored);
-            setIsBackupOpen(false);
-            showToast(`¡Se restauraron ${restored.length} pedidos!`);
-          }}
-        />
-      )}
-
       {/* VIKA Assistant Modal */}
       <VikaAssistantModal
         isOpen={isVikaOpen}
@@ -242,10 +354,9 @@ export default function App() {
         orders={orders}
         activeTab={activeTab}
         onTransferToNewOrder={handleTransferVikaDraft}
-        onSaveDirectOrder={(newOrder) => {
-          const updated = [newOrder, ...orders];
-          updateOrdersState(updated);
-          showToast(`¡Pedido #${newOrder.orderNumber} registrado con éxito por VIKA!`);
+        onSaveDirectOrder={async (newOrder) => {
+          await handleSaveNewOrder(newOrder);
+          showToast(`¡Venta #${newOrder.orderNumber} registrada con éxito por VIKA!`);
         }}
       />
     </div>

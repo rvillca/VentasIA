@@ -110,10 +110,14 @@ export const VikaGuideModal: React.FC<VikaGuideModalProps> = ({
               Presentaciones y Unidades Soportadas
             </h3>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-center">
-                <span className="block text-purple-400 font-bold text-xs">📦 Box</span>
+                <span className="block text-purple-400 font-bold text-xs">📦 Box Entero</span>
                 <span className="text-[11px] text-slate-400">24, 36, 48 ó 60 u.</span>
+              </div>
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-center">
+                <span className="block text-fuchsia-400 font-bold text-xs">📦 Medio Box (½)</span>
+                <span className="text-[11px] text-slate-400">12, 18, 24 ó 30 u.</span>
               </div>
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-center">
                 <span className="block text-indigo-400 font-bold text-xs">🎁 1 Docena</span>
@@ -123,9 +127,9 @@ export const VikaGuideModal: React.FC<VikaGuideModalProps> = ({
                 <span className="block text-cyan-400 font-bold text-xs">✨ Media Docena</span>
                 <span className="text-[11px] text-slate-400">6 unidades</span>
               </div>
-              <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-center">
-                <span className="block text-emerald-400 font-bold text-xs">🏷️ Unidad</span>
-                <span className="text-[11px] text-slate-400">1 pieza suelta</span>
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-center sm:col-span-2">
+                <span className="block text-emerald-400 font-bold text-xs">🏷️ Unidad Suelta</span>
+                <span className="text-[11px] text-slate-400">1 pieza individual</span>
               </div>
             </div>
           </div>

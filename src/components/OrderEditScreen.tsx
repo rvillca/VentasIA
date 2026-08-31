@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Order, OrderItem, OrderStatus } from '../types';
 import { formatCurrency, formatBoliviaPhone } from '../lib/storage';
+import { PackagingQuickSelector } from './PackagingQuickSelector';
 
 interface OrderEditScreenProps {
   order: Order;
@@ -256,16 +257,24 @@ export const OrderEditScreen: React.FC<OrderEditScreenProps> = ({
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 items-center">
+                  <div className="space-y-1.5">
                     <input
                       type="text"
                       value={prod.variante}
                       onChange={(e) =>
                         handleUpdateProduct(prod.id, 'variante', e.target.value)
                       }
-                      placeholder="Variante / Color"
-                      className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:ring-2 focus:ring-cyan-400 outline-none"
+                      placeholder="Presentación / Variante (ej. Box de 24 u., Medio Box 24...)"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:ring-2 focus:ring-cyan-400 outline-none"
                     />
+                    <PackagingQuickSelector
+                      value={prod.variante}
+                      onChange={(preset) => handleUpdateProduct(prod.id, 'variante', preset)}
+                      theme="indigo"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-2 gap-2 items-center pt-1">
 
                     <div className="flex items-center bg-slate-900 border border-slate-700 rounded-lg overflow-hidden">
                       <button
@@ -274,7 +283,7 @@ export const OrderEditScreen: React.FC<OrderEditScreenProps> = ({
                           handleUpdateProduct(
                             prod.id,
                             'cantidad',
-                            Math.max(1, (prod.cantidad || 1) - 1)
+                            Math.max(0, (prod.cantidad || 0) - 1)
                           )
                         }
                         className="w-7 h-7 flex items-center justify-center text-slate-300 text-sm font-bold"
@@ -283,15 +292,18 @@ export const OrderEditScreen: React.FC<OrderEditScreenProps> = ({
                       </button>
                       <input
                         type="number"
-                        min="1"
-                        value={prod.cantidad}
-                        onChange={(e) =>
+                        min="0"
+                        value={prod.cantidad === 0 ? '' : prod.cantidad}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => {
+                          const val = e.target.value;
                           handleUpdateProduct(
                             prod.id,
                             'cantidad',
-                            Math.max(1, parseInt(e.target.value, 10) || 1)
-                          )
-                        }
+                            val === '' ? 0 : Math.max(0, parseInt(val, 10) || 0)
+                          );
+                        }}
+                        placeholder="0"
                         className="w-full bg-transparent text-center text-xs font-bold text-white outline-none"
                       />
                       <button
@@ -300,7 +312,7 @@ export const OrderEditScreen: React.FC<OrderEditScreenProps> = ({
                           handleUpdateProduct(
                             prod.id,
                             'cantidad',
-                            (prod.cantidad || 1) + 1
+                            (prod.cantidad || 0) + 1
                           )
                         }
                         className="w-7 h-7 flex items-center justify-center text-slate-300 text-sm font-bold"
@@ -317,14 +329,17 @@ export const OrderEditScreen: React.FC<OrderEditScreenProps> = ({
                         type="number"
                         min="0"
                         step="0.5"
-                        value={prod.precioUnitario || ''}
-                        onChange={(e) =>
+                        value={prod.precioUnitario === 0 ? '' : (prod.precioUnitario || '')}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => {
+                          const val = e.target.value;
                           handleUpdateProduct(
                             prod.id,
                             'precioUnitario',
-                            Math.max(0, parseFloat(e.target.value) || 0)
-                          )
-                        }
+                            val === '' ? 0 : Math.max(0, parseFloat(val) || 0)
+                          );
+                        }}
+                        placeholder="0"
                         className="w-full bg-slate-900 border border-slate-700 rounded-lg py-1.5 pl-8 pr-2 text-xs font-bold text-white outline-none"
                       />
                     </div>
@@ -359,10 +374,13 @@ export const OrderEditScreen: React.FC<OrderEditScreenProps> = ({
               <input
                 type="number"
                 min="0"
-                value={pagado || ''}
-                onChange={(e) =>
-                  setPagado(Math.max(0, parseFloat(e.target.value) || 0))
-                }
+                value={pagado === 0 ? '' : pagado}
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setPagado(val === '' ? 0 : Math.max(0, parseFloat(val) || 0));
+                }}
+                placeholder="0"
                 className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-base font-bold text-emerald-300 outline-none"
               />
             </div>

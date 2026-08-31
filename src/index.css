@@ -1,1 +1,19 @@
 @import "tailwindcss";
+
+@media print {
+  @page {
+    margin: 0;
+    size: auto;
+  }
+  body {
+    background-color: white !important;
+    color: black !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  /* Hide any non-print interactive chrome */
+  #root > *:not(#thermal-print-modal):not(.ticket-print-root) {
+    display: none !important;
+  }
+}
+

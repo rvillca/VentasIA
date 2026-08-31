@@ -1,0 +1,76 @@
+{
+  "entities": {
+    "Order": {
+      "title": "Order",
+      "description": "Venta o pedido de cliente con desglose de productos, abonos y estado de entrega.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "orderNumber": { "type": "number" },
+        "cliente": { "type": "string" },
+        "telefono": { "type": "string" },
+        "lugarEntrega": { "type": "string" },
+        "observaciones": { "type": "string" },
+        "total": { "type": "number" },
+        "pagado": { "type": "number" },
+        "saldo": { "type": "number" },
+        "estado": { "type": "string" },
+        "vendedorNombre": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["orderNumber", "cliente", "total", "estado", "createdAt"]
+    },
+    "Purchase": {
+      "title": "Purchase",
+      "description": "Registro de compra o adquisición de mercadería a mayoristas/proveedores.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "purchaseNumber": { "type": "number" },
+        "proveedor": { "type": "string" },
+        "telefonoProveedor": { "type": "string" },
+        "numeroFacturaRecibo": { "type": "string" },
+        "metodoPago": { "type": "string" },
+        "fechaCompra": { "type": "string" },
+        "total": { "type": "number" },
+        "pagado": { "type": "number" },
+        "saldo": { "type": "number" },
+        "estado": { "type": "string" },
+        "compradorNombre": { "type": "string" },
+        "observaciones": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["purchaseNumber", "proveedor", "total", "estado", "createdAt"]
+    },
+    "AppUser": {
+      "title": "AppUser",
+      "description": "Perfil de usuario con asignación de rol (Jefe, Vendedor, Supervisor, Comprador).",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "role"]
+    }
+  },
+  "firestore": {
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Colección de pedidos y ventas registradas."
+    },
+    "/purchases/{purchaseId}": {
+      "schema": { "$ref": "#/entities/Purchase" },
+      "description": "Colección de compras a proveedores e insumos."
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/AppUser" },
+      "description": "Colección de perfiles de usuario del sistema."
+    }
+  }
+}

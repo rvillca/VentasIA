@@ -17,6 +17,8 @@ import {
 import { Order, OrderItem } from '../types';
 import { formatCurrency, getNextOrderNumber, formatBoliviaPhone } from '../lib/storage';
 import { VikaGuideModal } from './VikaGuideModal';
+import { useAuth } from '../contexts/AuthContext';
+import { PackagingQuickSelector } from './PackagingQuickSelector';
 
 interface NewOrderScreenProps {
   orders: Order[];
@@ -55,6 +57,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
   initialDraft,
   onOpenVika,
 }) => {
+  const { userProfile } = useAuth();
   // Order form state
   const [cliente, setCliente] = useState('');
   const [telefono, setTelefono] = useState('');
@@ -158,7 +161,12 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
     e.preventDefault();
 
     const cleanCliente = cliente.trim() || 'Cliente Mostrador / TikTok';
-    const cleanProductos = productos.filter((p) => p.nombre.trim() !== '');
+    const cleanProductos = productos
+      .filter((p) => p.nombre.trim() !== '')
+      .map((p) => ({
+        ...p,
+        cantidad: Math.max(1, p.cantidad || 1),
+      }));
 
     if (cleanProductos.length === 0) {
       alert('Por favor ingresa al menos un producto o pídele a VIKA que arme tu lista.');
@@ -178,6 +186,8 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
       pagado: Math.max(0, pagado),
       saldo: calculatedSaldo,
       estado: 'Abierto',
+      vendedorUid: userProfile?.uid,
+      vendedorNombre: userProfile?.displayName || 'Vendedor',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -452,21 +462,12 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
                         />
 
                         {/* Quick Presentation presets */}
-                        <div className="flex flex-wrap gap-1">
-                          {PACKAGING_PRESETS.map((preset) => (
-                            <button
-                              key={preset}
-                              type="button"
-                              onClick={() => handleUpdateProduct(prod.id, 'variante', preset)}
-                              className={`px-2 py-0.5 rounded text-[10px] font-medium transition ${
-                                prod.variante === preset
-                                  ? 'bg-purple-600 text-white font-bold'
-                                  : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700/60'
-                              }`}
-                            >
-                              {preset}
-                            </button>
-                          ))}
+                        <div className="mt-1">
+                          <PackagingQuickSelector
+                            value={prod.variante}
+                            onChange={(preset) => handleUpdateProduct(prod.id, 'variante', preset)}
+                            theme="indigo"
+                          />
                         </div>
                       </div>
                     </div>
@@ -496,7 +497,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
                             handleUpdateProduct(
                               prod.id,
                               'cantidad',
-                              Math.max(1, (prod.cantidad || 1) - 1)
+                              Math.max(0, (prod.cantidad || 0) - 1)
                             )
                           }
                           className="w-8 h-8 flex items-center justify-center text-slate-300 hover:bg-slate-800 active:bg-slate-700 text-base font-bold"
@@ -505,15 +506,18 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
                         </button>
                         <input
                           type="number"
-                          min="1"
-                          value={prod.cantidad}
-                          onChange={(e) =>
+                          min="0"
+                          value={prod.cantidad === 0 ? '' : prod.cantidad}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => {
+                            const val = e.target.value;
                             handleUpdateProduct(
                               prod.id,
                               'cantidad',
-                              Math.max(1, parseInt(e.target.value, 10) || 1)
+                              val === '' ? 0 : Math.max(0, parseInt(val, 10) || 0)
                             )
-                          }
+                          }}
+                          placeholder="0"
                           className="w-full bg-transparent text-center text-xs font-bold text-white focus:outline-none"
                         />
                         <button
@@ -522,7 +526,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
                             handleUpdateProduct(
                               prod.id,
                               'cantidad',
-                              (prod.cantidad || 1) + 1
+                              (prod.cantidad || 0) + 1
                             )
                           }
                           className="w-8 h-8 flex items-center justify-center text-slate-300 hover:bg-slate-800 active:bg-slate-700 text-base font-bold"
@@ -545,14 +549,16 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
                           type="number"
                           min="0"
                           step="0.5"
-                          value={prod.precioUnitario || ''}
-                          onChange={(e) =>
+                          value={prod.precioUnitario === 0 ? '' : (prod.precioUnitario || '')}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => {
+                            const val = e.target.value;
                             handleUpdateProduct(
                               prod.id,
                               'precioUnitario',
-                              Math.max(0, parseFloat(e.target.value) || 0)
+                              val === '' ? 0 : Math.max(0, parseFloat(val) || 0)
                             )
-                          }
+                          }}
                           placeholder="0"
                           className="w-full bg-slate-900 border border-slate-700 rounded-lg py-1.5 pl-9 pr-2 text-xs font-bold text-white focus:outline-none focus:ring-2 focus:ring-cyan-400"
                         />
@@ -610,10 +616,12 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
                   type="number"
                   min="0"
                   step="1"
-                  value={pagado || ''}
-                  onChange={(e) =>
-                    setPagado(Math.max(0, parseFloat(e.target.value) || 0))
-                  }
+                  value={pagado === 0 ? '' : pagado}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setPagado(val === '' ? 0 : Math.max(0, parseFloat(val) || 0));
+                  }}
                   placeholder="0"
                   className="w-full bg-slate-900 border border-emerald-500/40 rounded-lg py-2 pl-9 pr-3 text-base font-bold text-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-400"
                 />

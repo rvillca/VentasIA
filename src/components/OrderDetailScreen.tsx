@@ -12,18 +12,22 @@ import {
   DollarSign,
   Package,
   Calendar,
-  Share2,
   Copy,
   Check,
   Printer,
+  XCircle,
+  AlertTriangle,
+  User,
+  Shield,
 } from 'lucide-react';
-import { Order, OrderStatus } from '../types';
+import { Order } from '../types';
 import {
   formatCurrency,
   generateWhatsAppReceiptText,
   getWhatsAppUrl,
 } from '../lib/storage';
 import { ThermalPrintModal } from './ThermalPrintModal';
+import { useAuth } from '../contexts/AuthContext';
 
 interface OrderDetailScreenProps {
   order: Order;
@@ -31,6 +35,7 @@ interface OrderDetailScreenProps {
   onEdit: (order: Order) => void;
   onToggleStatus: (orderId: string) => void;
   onDelete: (orderId: string) => void;
+  onAnular: (orderId: string, motivo: string) => void;
 }
 
 export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
@@ -39,12 +44,17 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
   onEdit,
   onToggleStatus,
   onDelete,
+  onAnular,
 }) => {
+  const { canDeleteOrders, isJefe, isSupervisor, isVendedor, userProfile } = useAuth();
   const [copied, setCopied] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showAnularModal, setShowAnularModal] = useState(false);
+  const [motivoAnulacion, setMotivoAnulacion] = useState('');
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
   const isDelivered = order.estado === 'Entregado';
+  const isAnulado = order.estado === 'Anulado';
   const hasPendingBalance = order.saldo > 0;
   const whatsAppUrl = getWhatsAppUrl(order);
 
@@ -53,6 +63,13 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
+  };
+
+  const handleConfirmAnulacion = () => {
+    if (!motivoAnulacion.trim()) return;
+    onAnular(order.id, motivoAnulacion.trim());
+    setShowAnularModal(false);
+    setMotivoAnulacion('');
   };
 
   const formattedDate = new Date(order.createdAt).toLocaleDateString('es-ES', {
@@ -75,7 +92,7 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
             className="p-2.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 rounded-xl transition-all flex items-center gap-1.5 text-xs font-semibold"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Volver a Pedidos</span>
+            <span>Volver a Ventas</span>
           </button>
 
           <div className="flex items-center gap-2">
@@ -83,49 +100,109 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
               id="detail-print-btn"
               onClick={() => setIsPrintModalOpen(true)}
               className="p-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl transition-all flex items-center gap-1.5 text-xs font-bold shadow-md shadow-purple-900/30 active:scale-95"
-              title="Imprimir comanda térmica o exportar PDF"
+              title="Reimprimir ticket de pedido en impresora térmica"
             >
               <Printer className="w-4 h-4" />
-              <span>Imprimir Ticket / PDF</span>
+              <span>Imprimir Ticket</span>
             </button>
 
-            <button
-              id="detail-edit-btn"
-              onClick={() => onEdit(order)}
-              className="p-2.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-cyan-300 rounded-xl transition-all flex items-center gap-1.5 text-xs font-semibold border border-slate-700"
-              title="Editar pedido"
-            >
-              <Edit3 className="w-4 h-4" />
-              <span className="hidden sm:inline">Editar</span>
-            </button>
+            {!isAnulado && (
+              <button
+                id="detail-edit-btn"
+                onClick={() => onEdit(order)}
+                className="p-2.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-cyan-300 rounded-xl transition-all flex items-center gap-1.5 text-xs font-semibold border border-slate-700"
+                title="Editar pedido"
+              >
+                <Edit3 className="w-4 h-4" />
+                <span className="hidden sm:inline">Editar</span>
+              </button>
+            )}
 
-            <button
-              id="detail-delete-btn"
-              onClick={() => setShowDeleteConfirm(true)}
-              className="p-2.5 bg-rose-950/60 hover:bg-rose-900/80 active:scale-95 text-rose-300 rounded-xl transition-all flex items-center gap-1.5 text-xs font-semibold border border-rose-800/40"
-              title="Eliminar pedido"
-            >
-              <Trash2 className="w-4 h-4" />
-              <span className="hidden sm:inline">Eliminar</span>
-            </button>
+            {/* VENDEDOR / SUPERVISOR / JEFE: Anular Venta */}
+            {!isAnulado && (
+              <button
+                id="detail-anular-btn"
+                onClick={() => setShowAnularModal(true)}
+                className="p-2.5 bg-amber-950/60 hover:bg-amber-900/80 active:scale-95 text-amber-300 rounded-xl transition-all flex items-center gap-1.5 text-xs font-semibold border border-amber-800/40"
+                title="Anular venta (los vendedores pueden anular)"
+              >
+                <XCircle className="w-4 h-4" />
+                <span className="hidden sm:inline">Anular Venta</span>
+              </button>
+            )}
+
+            {/* SOLO JEFE / ADMIN: Eliminar definitivamente */}
+            {canDeleteOrders && (
+              <button
+                id="detail-delete-btn"
+                onClick={() => setShowDeleteConfirm(true)}
+                className="p-2.5 bg-rose-950/60 hover:bg-rose-900/80 active:scale-95 text-rose-300 rounded-xl transition-all flex items-center gap-1.5 text-xs font-semibold border border-rose-800/40"
+                title="Eliminar permanentemente (Solo Jefe)"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span className="hidden sm:inline">Eliminar (Admin)</span>
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Delete Confirmation Alert */}
-        {showDeleteConfirm && (
+        {/* Modal de Anulación de Venta */}
+        {showAnularModal && (
+          <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-amber-500/60 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-scale-up">
+              <div className="flex items-center gap-3 text-amber-400">
+                <AlertTriangle className="w-6 h-6 shrink-0" />
+                <h3 className="text-lg font-bold text-white font-['Outfit',sans-serif]">
+                  Anular Pedido #{order.orderNumber}
+                </h3>
+              </div>
+              <p className="text-xs text-slate-300">
+                Esta venta quedará registrada como <strong>Anulada</strong> para el control del supervisor y jefe. Por favor indica el motivo:
+              </p>
+              <textarea
+                required
+                rows={3}
+                value={motivoAnulacion}
+                onChange={(e) => setMotivoAnulacion(e.target.value)}
+                placeholder="ej: El cliente de TikTok canceló el pedido por demora / Producto sin stock..."
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAnularModal(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-semibold text-slate-300"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={!motivoAnulacion.trim()}
+                  onClick={handleConfirmAnulacion}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold disabled:opacity-50"
+                >
+                  Confirmar Anulación
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Alert (Solo Jefe) */}
+        {showDeleteConfirm && canDeleteOrders && (
           <div
             id="delete-confirm-box"
             className="p-4 bg-rose-950/90 border border-rose-600/60 rounded-2xl text-white space-y-3 shadow-2xl animate-fade-in"
           >
             <p className="font-bold text-sm text-rose-200">
-              ¿Estás seguro de que deseas eliminar permanentemente este pedido #{order.orderNumber}?
+              ¿Estás seguro de que deseas eliminar permanentemente este pedido #{order.orderNumber} de la base de datos?
             </p>
             <div className="flex gap-2">
               <button
                 onClick={() => onDelete(order.id)}
                 className="px-4 py-2 bg-rose-600 hover:bg-rose-500 rounded-xl text-xs font-bold text-white transition-colors"
               >
-                Sí, eliminar
+                Sí, eliminar definitivamente
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(false)}
@@ -137,22 +214,49 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
           </div>
         )}
 
+        {/* Banner if Anulado */}
+        {isAnulado && (
+          <div className="p-4 bg-rose-950/80 border border-rose-600/80 rounded-2xl text-rose-200 space-y-1">
+            <div className="flex items-center gap-2 font-bold text-sm">
+              <XCircle className="w-5 h-5 text-rose-400" />
+              <span>ESTA VENTA ESTÁ ANULADA</span>
+            </div>
+            {order.motivoAnulacion && (
+              <p className="text-xs text-rose-300">
+                <strong>Motivo:</strong> {order.motivoAnulacion}
+              </p>
+            )}
+            {order.anuladoPor && (
+              <p className="text-[11px] text-rose-400">
+                Anulado por: {order.anuladoPor} · {order.anuladoAt ? new Date(order.anuladoAt).toLocaleString('es-BO') : ''}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Main Order Header Card */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs font-black font-mono text-cyan-300 bg-cyan-950 px-2.5 py-1 rounded-lg border border-cyan-500/30">
-                  PEDIDO #{String(order.orderNumber).padStart(3, '0')}
+                  VENTA #{String(order.orderNumber).padStart(3, '0')}
                 </span>
                 <span
                   className={`text-xs font-bold px-2.5 py-1 rounded-lg border flex items-center gap-1 ${
-                    isDelivered
+                    isAnulado
+                      ? 'bg-rose-950/80 border-rose-500/40 text-rose-300'
+                      : isDelivered
                       ? 'bg-emerald-950/80 border-emerald-500/40 text-emerald-300'
                       : 'bg-blue-950/80 border-blue-500/40 text-blue-300'
                   }`}
                 >
-                  {isDelivered ? (
+                  {isAnulado ? (
+                    <>
+                      <XCircle className="w-3.5 h-3.5 text-rose-400" />
+                      <span>Anulado</span>
+                    </>
+                  ) : isDelivered ? (
                     <>
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                       <span>Entregado</span>
@@ -168,34 +272,44 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
               <h1 className="text-2xl sm:text-3xl font-black text-white font-['Outfit',sans-serif]">
                 {order.cliente || 'Cliente sin nombre'}
               </h1>
-              <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-1 capitalize">
-                <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                {formattedDate}
-              </p>
+              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 mt-1 capitalize">
+                <span className="flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                  {formattedDate}
+                </span>
+                {order.vendedorNombre && (
+                  <span className="flex items-center gap-1 text-slate-300">
+                    <User className="w-3.5 h-3.5 text-cyan-400" />
+                    Vendedor: <strong>{order.vendedorNombre}</strong>
+                  </span>
+                )}
+              </div>
             </div>
 
-            {/* Quick Toggle Status Button */}
-            <button
-              id="detail-toggle-status-btn"
-              onClick={() => onToggleStatus(order.id)}
-              className={`py-3 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md ${
-                isDelivered
-                  ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
-                  : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30'
-              }`}
-            >
-              {isDelivered ? (
-                <>
-                  <Clock className="w-4 h-4 text-cyan-400" />
-                  <span>Reabrir Pedido</span>
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Marcar como Entregado</span>
-                </>
-              )}
-            </button>
+            {/* Quick Toggle Status Button (if not anulado) */}
+            {!isAnulado && (
+              <button
+                id="detail-toggle-status-btn"
+                onClick={() => onToggleStatus(order.id)}
+                className={`py-3 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md ${
+                  isDelivered
+                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30'
+                }`}
+              >
+                {isDelivered ? (
+                  <>
+                    <Clock className="w-4 h-4 text-cyan-400" />
+                    <span>Reabrir Pedido</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Marcar como Entregado</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
 
           {/* Customer contact & Delivery details */}
@@ -343,7 +457,7 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
                   hasPendingBalance ? 'text-amber-400' : 'text-emerald-400'
                 }`}
               >
-                {formatCurrency(order.saldo)}
+                {hasPendingBalance ? formatCurrency(order.saldo) : 'Bs. 0 (Pagado)'}
               </span>
             </div>
           </div>
@@ -370,7 +484,7 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
               className="py-4 px-6 rounded-2xl font-bold text-base text-white bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 active:scale-[0.99] shadow-xl shadow-purple-600/30 flex items-center justify-center gap-2.5 transition-all"
             >
               <Printer className="w-5 h-5" />
-              <span>Imprimir Ticket Térmico / PDF</span>
+              <span>Imprimir Ticket Térmico</span>
             </button>
           </div>
 

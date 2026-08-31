@@ -1,0 +1,44 @@
+{
+  "entities": {
+    "users": {
+      "title": "Users",
+      "description": "App users with role based permissions (jefe/admin, supervisor, vendedor)",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["jefe", "supervisor", "vendedor"] },
+        "createdAt": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "disabled": { "type": "boolean" }
+      },
+      "required": ["uid", "email", "displayName", "role"]
+    },
+    "orders": {
+      "title": "Orders",
+      "description": "Sales orders recorded by sellers, supervisor, or boss",
+      "type": "object",
+      "properties": {
+        "orderNumber": { "type": "number" },
+        "cliente": { "type": "string" },
+        "telefono": { "type": "string" },
+        "lugarEntrega": { "type": "string" },
+        "observaciones": { "type": "string" },
+        "productos": { "type": "array" },
+        "total": { "type": "number" },
+        "pagado": { "type": "number" },
+        "saldo": { "type": "number" },
+        "estado": { "type": "string", "enum": ["Abierto", "Entregado", "Anulado"] },
+        "vendedorUid": { "type": "string" },
+        "vendedorNombre": { "type": "string" },
+        "anuladoPor": { "type": "string" },
+        "motivoAnulacion": { "type": "string" },
+        "anuladoAt": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["orderNumber", "cliente", "productos", "total", "estado", "createdAt"]
+    }
+  }
+}

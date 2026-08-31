@@ -40,6 +40,200 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
+// Endpoint to ensure / reset Jefe account with password 220987
+app.post('/api/auth/setup-jefe', async (req, res) => {
+  try {
+    const email = 'rvillca@outlook.com';
+    const password = (req.body && req.body.password) ? String(req.body.password).trim() : '220987';
+    const displayName = 'Rodrigo Villca (Jefe)';
+
+    const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+    const { default: fs } = await import('fs');
+    const rawConfig = fs.readFileSync(configPath, 'utf-8');
+    const firebaseConfig = JSON.parse(rawConfig);
+    const apiKey = firebaseConfig.apiKey;
+    const databaseId = firebaseConfig.firestoreDatabaseId || '(default)';
+    const projectId = firebaseConfig.projectId;
+
+    let uid = '';
+    let idToken = '';
+
+    // Step 1: Try to sign in with new password
+    const signInUrl = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`;
+    const signInRes = await fetch(signInUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, returnSecureToken: true }),
+    });
+
+    const signInData = (await signInRes.json()) as any;
+
+    if (signInRes.ok) {
+      uid = signInData.localId;
+      idToken = signInData.idToken;
+    } else {
+      // Step 2: Try creating the user
+      const signUpUrl = `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`;
+      const signUpRes = await fetch(signUpUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, displayName, returnSecureToken: true }),
+      });
+      const signUpData = (await signUpRes.json()) as any;
+
+      if (signUpRes.ok) {
+        uid = signUpData.localId;
+        idToken = signUpData.idToken;
+      } else {
+        // User might exist with old password (e.g. 123456) -> Try signing in with 123456 then update password to 220987
+        const oldSignInRes = await fetch(signInUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password: '123456', returnSecureToken: true }),
+        });
+        const oldSignInData = (await oldSignInRes.json()) as any;
+
+        if (oldSignInRes.ok) {
+          uid = oldSignInData.localId;
+          const oldToken = oldSignInData.idToken;
+
+          // Update password to 220987
+          const updateUrl = `https://identitytoolkit.googleapis.com/v1/accounts:update?key=${apiKey}`;
+          const updateRes = await fetch(updateUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idToken: oldToken, password, returnSecureToken: true }),
+          });
+          const updateData = (await updateRes.json()) as any;
+          if (updateRes.ok) {
+            idToken = updateData.idToken;
+          } else {
+            idToken = oldToken;
+          }
+        } else {
+          // If neither works, try sending a password reset email or return error
+          return res.status(400).json({
+            error: signUpData.error?.message || 'Error al configurar cuenta de Jefe',
+          });
+        }
+      }
+    }
+
+    // Step 3: Ensure Firestore Document has role: 'jefe'
+    if (uid && idToken) {
+      const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents/users/${uid}?key=${apiKey}`;
+      const docBody = {
+        fields: {
+          uid: { stringValue: uid },
+          email: { stringValue: email },
+          displayName: { stringValue: displayName },
+          role: { stringValue: 'jefe' },
+          createdAt: { stringValue: new Date().toISOString() },
+        },
+      };
+
+      await fetch(firestoreUrl, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify(docBody),
+      });
+    }
+
+    return res.json({
+      success: true,
+      email,
+      uid,
+      role: 'jefe',
+      message: 'Cuenta de Jefe verificada y configurada con contraseña 220987',
+    });
+  } catch (err: any) {
+    console.error('Error in setup-jefe:', err);
+    return res.status(500).json({ error: err.message || 'Error del servidor' });
+  }
+});
+
+// Admin User Creation Endpoint (Allows Jefe to create Vendedor/Supervisor accounts securely)
+app.post('/api/admin/create-user', async (req, res) => {
+  try {
+    const { email, password, displayName, role } = req.body;
+    if (!email || !password || !role) {
+      return res.status(400).json({ error: 'Faltan campos obligatorios (email, password, role).' });
+    }
+
+    // Read firebase config
+    const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+    const { default: fs } = await import('fs');
+    const rawConfig = fs.readFileSync(configPath, 'utf-8');
+    const firebaseConfig = JSON.parse(rawConfig);
+    const apiKey = firebaseConfig.apiKey;
+
+    // Use Firebase Auth REST API to create user without logging out the current admin session
+    const signupUrl = `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`;
+    const signupRes = await fetch(signupUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        password,
+        displayName: displayName || email.split('@')[0],
+        returnSecureToken: true,
+      }),
+    });
+
+    const signupData = (await signupRes.json()) as any;
+    if (!signupRes.ok) {
+      const errMsg = signupData.error?.message || 'Error al registrar en Firebase Auth';
+      let friendlyError = errMsg;
+      if (errMsg.includes('EMAIL_EXISTS')) friendlyError = 'El correo electrónico ya está registrado.';
+      if (errMsg.includes('WEAK_PASSWORD')) friendlyError = 'La contraseña debe tener al menos 6 caracteres.';
+      if (errMsg.includes('INVALID_EMAIL')) friendlyError = 'Correo electrónico no válido.';
+      return res.status(400).json({ error: friendlyError });
+    }
+
+    const newUid = signupData.localId;
+
+    // Write profile directly to Firestore via REST API
+    const databaseId = firebaseConfig.firestoreDatabaseId || '(default)';
+    const projectId = firebaseConfig.projectId;
+    const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents/users/${newUid}?key=${apiKey}`;
+
+    const docBody = {
+      fields: {
+        uid: { stringValue: newUid },
+        email: { stringValue: email },
+        displayName: { stringValue: displayName || email.split('@')[0] },
+        role: { stringValue: role },
+        createdAt: { stringValue: new Date().toISOString() },
+      },
+    };
+
+    await fetch(firestoreUrl, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${signupData.idToken}`,
+      },
+      body: JSON.stringify(docBody),
+    });
+
+    return res.json({
+      success: true,
+      user: {
+        uid: newUid,
+        email,
+        displayName,
+        role,
+      },
+    });
+  } catch (err: any) {
+    console.error('Error creating user by admin:', err);
+    return res.status(500).json({ error: err.message || 'Error del servidor al crear usuario.' });
+  }
+});
+
 // Helper to format Bolivian phone numbers with +591
 function formatBoliviaServerPhone(raw: string): string {
   if (!raw) return '';
@@ -377,13 +571,14 @@ app.post('/api/vika-chat', async (req, res) => {
       const ai = getGeminiClient();
 
       const systemInstruction = `
-Eres VIKA, la asistente virtual y copiloto de ventas de una tienda en Bolivia especializada en mochilas temáticas (Kuromi, Stitch, Spiderman, anime) y papelería kawaii/escolar (cuadernos, libretas, bolígrafos, plumones, gomas, tajadores, estuches, stickers) por TikTok Live y WhatsApp.
+Eres VIKA, la asistente virtual y copiloto de ventas de "Importadora Chiquiminisos" en Bolivia, especializada en Papelería y artículos Kawaii (cuadernos, libretas, bolígrafos, plumones, gomas, tajadores, estuches, stickers, mochilas temáticas de Kuromi, Stitch, Sanrio, etc.) por TikTok Live, tienda y WhatsApp.
 
 TU ROL Y OBJETIVO PRINCIPAL:
 1. Tu trabajo principal es ESCUCHAR O LEER el dictado del vendedor y EXTRAER LA LISTA EXACTA DE PRODUCTOS Y SUS CANTIDADES/PRESENTACIONES.
 2. NO te compliques con cálculos de precios si no se mencionan explícitamente: el vendedor colocará los precios unitarios al final en el formulario. Si no menciona precios, asigna precioUnitario: 0. Si menciona precios específicos, puedes incluirlos.
 3. Debes entender perfectamente las presentaciones de venta en Bolivia:
-   - BOX / CAJA: "box de 24", "box de 36", "box de 48", "box de 60" unidades (o la cantidad de piezas especificada).
+   - BOX ENTERO: "box de 24", "box de 36", "box de 48", "box de 60" unidades (o la cantidad de piezas especificada).
+   - MEDIO BOX (½ BOX): "medio box de 24" o "medio box 24" (12 u.), "medio box de 36" o "medio box 36" (18 u.), "medio box de 48" o "medio box 48" (24 u.), "medio box de 60" o "medio box 60" (30 u.).
    - DOCENA: "1 docena", "2 docenas" (12 unidades c/u).
    - MEDIA DOCENA: "media docena" (6 unidades).
    - UNIDAD: "1 unidad", "2 piezas", etc.
@@ -391,8 +586,8 @@ TU ROL Y OBJETIVO PRINCIPAL:
 REGLAS DE EXTRACCIÓN DE PRODUCTOS:
 - Extrae cada producto como un elemento separado en la lista "productos":
   * "nombre": Nombre limpio del producto (ej: "Gomas Kitty", "Bolígrafos Sanrio", "Tajadores Kuromi", "Mochila Spiderman").
-  * "variante": La presentación o empaque exacto (ej: "Box de 48 u.", "Docena (12 u.)", "Box de 24 u.", "Media Docena (6 u.)", "Box de 36 u.", "Box de 60 u.", "Unidad", o color si se menciona).
-  * "cantidad": La cantidad de cajas, docenas o unidades pedidas (ej: si dijo "1 box de 48", cantidad: 1; si dijo "2 docenas", cantidad: 2).
+  * "variante": La presentación o empaque exacto (ej: "Box de 24 u.", "Medio Box de 24 (12 u.)", "Box de 36 u.", "Medio Box de 36 (18 u.)", "Box de 48 u.", "Medio Box de 48 (24 u.)", "Box de 60 u.", "Medio Box de 60 (30 u.)", "Docena (12 u.)", "Media Docena (6 u.)", "Unidad", o color si se menciona).
+  * "cantidad": La cantidad de cajas, medios boxes, docenas o unidades pedidas (ej: si dijo "1 medio box de 24", cantidad: 1, variante: "Medio Box de 24 (12 u.)"; si dijo "1 box de 48", cantidad: 1, variante: "Box de 48 u."; si dijo "2 docenas", cantidad: 2, variante: "Docena (12 u.)").
   * "precioUnitario": Si se mencionó precio unitario en Bs., colócalo; si no se mencionó, coloca 0.
 
 EJEMPLO DE DICTADO:
