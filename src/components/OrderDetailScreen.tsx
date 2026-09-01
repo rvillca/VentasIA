@@ -19,15 +19,20 @@ import {
   AlertTriangle,
   User,
   Shield,
+  Sparkles,
+  Share2,
 } from 'lucide-react';
 import { Order } from '../types';
 import {
   formatCurrency,
   generateWhatsAppReceiptText,
   getWhatsAppUrl,
+  completeOrderBalanceInFirestore,
 } from '../lib/storage';
 import { ThermalPrintModal } from './ThermalPrintModal';
+import { OrderPreparationCardModal } from './OrderPreparationCardModal';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface OrderDetailScreenProps {
   order: Order;
@@ -47,15 +52,18 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
   onAnular,
 }) => {
   const { canDeleteOrders, isJefe, isSupervisor, isVendedor, userProfile } = useAuth();
+  const { isDark } = useTheme();
   const [copied, setCopied] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showAnularModal, setShowAnularModal] = useState(false);
   const [motivoAnulacion, setMotivoAnulacion] = useState('');
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [isPrepModalOpen, setIsPrepModalOpen] = useState(false);
+  const [isCompletingBalance, setIsCompletingBalance] = useState(false);
 
   const isDelivered = order.estado === 'Entregado';
   const isAnulado = order.estado === 'Anulado';
-  const hasPendingBalance = order.saldo > 0;
+  const hasPendingBalance = order.saldo > 0 && !isAnulado;
   const whatsAppUrl = getWhatsAppUrl(order);
 
   const handleCopyReceipt = () => {
@@ -72,6 +80,18 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
     setMotivoAnulacion('');
   };
 
+  const handleCompleteBalance = async () => {
+    if (!hasPendingBalance) return;
+    setIsCompletingBalance(true);
+    try {
+      await completeOrderBalanceInFirestore(order.id, order.total);
+    } catch (err) {
+      console.error('Error completing balance:', err);
+    } finally {
+      setIsCompletingBalance(false);
+    }
+  };
+
   const formattedDate = new Date(order.createdAt).toLocaleDateString('es-ES', {
     weekday: 'long',
     day: 'numeric',
@@ -85,35 +105,62 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
     <>
       <div id="order-detail-container" className="max-w-3xl mx-auto px-4 py-4 sm:py-6 space-y-6">
         {/* Top navigation & action header */}
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <button
             id="detail-back-btn"
             onClick={onBack}
-            className="p-2.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 rounded-xl transition-all flex items-center gap-1.5 text-xs font-semibold"
+            className={`p-2.5 rounded-2xl transition-all flex items-center gap-1.5 text-xs font-bold active:scale-95 border cursor-pointer ${
+              isDark
+                ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-white border-[#223368]'
+                : 'bg-white hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]'
+            }`}
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Volver a Ventas</span>
           </button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Warehouse prep slip for WhatsApp */}
+            <button
+              id="detail-prep-modal-btn"
+              onClick={() => setIsPrepModalOpen(true)}
+              className={`p-2.5 rounded-2xl transition-all flex items-center gap-1.5 text-xs font-bold active:scale-95 border cursor-pointer ${
+                isDark
+                  ? 'bg-[#1E2D5A] hover:bg-[#283C75] text-[#FF6FA5] border-[#223368]'
+                  : 'bg-[#F5EFE0] hover:bg-[#EBE2CF] text-[#1A2B5C] border-[#E8DFC8]'
+              }`}
+              title="Abrir ficha visual de preparación para WhatsApp / Almacén"
+            >
+              <Package className={`w-4 h-4 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
+              <span>Ficha WhatsApp</span>
+            </button>
+
             <button
               id="detail-print-btn"
               onClick={() => setIsPrintModalOpen(true)}
-              className="p-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl transition-all flex items-center gap-1.5 text-xs font-bold shadow-md shadow-purple-900/30 active:scale-95"
+              className={`p-2.5 rounded-2xl transition-all flex items-center gap-1.5 text-xs font-bold active:scale-95 border cursor-pointer ${
+                isDark
+                  ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-white border-[#223368]'
+                  : 'bg-white hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]'
+              }`}
               title="Reimprimir ticket de pedido en impresora térmica"
             >
-              <Printer className="w-4 h-4" />
-              <span>Imprimir Ticket</span>
+              <Printer className={`w-4 h-4 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
+              <span>Ticket</span>
             </button>
 
             {!isAnulado && (
               <button
                 id="detail-edit-btn"
                 onClick={() => onEdit(order)}
-                className="p-2.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-cyan-300 rounded-xl transition-all flex items-center gap-1.5 text-xs font-semibold border border-slate-700"
+                className={`p-2.5 rounded-2xl transition-all flex items-center gap-1.5 text-xs font-bold active:scale-95 border cursor-pointer ${
+                  isDark
+                    ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-white border-[#223368]'
+                    : 'bg-white hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]'
+                }`}
                 title="Editar pedido"
               >
-                <Edit3 className="w-4 h-4" />
+                <Edit3 className={`w-4 h-4 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
                 <span className="hidden sm:inline">Editar</span>
               </button>
             )}
@@ -123,11 +170,15 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
               <button
                 id="detail-anular-btn"
                 onClick={() => setShowAnularModal(true)}
-                className="p-2.5 bg-amber-950/60 hover:bg-amber-900/80 active:scale-95 text-amber-300 rounded-xl transition-all flex items-center gap-1.5 text-xs font-semibold border border-amber-800/40"
-                title="Anular venta (los vendedores pueden anular)"
+                className={`p-2.5 rounded-2xl transition-all flex items-center gap-1.5 text-xs font-bold active:scale-95 border cursor-pointer ${
+                  isDark
+                    ? 'bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border-rose-800/40'
+                    : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
+                }`}
+                title="Anular venta"
               >
                 <XCircle className="w-4 h-4" />
-                <span className="hidden sm:inline">Anular Venta</span>
+                <span className="hidden sm:inline">Anular</span>
               </button>
             )}
 
@@ -136,11 +187,11 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
               <button
                 id="detail-delete-btn"
                 onClick={() => setShowDeleteConfirm(true)}
-                className="p-2.5 bg-rose-950/60 hover:bg-rose-900/80 active:scale-95 text-rose-300 rounded-xl transition-all flex items-center gap-1.5 text-xs font-semibold border border-rose-800/40"
-                title="Eliminar permanentemente (Solo Jefe)"
+                className="p-2.5 bg-rose-700 hover:bg-rose-800 active:scale-95 text-white rounded-2xl transition-all flex items-center gap-1.5 text-xs font-bold shadow-md cursor-pointer"
+                title="Eliminar permanentemente (Solo Jefa)"
               >
                 <Trash2 className="w-4 h-4" />
-                <span className="hidden sm:inline">Eliminar (Admin)</span>
+                <span className="hidden sm:inline">Eliminar</span>
               </button>
             )}
           </div>
@@ -148,30 +199,40 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
 
         {/* Modal de Anulación de Venta */}
         {showAnularModal && (
-          <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-slate-900 border border-amber-500/60 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-scale-up">
-              <div className="flex items-center gap-3 text-amber-400">
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className={`border rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-scale-up ${
+              isDark ? 'bg-[#16234F] border-[#FFA26B]/50' : 'bg-white border-[#E8DFC8]'
+            }`}>
+              <div className={`flex items-center gap-3 ${isDark ? 'text-[#FFA26B]' : 'text-[#C2410C]'}`}>
                 <AlertTriangle className="w-6 h-6 shrink-0" />
-                <h3 className="text-lg font-bold text-white font-['Outfit',sans-serif]">
+                <h3 className={`text-lg font-bold font-['Outfit',sans-serif] ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
                   Anular Pedido #{order.orderNumber}
                 </h3>
               </div>
-              <p className="text-xs text-slate-300">
-                Esta venta quedará registrada como <strong>Anulada</strong> para el control del supervisor y jefe. Por favor indica el motivo:
+              <p className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                Esta venta quedará registrada como <strong>Anulada</strong> para el control. Por favor indica el motivo:
               </p>
               <textarea
                 required
                 rows={3}
                 value={motivoAnulacion}
                 onChange={(e) => setMotivoAnulacion(e.target.value)}
-                placeholder="ej: El cliente de TikTok canceló el pedido por demora / Producto sin stock..."
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                placeholder="ej: La clienta canceló por demora / Sin stock..."
+                className={`w-full border rounded-xl p-3 text-xs focus:outline-none ${
+                  isDark
+                    ? 'bg-[#0F1B3C] border-[#223368] text-white placeholder-[#9AA6C9]/60 focus:ring-2 focus:ring-[#FFA26B]'
+                    : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/60 focus:ring-2 focus:ring-[#1A2B5C]'
+                }`}
               />
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowAnularModal(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-semibold text-slate-300"
+                  className={`px-4 py-2 rounded-xl text-xs font-semibold border cursor-pointer ${
+                    isDark
+                      ? 'bg-[#0F1B3C] hover:bg-[#1E2D5A] text-white border-[#223368]'
+                      : 'bg-[#F5EFE0] hover:bg-[#EBE2CF] text-[#1A2B5C] border-[#E8DFC8]'
+                  }`}
                 >
                   Cancelar
                 </button>
@@ -179,7 +240,11 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
                   type="button"
                   disabled={!motivoAnulacion.trim()}
                   onClick={handleConfirmAnulacion}
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold disabled:opacity-50"
+                  className={`px-4 py-2 rounded-xl text-xs font-black disabled:opacity-50 cursor-pointer ${
+                    isDark
+                      ? 'bg-[#FFA26B] hover:bg-[#ff8f4d] text-[#7C2D12]'
+                      : 'bg-[#C2410C] hover:bg-[#9A3412] text-white'
+                  }`}
                 >
                   Confirmar Anulación
                 </button>
@@ -192,21 +257,27 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
         {showDeleteConfirm && canDeleteOrders && (
           <div
             id="delete-confirm-box"
-            className="p-4 bg-rose-950/90 border border-rose-600/60 rounded-2xl text-white space-y-3 shadow-2xl animate-fade-in"
+            className={`p-4 border rounded-2xl space-y-3 shadow-2xl animate-fade-in ${
+              isDark ? 'bg-rose-950/90 border-rose-700/60 text-white' : 'bg-rose-50 border-rose-300 text-rose-950'
+            }`}
           >
-            <p className="font-bold text-sm text-rose-200">
-              ¿Estás seguro de que deseas eliminar permanentemente este pedido #{order.orderNumber} de la base de datos?
+            <p className="font-bold text-sm">
+              ¿Estás segura de que deseas eliminar permanentemente este pedido #{order.orderNumber} de la base de datos?
             </p>
             <div className="flex gap-2">
               <button
                 onClick={() => onDelete(order.id)}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 rounded-xl text-xs font-bold text-white transition-colors"
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 rounded-xl text-xs font-bold text-white transition-colors cursor-pointer"
               >
                 Sí, eliminar definitivamente
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-semibold text-slate-300 transition-colors"
+                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-colors border cursor-pointer ${
+                  isDark
+                    ? 'bg-[#0F1B3C] hover:bg-[#16234F] text-white border-[#223368]'
+                    : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
+                }`}
               >
                 Cancelar
               </button>
@@ -216,18 +287,20 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
 
         {/* Banner if Anulado */}
         {isAnulado && (
-          <div className="p-4 bg-rose-950/80 border border-rose-600/80 rounded-2xl text-rose-200 space-y-1">
+          <div className={`p-4 border rounded-2xl space-y-1 ${
+            isDark ? 'bg-rose-950/80 border-rose-700/80 text-rose-200' : 'bg-rose-50 border-rose-200 text-rose-800'
+          }`}>
             <div className="flex items-center gap-2 font-bold text-sm">
-              <XCircle className="w-5 h-5 text-rose-400" />
+              <XCircle className="w-5 h-5 text-rose-500" />
               <span>ESTA VENTA ESTÁ ANULADA</span>
             </div>
             {order.motivoAnulacion && (
-              <p className="text-xs text-rose-300">
+              <p className="text-xs">
                 <strong>Motivo:</strong> {order.motivoAnulacion}
               </p>
             )}
             {order.anuladoPor && (
-              <p className="text-[11px] text-rose-400">
+              <p className="text-[11px] opacity-80">
                 Anulado por: {order.anuladoPor} · {order.anuladoAt ? new Date(order.anuladoAt).toLocaleString('es-BO') : ''}
               </p>
             )}
@@ -235,52 +308,70 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
         )}
 
         {/* Main Order Header Card */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+        <div className={`border rounded-3xl p-5 sm:p-6 shadow-sm space-y-4 transition-colors ${
+          isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+        }`}>
+          <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4 ${
+            isDark ? 'border-[#223368]' : 'border-[#E8DFC8]'
+          }`}>
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs font-black font-mono text-cyan-300 bg-cyan-950 px-2.5 py-1 rounded-lg border border-cyan-500/30">
+                <span className={`text-xs font-black font-mono px-2.5 py-1 rounded-xl border ${
+                  isDark
+                    ? 'text-[#FF6FA5] bg-[#0F1B3C] border-[#223368]'
+                    : 'text-[#1A2B5C] bg-[#F5EFE0] border-[#E8DFC8]'
+                }`}>
                   VENTA #{String(order.orderNumber).padStart(3, '0')}
                 </span>
                 <span
-                  className={`text-xs font-bold px-2.5 py-1 rounded-lg border flex items-center gap-1 ${
+                  className={`text-xs font-black px-2.5 py-1 rounded-xl border flex items-center gap-1 ${
                     isAnulado
-                      ? 'bg-rose-950/80 border-rose-500/40 text-rose-300'
+                      ? isDark
+                        ? 'bg-[#FCA5A5] text-[#881337] border-[#FCA5A5]'
+                        : 'bg-[#FEE2E2] text-[#991B1B] border-[#FECACA]'
                       : isDelivered
-                      ? 'bg-emerald-950/80 border-emerald-500/40 text-emerald-300'
-                      : 'bg-blue-950/80 border-blue-500/40 text-blue-300'
+                      ? isDark
+                        ? 'bg-[#4FD1B5] text-[#064E3B] border-[#4FD1B5]'
+                        : 'bg-[#CCFBF1] text-[#0F766E] border-[#99F6E4]'
+                      : isDark
+                      ? 'bg-[#B39DDB] text-[#2E1065] border-[#B39DDB]'
+                      : 'bg-[#EDE9FE] text-[#5B21B6] border-[#DDD6FE]'
                   }`}
                 >
                   {isAnulado ? (
                     <>
-                      <XCircle className="w-3.5 h-3.5 text-rose-400" />
+                      <XCircle className="w-3.5 h-3.5" />
                       <span>Anulado</span>
                     </>
                   ) : isDelivered ? (
                     <>
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                      <CheckCircle2 className="w-3.5 h-3.5" />
                       <span>Entregado</span>
                     </>
                   ) : (
                     <>
-                      <Clock className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+                      <Clock className="w-3.5 h-3.5 animate-pulse" />
                       <span>Abierto (En Preparación)</span>
                     </>
                   )}
                 </span>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-black text-white font-['Outfit',sans-serif]">
-                {order.cliente || 'Cliente sin nombre'}
+              <h1 className={`text-2xl sm:text-3xl font-black font-['Outfit',sans-serif] ${
+                isDark ? 'text-white' : 'text-[#1A2B5C]'
+              }`}>
+                {order.cliente || 'Clienta sin nombre'}
               </h1>
-              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 mt-1 capitalize">
+              <div className={`flex flex-wrap items-center gap-3 text-xs mt-1 capitalize ${
+                isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+              }`}>
                 <span className="flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                  <Calendar className={`w-3.5 h-3.5 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
                   {formattedDate}
                 </span>
                 {order.vendedorNombre && (
-                  <span className="flex items-center gap-1 text-slate-300">
-                    <User className="w-3.5 h-3.5 text-cyan-400" />
-                    Vendedor: <strong>{order.vendedorNombre}</strong>
+                  <span className={`flex items-center gap-1 font-medium ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                    <User className={`w-3.5 h-3.5 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
+                    Vendedora: <strong>{order.vendedorNombre}</strong>
                   </span>
                 )}
               </div>
@@ -291,15 +382,19 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
               <button
                 id="detail-toggle-status-btn"
                 onClick={() => onToggleStatus(order.id)}
-                className={`py-3 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md ${
+                className={`py-3 px-4 rounded-2xl text-xs sm:text-sm font-black flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md cursor-pointer ${
                   isDelivered
-                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
-                    : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30'
+                    ? isDark
+                      ? 'bg-[#0F1B3C] hover:bg-[#1E2D5A] text-white border border-[#223368]'
+                      : 'bg-[#F5EFE0] hover:bg-[#EBE2CF] text-[#1A2B5C] border border-[#E8DFC8]'
+                    : isDark
+                    ? 'bg-[#4FD1B5] hover:bg-[#38b2ac] text-[#064E3B]'
+                    : 'bg-[#0F766E] hover:bg-[#0D9488] text-white'
                 }`}
               >
                 {isDelivered ? (
                   <>
-                    <Clock className="w-4 h-4 text-cyan-400" />
+                    <Clock className="w-4 h-4" />
                     <span>Reabrir Pedido</span>
                   </>
                 ) : (
@@ -315,16 +410,22 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
           {/* Customer contact & Delivery details */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
             {/* Phone */}
-            <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-3.5 flex items-center justify-between gap-2">
+            <div className={`border rounded-2xl p-3.5 flex items-center justify-between gap-2 ${
+              isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+            }`}>
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-blue-950 flex items-center justify-center text-cyan-400 shrink-0">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                  isDark ? 'bg-[#16234F] text-[#FF6FA5]' : 'bg-[#E8DFC8]/60 text-[#1A2B5C]'
+                }`}>
                   <Phone className="w-4 h-4" />
                 </div>
                 <div>
-                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  <span className={`block text-[10px] font-bold uppercase tracking-wider ${
+                    isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                  }`}>
                     Teléfono / WhatsApp
                   </span>
-                  <span className="text-sm font-bold text-white">
+                  <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
                     {order.telefono || 'No registrado'}
                   </span>
                 </div>
@@ -332,7 +433,11 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
               {order.telefono && (
                 <a
                   href={`tel:${order.telefono}`}
-                  className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs"
+                  className={`p-2 rounded-xl text-xs font-semibold border ${
+                    isDark
+                      ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-white border-[#223368]'
+                      : 'bg-white hover:bg-[#EBE2CF] text-[#1A2B5C] border-[#E8DFC8]'
+                  }`}
                   title="Llamar"
                 >
                   Llamar
@@ -341,15 +446,21 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
             </div>
 
             {/* Delivery location */}
-            <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-3.5 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-indigo-950 flex items-center justify-center text-indigo-400 shrink-0">
+            <div className={`border rounded-2xl p-3.5 flex items-center gap-3 ${
+              isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+            }`}>
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                isDark ? 'bg-[#16234F] text-[#B39DDB]' : 'bg-[#E8DFC8]/60 text-[#1A2B5C]'
+              }`}>
                 <MapPin className="w-4 h-4" />
               </div>
               <div className="min-w-0">
-                <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Lugar de Entrega
+                <span className={`block text-[10px] font-bold uppercase tracking-wider ${
+                  isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                }`}>
+                  Lugar de Entrega / Envío
                 </span>
-                <span className="text-sm font-bold text-white truncate block">
+                <span className={`text-sm font-bold truncate block ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
                   {order.lugarEntrega || 'No especificado'}
                 </span>
               </div>
@@ -358,12 +469,16 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
 
           {/* Observaciones */}
           {order.observaciones && (
-            <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-3.5">
-              <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5 text-yellow-400" />
+            <div className={`border rounded-2xl p-3.5 ${
+              isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+            }`}>
+              <span className={`block text-[10px] font-bold uppercase tracking-wider mb-1 flex items-center gap-1.5 ${
+                isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+              }`}>
+                <FileText className={`w-3.5 h-3.5 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
                 Observaciones / Notas
               </span>
-              <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
+              <p className={`text-xs sm:text-sm leading-relaxed ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
                 {order.observaciones}
               </p>
             </div>
@@ -371,13 +486,17 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
         </div>
 
         {/* Itemized Products Card */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl space-y-4">
-          <h2 className="text-base sm:text-lg font-bold text-white font-['Outfit',sans-serif] flex items-center gap-2 border-b border-slate-800 pb-3">
-            <Package className="w-5 h-5 text-cyan-400" />
-            Detalle de Productos ({order.productos.length})
+        <div className={`border rounded-3xl p-5 sm:p-6 shadow-sm space-y-4 ${
+          isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+        }`}>
+          <h2 className={`text-base sm:text-lg font-bold font-['Outfit',sans-serif] flex items-center gap-2 border-b pb-3 ${
+            isDark ? 'text-white border-[#223368]' : 'text-[#1A2B5C] border-[#E8DFC8]'
+          }`}>
+            <Package className={`w-5 h-5 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
+            Detalle de Artículos ({order.productos.length})
           </h2>
 
-          <div className="divide-y divide-slate-800/80">
+          <div className={`divide-y ${isDark ? 'divide-[#223368]' : 'divide-[#E8DFC8]'}`}>
             {order.productos.map((item, idx) => {
               const subtotal = item.cantidad * item.precioUnitario;
               return (
@@ -387,26 +506,34 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-md bg-blue-950 text-cyan-300 font-bold text-xs flex items-center justify-center shrink-0">
+                      <span className={`w-6 h-6 rounded-lg font-bold text-xs flex items-center justify-center shrink-0 ${
+                        isDark
+                          ? 'bg-[#0F1B3C] text-[#FF6FA5] border border-[#223368]'
+                          : 'bg-[#F5EFE0] text-[#1A2B5C] border border-[#E8DFC8]'
+                      }`}>
                         {item.cantidad}x
                       </span>
-                      <span className="text-sm sm:text-base font-bold text-white">
+                      <span className={`text-sm sm:text-base font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
                         {item.nombre}
                       </span>
                     </div>
                     {item.variante && (
-                      <span className="inline-block text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md font-medium">
-                        Variante: {item.variante}
+                      <span className={`inline-block text-xs px-2.5 py-0.5 rounded-lg font-semibold border ${
+                        isDark
+                          ? 'bg-[#0F1B3C] border-[#223368] text-[#9AA6C9]'
+                          : 'bg-[#F5EFE0] border-[#E8DFC8] text-[#78716C]'
+                      }`}>
+                        {item.variante}
                       </span>
                     )}
-                    <p className="text-xs text-slate-400">
+                    <p className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
                       Precio unitario: {formatCurrency(item.precioUnitario)}
                     </p>
                   </div>
 
                   <div className="text-right shrink-0">
-                    <span className="text-xs text-slate-400 block">Subtotal</span>
-                    <span className="text-base font-black text-cyan-300 font-['Outfit',sans-serif]">
+                    <span className={`text-xs block ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>Subtotal</span>
+                    <span className={`text-base font-black font-['Outfit',sans-serif] ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
                       {formatCurrency(subtotal)}
                     </span>
                   </div>
@@ -416,49 +543,100 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
           </div>
         </div>
 
-        {/* Financial Breakdown Card */}
-        <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl space-y-4">
-          <h2 className="text-base font-bold text-white font-['Outfit',sans-serif] flex items-center gap-2 border-b border-slate-800 pb-3">
-            <DollarSign className="w-5 h-5 text-emerald-400" />
-            Estado Financiero
-          </h2>
+        {/* Financial Breakdown Card with 1-Click Complete Balance */}
+        <div className={`border rounded-3xl p-5 sm:p-6 shadow-sm space-y-4 ${
+          isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+        }`}>
+          <div className={`flex items-center justify-between border-b pb-3 ${
+            isDark ? 'border-[#223368]' : 'border-[#E8DFC8]'
+          }`}>
+            <h2 className={`text-base font-bold font-['Outfit',sans-serif] flex items-center gap-2 ${
+              isDark ? 'text-white' : 'text-[#1A2B5C]'
+            }`}>
+              <DollarSign className={`w-5 h-5 ${isDark ? 'text-[#4FD1B5]' : 'text-[#0F766E]'}`} />
+              Estado Financiero (Bolivianos)
+            </h2>
+
+            {/* 1-Click Complete Balance Button */}
+            {hasPendingBalance && (
+              <button
+                id="complete-balance-direct-btn"
+                type="button"
+                disabled={isCompletingBalance}
+                onClick={handleCompleteBalance}
+                className={`py-2 px-3.5 rounded-2xl text-xs font-black flex items-center gap-1.5 shadow-lg active:scale-95 transition disabled:opacity-50 cursor-pointer ${
+                  isDark
+                    ? 'bg-[#4FD1B5] hover:bg-[#38b2ac] text-[#064E3B]'
+                    : 'bg-[#0F766E] hover:bg-[#0D9488] text-white'
+                }`}
+                title="Completar saldo inmediatamente sin entrar a editar"
+              >
+                <DollarSign className="w-4 h-4" />
+                <span>{isCompletingBalance ? 'Completando...' : 'Liquidar Saldo (100% Pagado)'}</span>
+              </button>
+            )}
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-            <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+            <div className={`border rounded-2xl p-4 ${
+              isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+            }`}>
+              <span className={`text-[11px] font-bold uppercase tracking-wider block mb-1 ${
+                isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+              }`}>
                 Total Pedido
               </span>
-              <span className="text-2xl font-black text-white font-['Outfit',sans-serif]">
+              <span className={`text-2xl font-black font-['Outfit',sans-serif] ${
+                isDark ? 'text-white' : 'text-[#1A2B5C]'
+              }`}>
                 {formatCurrency(order.total)}
               </span>
             </div>
 
-            <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4">
-              <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider block mb-1">
+            <div className={`border rounded-2xl p-4 ${
+              isDark ? 'bg-[#0F1B3C] border-[#4FD1B5]/30' : 'bg-[#E6FFFA] border-[#99F6E4]'
+            }`}>
+              <span className={`text-[11px] font-bold uppercase tracking-wider block mb-1 ${
+                isDark ? 'text-[#4FD1B5]' : 'text-[#0D9488]'
+              }`}>
                 Monto Pagado / Abonado
               </span>
-              <span className="text-2xl font-black text-emerald-300 font-['Outfit',sans-serif]">
+              <span className={`text-2xl font-black font-['Outfit',sans-serif] ${
+                isDark ? 'text-[#4FD1B5]' : 'text-[#0F766E]'
+              }`}>
                 {formatCurrency(order.pagado)}
               </span>
             </div>
 
             <div
-              className={`border rounded-xl p-4 ${
+              className={`border rounded-2xl p-4 flex flex-col justify-between ${
                 hasPendingBalance
-                  ? 'bg-amber-950/40 border-amber-500/40'
-                  : 'bg-emerald-950/40 border-emerald-500/40'
+                  ? isDark
+                    ? 'bg-[#0F1B3C] border-[#FFA26B]/40'
+                    : 'bg-[#FFF7ED] border-[#FED7AA]'
+                  : isDark
+                  ? 'bg-[#0F1B3C] border-[#4FD1B5]/40'
+                  : 'bg-[#E6FFFA] border-[#99F6E4]'
               }`}
             >
-              <span className="text-[11px] font-bold uppercase tracking-wider block mb-1 text-slate-300">
-                Saldo Pendiente
-              </span>
-              <span
-                className={`text-2xl font-black font-['Outfit',sans-serif] ${
-                  hasPendingBalance ? 'text-amber-400' : 'text-emerald-400'
-                }`}
-              >
-                {hasPendingBalance ? formatCurrency(order.saldo) : 'Bs. 0 (Pagado)'}
-              </span>
+              <div>
+                <span className={`text-[11px] font-bold uppercase tracking-wider block mb-1 ${
+                  hasPendingBalance
+                    ? isDark ? 'text-[#FFA26B]' : 'text-[#EA580C]'
+                    : isDark ? 'text-[#4FD1B5]' : 'text-[#0D9488]'
+                }`}>
+                  Saldo Pendiente
+                </span>
+                <span
+                  className={`text-2xl font-black font-['Outfit',sans-serif] ${
+                    hasPendingBalance
+                      ? isDark ? 'text-[#FFA26B]' : 'text-[#C2410C]'
+                      : isDark ? 'text-[#4FD1B5]' : 'text-[#0F766E]'
+                  }`}
+                >
+                  {hasPendingBalance ? formatCurrency(order.saldo) : 'Bs. 0 (Pagado)'}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -471,37 +649,62 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
               href={whatsAppUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="py-4 px-6 rounded-2xl font-bold text-base text-white bg-gradient-to-r from-emerald-500 via-green-600 to-teal-600 hover:from-emerald-400 hover:to-teal-500 active:scale-[0.99] shadow-xl shadow-green-600/30 flex items-center justify-center gap-2.5 transition-all"
+              className={`py-4 px-6 rounded-2xl font-black text-base active:scale-[0.99] shadow-xl flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
+                isDark
+                  ? 'bg-[#4FD1B5] hover:bg-[#38b2ac] text-[#064E3B] shadow-[#4FD1B5]/25'
+                  : 'bg-[#0F766E] hover:bg-[#0D9488] text-white shadow-[#0F766E]/25'
+              }`}
             >
-              <MessageCircle className="w-5 h-5 fill-white/20" />
-              <span>Enviar por WhatsApp</span>
+              <MessageCircle className="w-5 h-5 fill-current" />
+              <span>Enviar Recibo WhatsApp</span>
             </a>
 
             <button
               id="print-ticket-main-btn"
               type="button"
               onClick={() => setIsPrintModalOpen(true)}
-              className="py-4 px-6 rounded-2xl font-bold text-base text-white bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 active:scale-[0.99] shadow-xl shadow-purple-600/30 flex items-center justify-center gap-2.5 transition-all"
+              className={`py-4 px-6 rounded-2xl font-black text-base active:scale-[0.99] shadow-xl flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
+                isDark
+                  ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C] shadow-[#FF6FA5]/25'
+                  : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white shadow-[#1A2B5C]/25'
+              }`}
             >
               <Printer className="w-5 h-5" />
               <span>Imprimir Ticket Térmico</span>
             </button>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button
+              id="prep-ticket-secondary-btn"
+              onClick={() => setIsPrepModalOpen(true)}
+              className={`flex-1 py-3 px-4 rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all border cursor-pointer ${
+                isDark
+                  ? 'bg-[#1E2D5A] hover:bg-[#283C75] text-[#FF6FA5] border-[#223368]'
+                  : 'bg-[#F5EFE0] hover:bg-[#EBE2CF] text-[#1A2B5C] border-[#E8DFC8]'
+              }`}
+            >
+              <Package className={`w-4 h-4 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
+              <span>Ficha WhatsApp para Almacén / Empaque</span>
+            </button>
+
             <button
               id="copy-summary-btn"
               onClick={handleCopyReceipt}
-              className="flex-1 py-3 px-4 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all border border-slate-700"
+              className={`flex-1 py-3 px-4 rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all border cursor-pointer ${
+                isDark
+                  ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-white border-[#223368]'
+                  : 'bg-white hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]'
+              }`}
             >
               {copied ? (
                 <>
-                  <Check className="w-4 h-4 text-emerald-400" />
-                  <span className="text-emerald-300">¡Texto Copiado!</span>
+                  <Check className="w-4 h-4 text-emerald-500" />
+                  <span className="text-emerald-500">¡Texto Copiado!</span>
                 </>
               ) : (
                 <>
-                  <Copy className="w-4 h-4 text-cyan-400" />
+                  <Copy className={`w-4 h-4 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
                   <span>Copiar Resumen de Cobro</span>
                 </>
               )}
@@ -516,6 +719,14 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
         isOpen={isPrintModalOpen}
         onClose={() => setIsPrintModalOpen(false)}
       />
+
+      {/* Warehouse Dispatch Preparation Slip Modal */}
+      {isPrepModalOpen && (
+        <OrderPreparationCardModal
+          order={order}
+          onClose={() => setIsPrepModalOpen(false)}
+        />
+      )}
     </>
   );
 };

@@ -4,12 +4,11 @@ import { OrdersListScreen } from './components/OrdersListScreen';
 import { NewOrderScreen } from './components/NewOrderScreen';
 import { OrderDetailScreen } from './components/OrderDetailScreen';
 import { OrderEditScreen } from './components/OrderEditScreen';
-import { WholesalerSupplyScreen } from './components/WholesalerSupplyScreen';
+import { ShippingPendingScreen } from './components/ShippingPendingScreen';
 import { ReportsScreen } from './components/ReportsScreen';
 import { UserManagementScreen } from './components/UserManagementScreen';
 import { ComprasScreen } from './components/ComprasScreen';
 import { LoginScreen } from './components/LoginScreen';
-import { VikaAssistantModal } from './components/VikaAssistantModal';
 import { Order, Purchase, ActiveTab } from './types';
 import {
   subscribeToOrders,
@@ -23,40 +22,27 @@ import {
   INITIAL_SAMPLE_PURCHASES,
 } from './lib/storage';
 import { useAuth } from './contexts/AuthContext';
-import { CheckCircle2, Sparkles } from 'lucide-react';
+import { useTheme } from './contexts/ThemeContext';
+import { CheckCircle2 } from 'lucide-react';
 
 export default function App() {
   const {
     currentUser,
     userProfile,
     loading,
-    canManageUsers,
-    canViewReports,
     canAccessCompras,
     canAdminResetPasswords,
+    canViewReports,
     isJefe,
     isSupervisor,
     isComprador,
   } = useAuth();
+  const { isDark } = useTheme();
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [activeTab, setActiveTab] = useState<ActiveTab>('list');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  const [isVikaOpen, setIsVikaOpen] = useState(false);
-  const [vikaDraftOrder, setVikaDraftOrder] = useState<{
-    productos?: Array<{
-      nombre: string;
-      variante: string;
-      cantidad: number;
-      precioUnitario: number;
-    }>;
-    pagado?: number;
-    observaciones?: string;
-    cliente?: string;
-    telefono?: string;
-    lugarEntrega?: string;
-  } | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // If the user is specifically a Comprador, set their default landing tab to 'compras'
@@ -125,8 +111,7 @@ export default function App() {
       await saveOrderToFirestore(newOrder);
       setSelectedOrderId(newOrder.id);
       setActiveTab('detail');
-      setVikaDraftOrder(null);
-      showToast(`¡Venta #${newOrder.orderNumber} registrada y guardada en BD!`);
+      showToast(`¡Venta #${newOrder.orderNumber} registrada y guardada con éxito!`);
     } catch (err: any) {
       console.error('Error saving order:', err);
       showToast('Error al guardar pedido en la base de datos.');
@@ -187,29 +172,19 @@ export default function App() {
     }
   };
 
-  const handleTransferVikaDraft = (draft: {
-    productos: Array<{
-      nombre: string;
-      variante: string;
-      cantidad: number;
-      precioUnitario: number;
-    }>;
-    pagado?: number;
-    observaciones?: string;
-  }) => {
-    setVikaDraftOrder(draft);
-    setActiveTab('new');
-    setIsVikaOpen(false);
-    showToast('¡VIKA preparó los artículos en tu nuevo pedido!');
-  };
-
   // If loading auth state
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white space-y-3">
-        <div className="w-10 h-10 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin" />
-        <p className="text-sm font-semibold text-slate-400 font-['Outfit',sans-serif]">
-          Iniciando ventasIA Chiquiminisos...
+      <div className={`min-h-screen flex flex-col items-center justify-center space-y-3 ${
+        isDark ? 'bg-[#0F1B3C] text-slate-100' : 'bg-[#FBF7EF] text-[#1A2B5C]'
+      }`}>
+        <div className={`w-10 h-10 border-4 border-t-transparent rounded-full animate-spin ${
+          isDark ? 'border-[#FF6FA5]' : 'border-[#1A2B5C]'
+        }`} />
+        <p className={`text-sm font-semibold font-['Outfit',sans-serif] ${
+          isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+        }`}>
+          Iniciando Importadora Chiquiminisos...
         </p>
       </div>
     );
@@ -223,7 +198,9 @@ export default function App() {
   const selectedOrder = orders.find((o) => o.id === selectedOrderId) || null;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans pb-20 sm:pb-8">
+    <div className={`min-h-screen flex flex-col font-sans pb-20 sm:pb-8 transition-colors duration-200 ${
+      isDark ? 'bg-[#0F1B3C] text-white' : 'bg-[#FBF7EF] text-[#1A2B5C]'
+    }`}>
       {/* Header with Navigation */}
       <Header
         activeTab={activeTab}
@@ -232,16 +209,19 @@ export default function App() {
           if (tab === 'new') setSelectedOrderId(null);
         }}
         orders={orders}
-        onOpenVika={() => setIsVikaOpen(true)}
       />
 
       {/* Toast Notification */}
       {toastMessage && (
         <div
           id="app-toast-notification"
-          className="fixed top-20 right-4 left-4 sm:left-auto sm:right-6 z-50 bg-cyan-950 border border-cyan-400/60 text-cyan-200 px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 animate-bounce text-sm font-semibold max-w-sm"
+          className={`fixed top-20 right-4 left-4 sm:left-auto sm:right-6 z-50 px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 animate-bounce text-sm font-semibold max-w-sm border transition-all ${
+            isDark
+              ? 'bg-[#16234F] border-[#223368] text-white shadow-[#0F1B3C]/80'
+              : 'bg-white border-[#E8DFC8] text-[#1A2B5C] shadow-slate-300/60'
+          }`}
         >
-          <CheckCircle2 className="w-5 h-5 text-cyan-400 shrink-0" />
+          <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
           <span>{toastMessage}</span>
         </div>
       )}
@@ -257,21 +237,21 @@ export default function App() {
               setActiveTab('detail');
             }}
             onNewOrder={() => {
-              setVikaDraftOrder(null);
               setActiveTab('new');
             }}
             onToggleStatus={handleToggleStatus}
           />
         )}
 
-        {/* Tab 2: Al Mayorista */}
-        {activeTab === 'supply' && (
-          <WholesalerSupplyScreen
+        {/* Tab 2: Pendientes de Envío & Despacho */}
+        {activeTab === 'shipping' && (
+          <ShippingPendingScreen
             orders={orders}
             onSelectOrder={(order) => {
               setSelectedOrderId(order.id);
               setActiveTab('detail');
             }}
+            onToggleStatus={handleToggleStatus}
           />
         )}
 
@@ -279,13 +259,10 @@ export default function App() {
         {activeTab === 'new' && (
           <NewOrderScreen
             orders={orders}
-            initialDraft={vikaDraftOrder}
             onSaveOrder={handleSaveNewOrder}
             onCancel={() => {
-              setVikaDraftOrder(null);
               setActiveTab('list');
             }}
-            onOpenVika={() => setIsVikaOpen(true)}
           />
         )}
 
@@ -328,37 +305,7 @@ export default function App() {
           <UserManagementScreen />
         )}
       </main>
-
-      {/* Floating Action Button for VIKA Assistant */}
-      <div className="fixed bottom-5 right-5 z-30 flex items-center gap-2.5 print:hidden">
-        <button
-          id="global-vika-floating-btn"
-          onClick={() => setIsVikaOpen(true)}
-          className="group relative flex items-center gap-2 px-4 py-3 rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-500 text-white shadow-2xl shadow-purple-900/50 hover:shadow-cyan-500/30 hover:scale-105 active:scale-95 transition-all duration-300 ring-4 ring-purple-500/20"
-          title="Hablar con VIKA, tu agente IA de pedidos y dinero"
-        >
-          <div className="relative">
-            <Sparkles className="w-5 h-5 text-yellow-300 animate-pulse" />
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full border border-purple-900 animate-ping" />
-          </div>
-          <span className="font-extrabold text-sm tracking-wide font-['Outfit',sans-serif]">
-            VIKA <span className="text-[10px] font-mono text-cyan-200">IA</span>
-          </span>
-        </button>
-      </div>
-
-      {/* VIKA Assistant Modal */}
-      <VikaAssistantModal
-        isOpen={isVikaOpen}
-        onClose={() => setIsVikaOpen(false)}
-        orders={orders}
-        activeTab={activeTab}
-        onTransferToNewOrder={handleTransferVikaDraft}
-        onSaveDirectOrder={async (newOrder) => {
-          await handleSaveNewOrder(newOrder);
-          showToast(`¡Venta #${newOrder.orderNumber} registrada con éxito por VIKA!`);
-        }}
-      />
     </div>
   );
 }
+

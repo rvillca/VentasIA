@@ -1,5 +1,6 @@
 import React from 'react';
-import { ALL_PACKAGING_PRESETS, PackagingPreset } from '../lib/packaging';
+import { ALL_PACKAGING_PRESETS } from '../lib/packaging';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface PackagingQuickSelectorProps {
   value: string;
@@ -16,15 +17,29 @@ export const PackagingQuickSelector: React.FC<PackagingQuickSelectorProps> = ({
   theme = 'indigo',
   size = 'xs',
 }) => {
-  const activeBg =
-    theme === 'amber'
-      ? 'bg-amber-500 text-slate-950 font-bold border-amber-400 shadow-sm'
-      : 'bg-indigo-600 text-white font-bold border-indigo-400 shadow-sm';
+  const { isDark } = useTheme();
 
-  const inactiveBg =
-    theme === 'amber'
-      ? 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700/60 hover:text-amber-200'
-      : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700/60 hover:text-indigo-200';
+  const getActiveClasses = () => {
+    if (theme === 'amber') {
+      return isDark
+        ? 'bg-amber-400 text-slate-950 font-bold border-amber-400 shadow-sm'
+        : 'bg-amber-500 text-white font-bold border-amber-500 shadow-sm';
+    }
+    return isDark
+      ? 'bg-[#FF6FA5] text-[#0F1B3C] font-bold border-[#FF6FA5] shadow-sm'
+      : 'bg-[#1A2B5C] text-white font-bold border-[#1A2B5C] shadow-sm';
+  };
+
+  const getInactiveClasses = () => {
+    if (theme === 'amber') {
+      return isDark
+        ? 'bg-[#0F1B3C] hover:bg-[#1E2D5A] text-slate-300 border-[#223368] hover:text-amber-200'
+        : 'bg-white hover:bg-[#F5EFE0] text-[#78716C] border-[#E8DFC8] hover:text-amber-700';
+    }
+    return isDark
+      ? 'bg-[#0F1B3C] hover:bg-[#1E2D5A] text-[#9AA6C9] border-[#223368] hover:text-white'
+      : 'bg-white hover:bg-[#F5EFE0] text-[#78716C] border-[#E8DFC8] hover:text-[#1A2B5C]';
+  };
 
   return (
     <div className="space-y-1">
@@ -39,8 +54,8 @@ export const PackagingQuickSelector: React.FC<PackagingQuickSelectorProps> = ({
                 onChange(preset.label);
               }}
               title={`Seleccionar ${preset.label} (${preset.units} unidades)`}
-              className={`px-2 py-0.5 rounded-lg border text-[10px] sm:text-[11px] font-medium transition active:scale-95 whitespace-nowrap ${
-                isSelected ? activeBg : inactiveBg
+              className={`px-2 py-0.5 rounded-lg border text-[10px] sm:text-[11px] font-medium transition active:scale-95 whitespace-nowrap cursor-pointer ${
+                isSelected ? getActiveClasses() : getInactiveClasses()
               }`}
             >
               <span>{preset.shortLabel}</span>

@@ -37,6 +37,7 @@ import {
 import { Order, Purchase } from '../types';
 import { formatCurrency } from '../lib/storage';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface ReportsScreenProps {
   orders: Order[];
@@ -48,6 +49,7 @@ type ReportViewType = 'ventas' | 'compras' | 'balance';
 
 export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases = [] }) => {
   const { isComprador, isJefe, isSupervisor } = useAuth();
+  const { isDark } = useTheme();
   const [activeReportView, setActiveReportView] = useState<ReportViewType>(
     isComprador ? 'compras' : 'ventas'
   );
@@ -105,37 +107,15 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
           pDate.getFullYear() === now.getFullYear();
       }
 
-      const matchSup =
-        selectedSupplier === 'all' || p.proveedor === selectedSupplier;
+      const matchSupplier =
+        selectedSupplier === 'all' ||
+        (p.proveedor || 'Sin especificar') === selectedSupplier;
 
-      return matchDate && matchSup;
+      return matchDate && matchSupplier;
     });
   }, [purchases, range, selectedSupplier]);
 
-  // Financial KPIs - Ventas
-  const validOrders = filteredOrders.filter((o) => o.estado !== 'Anulado');
-  const canceledOrders = filteredOrders.filter((o) => o.estado === 'Anulado');
-
-  const totalVendido = validOrders.reduce((sum, o) => sum + (o.total || 0), 0);
-  const totalCobrado = validOrders.reduce((sum, o) => sum + (o.pagado || 0), 0);
-  const totalPorCobrar = validOrders.reduce((sum, o) => sum + (o.saldo || 0), 0);
-  const totalAnulado = canceledOrders.reduce((sum, o) => sum + (o.total || 0), 0);
-  const ticketPromedio = validOrders.length > 0 ? totalVendido / validOrders.length : 0;
-
-  // Financial KPIs - Compras
-  const validPurchases = filteredPurchases.filter((p) => p.estado !== 'Anulado');
-  const canceledPurchases = filteredPurchases.filter((p) => p.estado === 'Anulado');
-
-  const totalInvertido = validPurchases.reduce((sum, p) => sum + (p.total || 0), 0);
-  const totalPagadoCompras = validPurchases.reduce((sum, p) => sum + (p.pagado || 0), 0);
-  const totalDeudaProveedores = validPurchases.reduce((sum, p) => sum + (p.saldo || 0), 0);
-  const compraPromedio = validPurchases.length > 0 ? totalInvertido / validPurchases.length : 0;
-
-  // Financial KPIs - Balance General
-  const flujoCajaNeto = totalCobrado - totalPagadoCompras;
-  const margenBrutoTeorico = totalVendido - totalInvertido;
-
-  // Sellers & Suppliers List for filter
+  // Unique list of sellers
   const allSellers = useMemo(() => {
     const set = new Set<string>();
     orders.forEach((o) => {
@@ -144,6 +124,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
     return Array.from(set);
   }, [orders]);
 
+  // Unique list of suppliers
   const allSuppliers = useMemo(() => {
     const set = new Set<string>();
     purchases.forEach((p) => {
@@ -152,51 +133,70 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
     return Array.from(set);
   }, [purchases]);
 
-  // Breakdown by Seller
+  // Calculations for Sales (excluding Anulado from totals)
+  const validOrders = useMemo(
+    () => filteredOrders.filter((o) => o.estado !== 'Anulado'),
+    [filteredOrders]
+  );
+  const canceledOrders = useMemo(
+    () => filteredOrders.filter((o) => o.estado === 'Anulado'),
+    [filteredOrders]
+  );
+
+  const totalVendido = validOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+  const totalCobrado = validOrders.reduce((sum, o) => sum + (o.pagado || 0), 0);
+  const totalPorCobrar = validOrders.reduce((sum, o) => sum + (o.saldo || 0), 0);
+  const totalAnulado = canceledOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+  const ticketPromedio = validOrders.length > 0 ? totalVendido / validOrders.length : 0;
+
+  // Calculations for Purchases (excluding Anulado)
+  const validPurchases = useMemo(
+    () => filteredPurchases.filter((p) => p.estado !== 'Anulado'),
+    [filteredPurchases]
+  );
+  const totalInvertido = validPurchases.reduce((sum, p) => sum + (p.total || 0), 0);
+  const totalPagadoCompras = validPurchases.reduce((sum, p) => sum + (p.pagado || 0), 0);
+  const totalDeudaProveedores = validPurchases.reduce((sum, p) => sum + (p.saldo || 0), 0);
+  const compraPromedio = validPurchases.length > 0 ? totalInvertido / validPurchases.length : 0;
+
+  // Balance calculations
+  const flujoCajaNeto = totalCobrado - totalPagadoCompras;
+  const margenBrutoTeorico = totalVendido - totalInvertido;
+
+  // Seller Performance Ranking
   const sellerPerformance = useMemo(() => {
-    const map: Record<string, { total: number; count: number; cobrado: number }> = {};
+    const map: Record<string, { count: number; total: number; cobrado: number }> = {};
     validOrders.forEach((o) => {
-      const seller = o.vendedorNombre || 'Vendedor General';
+      const seller = o.vendedorNombre || 'Sin asignar';
       if (!map[seller]) {
-        map[seller] = { total: 0, count: 0, cobrado: 0 };
+        map[seller] = { count: 0, total: 0, cobrado: 0 };
       }
-      map[seller].total += o.total || 0;
       map[seller].count += 1;
+      map[seller].total += o.total || 0;
       map[seller].cobrado += o.pagado || 0;
     });
 
     return Object.entries(map)
-      .map(([name, data]) => ({
-        name,
-        total: data.total,
-        count: data.count,
-        cobrado: data.cobrado,
-      }))
+      .map(([name, data]) => ({ name, ...data }))
       .sort((a, b) => b.total - a.total);
   }, [validOrders]);
 
-  // Breakdown by Supplier
+  // Supplier Performance Ranking
   const supplierPerformance = useMemo(() => {
-    const map: Record<string, { total: number; count: number; pagado: number; saldo: number }> = {};
+    const map: Record<string, { count: number; total: number; pagado: number; saldo: number }> = {};
     validPurchases.forEach((p) => {
-      const sup = p.proveedor || 'Proveedor General';
+      const sup = p.proveedor || 'Sin especificar';
       if (!map[sup]) {
-        map[sup] = { total: 0, count: 0, pagado: 0, saldo: 0 };
+        map[sup] = { count: 0, total: 0, pagado: 0, saldo: 0 };
       }
-      map[sup].total += p.total || 0;
       map[sup].count += 1;
+      map[sup].total += p.total || 0;
       map[sup].pagado += p.pagado || 0;
       map[sup].saldo += p.saldo || 0;
     });
 
     return Object.entries(map)
-      .map(([name, data]) => ({
-        name,
-        total: data.total,
-        count: data.count,
-        pagado: data.pagado,
-        saldo: data.saldo,
-      }))
+      .map(([name, data]) => ({ name, ...data }))
       .sort((a, b) => b.total - a.total);
   }, [validPurchases]);
 
@@ -248,34 +248,6 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
       .slice(0, 6);
   }, [validPurchases]);
 
-  // Sales by Day chart data
-  const chartSalesByDay = useMemo(() => {
-    const map: Record<string, number> = {};
-    validOrders.forEach((o) => {
-      const dateKey = new Date(o.createdAt).toLocaleDateString('es-BO', {
-        day: '2-digit',
-        month: '2-digit',
-      });
-      map[dateKey] = (map[dateKey] || 0) + (o.total || 0);
-    });
-
-    return Object.entries(map).map(([day, total]) => ({ day, total }));
-  }, [validOrders]);
-
-  // Purchases by Day chart data
-  const chartPurchasesByDay = useMemo(() => {
-    const map: Record<string, number> = {};
-    validPurchases.forEach((p) => {
-      const dateKey = new Date(p.fechaCompra || p.createdAt).toLocaleDateString('es-BO', {
-        day: '2-digit',
-        month: '2-digit',
-      });
-      map[dateKey] = (map[dateKey] || 0) + (p.total || 0);
-    });
-
-    return Object.entries(map).map(([day, total]) => ({ day, total }));
-  }, [validPurchases]);
-
   // Export CSV Report
   const handleExportCSV = () => {
     if (activeReportView === 'ventas') {
@@ -321,17 +293,27 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-[11px] font-extrabold uppercase tracking-wider bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 px-2.5 py-0.5 rounded-full">
+            <span
+              className={`text-[11px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
+                isDark
+                  ? 'bg-[#FF6FA5]/20 text-[#FF6FA5] border-[#FF6FA5]/30'
+                  : 'bg-[#1A2B5C]/10 text-[#1A2B5C] border-[#1A2B5C]/20'
+              }`}
+            >
               Dashboard Analítico
             </span>
-            <span className="text-xs text-slate-400">
+            <span className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
               {isJefe ? '👑 Jefe / Admin' : isSupervisor ? '📊 Supervisor' : '🛒 Comprador'}
             </span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-black text-white font-['Outfit',sans-serif] tracking-tight">
+          <h1
+            className={`text-xl sm:text-2xl font-black tracking-tight font-['Outfit',sans-serif] ${
+              isDark ? 'text-white' : 'text-[#1A2B5C]'
+            }`}
+          >
             Reportes & Finanzas Chiquiminisos
           </h1>
-          <p className="text-xs sm:text-sm text-slate-400">
+          <p className={`text-xs sm:text-sm ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
             Métricas por día, semana y mes de Ventas, Compras e Inversión en mercadería.
           </p>
         </div>
@@ -339,23 +321,35 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
         <button
           type="button"
           onClick={handleExportCSV}
-          className="py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 active:scale-95 shadow-md flex items-center justify-center gap-2 transition"
+          className={`py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm active:scale-95 shadow-sm flex items-center justify-center gap-2 transition cursor-pointer ${
+            isDark
+              ? 'bg-[#16234F] hover:bg-[#1E2D5A] border border-[#223368] text-white'
+              : 'bg-white hover:bg-[#F5EFE0] border border-[#E8DFC8] text-[#1A2B5C]'
+          }`}
         >
-          <Download className="w-4 h-4 text-cyan-400" />
+          <Download className="w-4 h-4 text-emerald-500" />
           <span>Exportar Excel (CSV)</span>
         </button>
       </div>
 
-      {/* Main View Switcher: Ventas vs Compras vs Balance (Only for Jefe/Supervisor, Comprador gets Compras) */}
+      {/* Main View Switcher: Ventas vs Compras vs Balance */}
       {!isComprador && (
-        <div className="grid grid-cols-3 gap-2 bg-slate-900 border border-slate-800 p-1.5 rounded-2xl">
+        <div
+          className={`grid grid-cols-3 gap-2 border p-1.5 rounded-2xl ${
+            isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+          }`}
+        >
           <button
             type="button"
             onClick={() => setActiveReportView('ventas')}
-            className={`py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition ${
+            className={`py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer ${
               activeReportView === 'ventas'
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-white'
+                ? isDark
+                  ? 'bg-[#FF6FA5] text-[#0F1B3C] shadow-md font-black'
+                  : 'bg-[#1A2B5C] text-white shadow-md font-black'
+                : isDark
+                ? 'text-[#9AA6C9] hover:text-white'
+                : 'text-[#78716C] hover:text-[#1A2B5C]'
             }`}
           >
             <ShoppingBag className="w-4 h-4" />
@@ -365,10 +359,12 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
           <button
             type="button"
             onClick={() => setActiveReportView('compras')}
-            className={`py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition ${
+            className={`py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer ${
               activeReportView === 'compras'
-                ? 'bg-amber-500 text-slate-950 shadow-md font-extrabold'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-amber-500 text-slate-950 shadow-md font-black'
+                : isDark
+                ? 'text-[#9AA6C9] hover:text-white'
+                : 'text-[#78716C] hover:text-[#1A2B5C]'
             }`}
           >
             <TrendingDown className="w-4 h-4" />
@@ -378,10 +374,12 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
           <button
             type="button"
             onClick={() => setActiveReportView('balance')}
-            className={`py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition ${
+            className={`py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer ${
               activeReportView === 'balance'
-                ? 'bg-emerald-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-emerald-600 text-white shadow-md font-black'
+                : isDark
+                ? 'text-[#9AA6C9] hover:text-white'
+                : 'text-[#78716C] hover:text-[#1A2B5C]'
             }`}
           >
             <Scale className="w-4 h-4" />
@@ -391,15 +389,23 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
       )}
 
       {/* Filter Controls Bar (Period + Specific Filters) */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3">
+      <div
+        className={`border rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3 ${
+          isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+        }`}
+      >
         <div className="flex items-center gap-1.5 overflow-x-auto">
           <button
             type="button"
             onClick={() => setRange('today')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
               range === 'today'
-                ? 'bg-cyan-500 text-slate-950 font-black shadow-md'
-                : 'bg-slate-950 text-slate-400 hover:text-slate-200'
+                ? isDark
+                  ? 'bg-[#FF6FA5] text-[#0F1B3C] font-black shadow-md'
+                  : 'bg-[#1A2B5C] text-white font-black shadow-md'
+                : isDark
+                ? 'bg-[#0F1B3C] text-[#9AA6C9] hover:text-white'
+                : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C]'
             }`}
           >
             Hoy (Diario)
@@ -408,10 +414,14 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
           <button
             type="button"
             onClick={() => setRange('7days')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
               range === '7days'
-                ? 'bg-cyan-500 text-slate-950 font-black shadow-md'
-                : 'bg-slate-950 text-slate-400 hover:text-slate-200'
+                ? isDark
+                  ? 'bg-[#FF6FA5] text-[#0F1B3C] font-black shadow-md'
+                  : 'bg-[#1A2B5C] text-white font-black shadow-md'
+                : isDark
+                ? 'bg-[#0F1B3C] text-[#9AA6C9] hover:text-white'
+                : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C]'
             }`}
           >
             Últimos 7 Días (Semanal)
@@ -420,10 +430,14 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
           <button
             type="button"
             onClick={() => setRange('this_month')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
               range === 'this_month'
-                ? 'bg-cyan-500 text-slate-950 font-black shadow-md'
-                : 'bg-slate-950 text-slate-400 hover:text-slate-200'
+                ? isDark
+                  ? 'bg-[#FF6FA5] text-[#0F1B3C] font-black shadow-md'
+                  : 'bg-[#1A2B5C] text-white font-black shadow-md'
+                : isDark
+                ? 'bg-[#0F1B3C] text-[#9AA6C9] hover:text-white'
+                : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C]'
             }`}
           >
             Este Mes (Mensual)
@@ -432,10 +446,14 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
           <button
             type="button"
             onClick={() => setRange('all')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
               range === 'all'
-                ? 'bg-cyan-500 text-slate-950 font-black shadow-md'
-                : 'bg-slate-950 text-slate-400 hover:text-slate-200'
+                ? isDark
+                  ? 'bg-[#FF6FA5] text-[#0F1B3C] font-black shadow-md'
+                  : 'bg-[#1A2B5C] text-white font-black shadow-md'
+                : isDark
+                ? 'bg-[#0F1B3C] text-[#9AA6C9] hover:text-white'
+                : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C]'
             }`}
           >
             Histórico Total
@@ -444,11 +462,15 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
 
         {activeReportView === 'ventas' && allSellers.length > 0 && (
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-400">Vendedor:</span>
+            <span className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>Vendedor:</span>
             <select
               value={selectedSeller}
               onChange={(e) => setSelectedSeller(e.target.value)}
-              className="bg-slate-950 text-xs font-bold text-slate-200 border border-slate-700 rounded-xl px-2.5 py-1.5 focus:outline-none"
+              className={`text-xs font-bold border rounded-xl px-2.5 py-1.5 focus:outline-none transition ${
+                isDark
+                  ? 'bg-[#0F1B3C] text-white border-[#223368]'
+                  : 'bg-[#FBF7EF] text-[#1A2B5C] border-[#E8DFC8]'
+              }`}
             >
               <option value="all">Todos los vendedores</option>
               {allSellers.map((s) => (
@@ -462,11 +484,15 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
 
         {activeReportView === 'compras' && allSuppliers.length > 0 && (
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-400">Proveedor:</span>
+            <span className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>Proveedor:</span>
             <select
               value={selectedSupplier}
               onChange={(e) => setSelectedSupplier(e.target.value)}
-              className="bg-slate-950 text-xs font-bold text-slate-200 border border-slate-700 rounded-xl px-2.5 py-1.5 focus:outline-none"
+              className={`text-xs font-bold border rounded-xl px-2.5 py-1.5 focus:outline-none transition ${
+                isDark
+                  ? 'bg-[#0F1B3C] text-white border-[#223368]'
+                  : 'bg-[#FBF7EF] text-[#1A2B5C] border-[#E8DFC8]'
+              }`}
             >
               <option value="all">Todos los proveedores</option>
               {allSuppliers.map((sup) => (
@@ -484,50 +510,66 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
         <div className="space-y-6 animate-in fade-in">
           {/* KPI Cards Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-md">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+            <div
+              className={`border rounded-2xl p-4 shadow-sm ${
+                isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+              }`}
+            >
+              <span className={`text-[11px] font-bold uppercase tracking-wider block mb-1 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
                 Total Ventas (Bs.)
               </span>
-              <span className="text-xl sm:text-2xl font-black text-white font-['Outfit',sans-serif]">
+              <span className={`text-xl sm:text-2xl font-black font-['Outfit',sans-serif] ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
                 {formatCurrency(totalVendido)}
               </span>
-              <span className="text-[11px] text-slate-500 block mt-0.5">
+              <span className={`text-[11px] block mt-0.5 ${isDark ? 'text-[#9AA6C9]/80' : 'text-[#78716C]/80'}`}>
                 {validOrders.length} pedidos efectivos
               </span>
             </div>
 
-            <div className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-4 shadow-md bg-gradient-to-br from-slate-900 to-emerald-950/30">
-              <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider block mb-1">
+            <div
+              className={`border rounded-2xl p-4 shadow-sm ${
+                isDark ? 'bg-[#16234F] border-emerald-500/30' : 'bg-white border-emerald-200'
+              }`}
+            >
+              <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block mb-1">
                 Cobrado en Caja (QR / Ef.)
               </span>
-              <span className="text-xl sm:text-2xl font-black text-emerald-300 font-['Outfit',sans-serif]">
+              <span className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 font-['Outfit',sans-serif]">
                 {formatCurrency(totalCobrado)}
               </span>
-              <span className="text-[11px] text-emerald-500/80 block mt-0.5">
+              <span className="text-[11px] text-emerald-700/80 dark:text-emerald-400/80 block mt-0.5">
                 Ingreso real recibido
               </span>
             </div>
 
-            <div className="bg-slate-900 border border-amber-500/30 rounded-2xl p-4 shadow-md bg-gradient-to-br from-slate-900 to-amber-950/30">
-              <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider block mb-1">
+            <div
+              className={`border rounded-2xl p-4 shadow-sm ${
+                isDark ? 'bg-[#16234F] border-amber-500/30' : 'bg-white border-amber-200'
+              }`}
+            >
+              <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider block mb-1">
                 Saldos por Cobrar
               </span>
-              <span className="text-xl sm:text-2xl font-black text-amber-300 font-['Outfit',sans-serif]">
+              <span className="text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400 font-['Outfit',sans-serif]">
                 {formatCurrency(totalPorCobrar)}
               </span>
-              <span className="text-[11px] text-amber-500/80 block mt-0.5">
+              <span className="text-[11px] text-amber-700/80 dark:text-amber-400/80 block mt-0.5">
                 Pendientes de cobro
               </span>
             </div>
 
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-md">
-              <span className="text-[11px] font-bold text-cyan-400 uppercase tracking-wider block mb-1">
+            <div
+              className={`border rounded-2xl p-4 shadow-sm ${
+                isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+              }`}
+            >
+              <span className={`text-[11px] font-bold uppercase tracking-wider block mb-1 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`}>
                 Ticket Promedio
               </span>
-              <span className="text-xl sm:text-2xl font-black text-cyan-300 font-['Outfit',sans-serif]">
+              <span className={`text-xl sm:text-2xl font-black font-['Outfit',sans-serif] ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`}>
                 {formatCurrency(ticketPromedio)}
               </span>
-              <span className="text-[11px] text-slate-500 block mt-0.5">
+              <span className={`text-[11px] block mt-0.5 ${isDark ? 'text-[#9AA6C9]/80' : 'text-[#78716C]/80'}`}>
                 Promedio por cliente
               </span>
             </div>
@@ -535,9 +577,15 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
 
           {/* Ventas Anuladas KPI if any */}
           {totalAnulado > 0 && (
-            <div className="p-3.5 bg-rose-950/40 border border-rose-800/40 rounded-2xl flex items-center justify-between text-xs text-rose-300">
+            <div
+              className={`p-3.5 border rounded-2xl flex items-center justify-between text-xs ${
+                isDark
+                  ? 'bg-rose-950/40 border-rose-800/40 text-rose-300'
+                  : 'bg-rose-50 border-rose-200 text-rose-800'
+              }`}
+            >
               <div className="flex items-center gap-2">
-                <XCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                <XCircle className="w-4 h-4 text-rose-500 shrink-0" />
                 <span>
                   <strong>Ventas Anuladas:</strong> {canceledOrders.length} pedido(s) anulado(s) por un valor de {formatCurrency(totalAnulado)}.
                 </span>
@@ -548,45 +596,63 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
           {/* Charts Section */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Sales by Seller Performance */}
-            <div className="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div
+              className={`lg:col-span-6 border rounded-3xl p-5 shadow-sm space-y-4 ${
+                isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+              }`}
+            >
+              <div
+                className={`flex items-center justify-between border-b pb-3 ${
+                  isDark ? 'border-[#223368]' : 'border-[#E8DFC8]'
+                }`}
+              >
                 <div className="flex items-center gap-2">
-                  <Award className="w-5 h-5 text-yellow-400" />
-                  <h2 className="text-base font-bold text-white font-['Outfit',sans-serif]">
+                  <Award className="w-5 h-5 text-amber-500" />
+                  <h2 className={`text-base font-bold font-['Outfit',sans-serif] ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
                     Rendimiento por Vendedor
                   </h2>
                 </div>
-                <span className="text-xs text-slate-400">Total en Bs.</span>
+                <span className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>Total en Bs.</span>
               </div>
 
               <div className="space-y-3">
                 {sellerPerformance.length === 0 ? (
-                  <p className="text-xs text-slate-500 py-8 text-center">
+                  <p className={`text-xs py-8 text-center ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
                     Sin datos de ventas en este rango.
                   </p>
                 ) : (
                   sellerPerformance.map((seller, idx) => (
                     <div
                       key={idx}
-                      className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between gap-3"
+                      className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${
+                        isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+                      }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-7 h-7 rounded-lg bg-purple-950 text-purple-300 font-bold text-xs flex items-center justify-center">
+                        <div
+                          className={`w-7 h-7 rounded-lg font-bold text-xs flex items-center justify-center ${
+                            isDark
+                              ? 'bg-[#FF6FA5]/20 text-[#FF6FA5]'
+                              : 'bg-[#1A2B5C]/10 text-[#1A2B5C]'
+                          }`}
+                        >
                           #{idx + 1}
                         </div>
                         <div>
-                          <h4 className="text-sm font-bold text-white">{seller.name}</h4>
-                          <p className="text-[11px] text-slate-400">
+                          <h4 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                            {seller.name}
+                          </h4>
+                          <p className={`text-[11px] ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
                             {seller.count} {seller.count === 1 ? 'venta' : 'ventas'}
                           </p>
                         </div>
                       </div>
 
                       <div className="text-right">
-                        <span className="text-sm font-black text-cyan-300 font-mono block">
+                        <span className={`text-sm font-black font-mono block ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`}>
                           {formatCurrency(seller.total)}
                         </span>
-                        <span className="text-[10px] text-emerald-400">
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
                           Cobrado: {formatCurrency(seller.cobrado)}
                         </span>
                       </div>
@@ -597,38 +663,54 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
             </div>
 
             {/* Top 6 Best-selling Products */}
-            <div className="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div
+              className={`lg:col-span-6 border rounded-3xl p-5 shadow-sm space-y-4 ${
+                isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+              }`}
+            >
+              <div
+                className={`flex items-center justify-between border-b pb-3 ${
+                  isDark ? 'border-[#223368]' : 'border-[#E8DFC8]'
+                }`}
+              >
                 <div className="flex items-center gap-2">
-                  <Package className="w-5 h-5 text-cyan-400" />
-                  <h2 className="text-base font-bold text-white font-['Outfit',sans-serif]">
+                  <Package className={`w-5 h-5 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
+                  <h2 className={`text-base font-bold font-['Outfit',sans-serif] ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
                     Top Artículos Más Vendidos
                   </h2>
                 </div>
-                <span className="text-xs text-slate-400">Unidades vendidas</span>
+                <span className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>Unidades vendidas</span>
               </div>
 
               <div className="space-y-3">
                 {topProductsSold.length === 0 ? (
-                  <p className="text-xs text-slate-500 py-8 text-center">
+                  <p className={`text-xs py-8 text-center ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
                     Sin productos en este rango.
                   </p>
                 ) : (
                   topProductsSold.map((prod, idx) => (
                     <div
                       key={idx}
-                      className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between gap-3"
+                      className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${
+                        isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+                      }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="w-6 h-6 rounded-md bg-blue-950 text-cyan-300 text-xs font-bold flex items-center justify-center shrink-0">
+                        <span
+                          className={`w-6 h-6 rounded-md text-xs font-bold flex items-center justify-center shrink-0 ${
+                            isDark
+                              ? 'bg-[#FF6FA5]/20 text-[#FF6FA5]'
+                              : 'bg-[#1A2B5C]/10 text-[#1A2B5C]'
+                          }`}
+                        >
                           {prod.cantidad}u
                         </span>
-                        <span className="text-xs sm:text-sm font-bold text-white truncate">
+                        <span className={`text-xs sm:text-sm font-bold truncate ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
                           {prod.name}
                         </span>
                       </div>
 
-                      <span className="text-xs sm:text-sm font-black text-white font-mono shrink-0">
+                      <span className={`text-xs sm:text-sm font-black font-mono shrink-0 ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
                         {formatCurrency(prod.totalBs)}
                       </span>
                     </div>
@@ -645,50 +727,66 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
         <div className="space-y-6 animate-in fade-in">
           {/* KPI Cards Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-md">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+            <div
+              className={`border rounded-2xl p-4 shadow-sm ${
+                isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+              }`}
+            >
+              <span className={`text-[11px] font-bold uppercase tracking-wider block mb-1 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
                 Inversión en Compras
               </span>
-              <span className="text-xl sm:text-2xl font-black text-amber-300 font-['Outfit',sans-serif]">
+              <span className="text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400 font-['Outfit',sans-serif]">
                 {formatCurrency(totalInvertido)}
               </span>
-              <span className="text-[11px] text-slate-500 block mt-0.5">
+              <span className={`text-[11px] block mt-0.5 ${isDark ? 'text-[#9AA6C9]/80' : 'text-[#78716C]/80'}`}>
                 {validPurchases.length} compras de lote
               </span>
             </div>
 
-            <div className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-4 shadow-md bg-gradient-to-br from-slate-900 to-emerald-950/30">
-              <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider block mb-1">
+            <div
+              className={`border rounded-2xl p-4 shadow-sm ${
+                isDark ? 'bg-[#16234F] border-emerald-500/30' : 'bg-white border-emerald-200'
+              }`}
+            >
+              <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block mb-1">
                 Pagado / Desembolsado
               </span>
-              <span className="text-xl sm:text-2xl font-black text-emerald-300 font-['Outfit',sans-serif]">
+              <span className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 font-['Outfit',sans-serif]">
                 {formatCurrency(totalPagadoCompras)}
               </span>
-              <span className="text-[11px] text-emerald-500/80 block mt-0.5">
+              <span className="text-[11px] text-emerald-700/80 dark:text-emerald-400/80 block mt-0.5">
                 Efectivo & Transferencias
               </span>
             </div>
 
-            <div className="bg-slate-900 border border-rose-500/30 rounded-2xl p-4 shadow-md bg-gradient-to-br from-slate-900 to-rose-950/30">
-              <span className="text-[11px] font-bold text-rose-400 uppercase tracking-wider block mb-1">
+            <div
+              className={`border rounded-2xl p-4 shadow-sm ${
+                isDark ? 'bg-[#16234F] border-rose-500/30' : 'bg-white border-rose-200'
+              }`}
+            >
+              <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider block mb-1">
                 Cuentas por Pagar (Saldos)
               </span>
-              <span className="text-xl sm:text-2xl font-black text-rose-300 font-['Outfit',sans-serif]">
+              <span className="text-xl sm:text-2xl font-black text-rose-600 dark:text-rose-400 font-['Outfit',sans-serif]">
                 {formatCurrency(totalDeudaProveedores)}
               </span>
-              <span className="text-[11px] text-rose-500/80 block mt-0.5">
+              <span className="text-[11px] text-rose-700/80 dark:text-rose-400/80 block mt-0.5">
                 Deuda pendiente proveedores
               </span>
             </div>
 
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-md">
-              <span className="text-[11px] font-bold text-cyan-400 uppercase tracking-wider block mb-1">
+            <div
+              className={`border rounded-2xl p-4 shadow-sm ${
+                isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+              }`}
+            >
+              <span className={`text-[11px] font-bold uppercase tracking-wider block mb-1 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
                 Compra Promedio
               </span>
-              <span className="text-xl sm:text-2xl font-black text-cyan-300 font-['Outfit',sans-serif]">
+              <span className={`text-xl sm:text-2xl font-black font-['Outfit',sans-serif] ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
                 {formatCurrency(compraPromedio)}
               </span>
-              <span className="text-[11px] text-slate-500 block mt-0.5">
+              <span className={`text-[11px] block mt-0.5 ${isDark ? 'text-[#9AA6C9]/80' : 'text-[#78716C]/80'}`}>
                 Promedio por factura/recibo
               </span>
             </div>
@@ -697,50 +795,60 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
           {/* Charts Section */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Breakdown by Supplier */}
-            <div className="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div
+              className={`lg:col-span-6 border rounded-3xl p-5 shadow-sm space-y-4 ${
+                isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+              }`}
+            >
+              <div
+                className={`flex items-center justify-between border-b pb-3 ${
+                  isDark ? 'border-[#223368]' : 'border-[#E8DFC8]'
+                }`}
+              >
                 <div className="flex items-center gap-2">
-                  <Building2 className="w-5 h-5 text-amber-400" />
-                  <h2 className="text-base font-bold text-white font-['Outfit',sans-serif]">
+                  <Building2 className="w-5 h-5 text-amber-500" />
+                  <h2 className={`text-base font-bold font-['Outfit',sans-serif] ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
                     Inversión por Proveedor Mayorista
                   </h2>
                 </div>
-                <span className="text-xs text-slate-400">Total en Bs.</span>
+                <span className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>Total en Bs.</span>
               </div>
 
               <div className="space-y-3">
                 {supplierPerformance.length === 0 ? (
-                  <p className="text-xs text-slate-500 py-8 text-center">
+                  <p className={`text-xs py-8 text-center ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
                     Sin compras en este rango.
                   </p>
                 ) : (
                   supplierPerformance.map((sup, idx) => (
                     <div
                       key={idx}
-                      className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between gap-3"
+                      className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${
+                        isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+                      }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-7 h-7 rounded-lg bg-amber-950 text-amber-300 font-bold text-xs flex items-center justify-center">
+                        <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold text-xs flex items-center justify-center">
                           #{idx + 1}
                         </div>
                         <div>
-                          <h4 className="text-sm font-bold text-white">{sup.name}</h4>
-                          <p className="text-[11px] text-slate-400">
+                          <h4 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>{sup.name}</h4>
+                          <p className={`text-[11px] ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
                             {sup.count} compra(s)
                           </p>
                         </div>
                       </div>
 
                       <div className="text-right">
-                        <span className="text-sm font-black text-amber-300 font-mono block">
+                        <span className="text-sm font-black text-amber-600 dark:text-amber-400 font-mono block">
                           {formatCurrency(sup.total)}
                         </span>
                         {sup.saldo > 0 ? (
-                          <span className="text-[10px] text-rose-400 font-bold">
+                          <span className="text-[10px] text-rose-600 dark:text-rose-400 font-bold">
                             Debe: {formatCurrency(sup.saldo)}
                           </span>
                         ) : (
-                          <span className="text-[10px] text-emerald-400">
+                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
                             100% Cancelado
                           </span>
                         )}
@@ -752,38 +860,48 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
             </div>
 
             {/* Top Materials / Goods Purchased */}
-            <div className="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div
+              className={`lg:col-span-6 border rounded-3xl p-5 shadow-sm space-y-4 ${
+                isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+              }`}
+            >
+              <div
+                className={`flex items-center justify-between border-b pb-3 ${
+                  isDark ? 'border-[#223368]' : 'border-[#E8DFC8]'
+                }`}
+              >
                 <div className="flex items-center gap-2">
-                  <Package className="w-5 h-5 text-amber-400" />
-                  <h2 className="text-base font-bold text-white font-['Outfit',sans-serif]">
+                  <Package className="w-5 h-5 text-amber-500" />
+                  <h2 className={`text-base font-bold font-['Outfit',sans-serif] ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
                     Top Artículos & Materiales Comprados
                   </h2>
                 </div>
-                <span className="text-xs text-slate-400">Mayor volumen invertido</span>
+                <span className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>Mayor volumen invertido</span>
               </div>
 
               <div className="space-y-3">
                 {topMaterialsPurchased.length === 0 ? (
-                  <p className="text-xs text-slate-500 py-8 text-center">
+                  <p className={`text-xs py-8 text-center ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
                     Sin artículos registrados en este rango.
                   </p>
                 ) : (
                   topMaterialsPurchased.map((mat, idx) => (
                     <div
                       key={idx}
-                      className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between gap-3"
+                      className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${
+                        isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+                      }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="w-6 h-6 rounded-md bg-amber-950 text-amber-300 text-xs font-bold flex items-center justify-center shrink-0">
+                        <span className="w-6 h-6 rounded-md bg-amber-500/20 text-amber-600 dark:text-amber-400 text-xs font-bold flex items-center justify-center shrink-0">
                           {mat.cantidad}u
                         </span>
-                        <span className="text-xs sm:text-sm font-bold text-white truncate">
+                        <span className={`text-xs sm:text-sm font-bold truncate ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
                           {mat.name}
                         </span>
                       </div>
 
-                      <span className="text-xs sm:text-sm font-black text-white font-mono shrink-0">
+                      <span className={`text-xs sm:text-sm font-black font-mono shrink-0 ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
                         {formatCurrency(mat.totalBs)}
                       </span>
                     </div>
@@ -800,81 +918,133 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
         <div className="space-y-6 animate-in fade-in">
           {/* Balance Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-slate-900 border border-blue-500/30 rounded-3xl p-5 shadow-xl bg-gradient-to-br from-slate-900 to-blue-950/20">
+            <div
+              className={`border rounded-3xl p-5 shadow-sm ${
+                isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+              }`}
+            >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">
+                <span className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`}>
                   1. Ingresos por Ventas
                 </span>
-                <ArrowUpRight className="w-5 h-5 text-blue-400" />
+                <ArrowUpRight className={`w-5 h-5 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
               </div>
-              <div className="text-2xl sm:text-3xl font-black text-white font-mono">
+              <div className={`text-2xl sm:text-3xl font-black font-mono ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
                 {formatCurrency(totalVendido)}
               </div>
-              <p className="text-xs text-slate-400 mt-1">
-                Efectivamente cobrado: <strong className="text-emerald-300">{formatCurrency(totalCobrado)}</strong>
+              <p className={`text-xs mt-1 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                Efectivamente cobrado: <strong className="text-emerald-600 dark:text-emerald-400">{formatCurrency(totalCobrado)}</strong>
               </p>
             </div>
 
-            <div className="bg-slate-900 border border-amber-500/30 rounded-3xl p-5 shadow-xl bg-gradient-to-br from-slate-900 to-amber-950/20">
+            <div
+              className={`border rounded-3xl p-5 shadow-sm ${
+                isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+              }`}
+            >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
+                <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
                   2. Egresos en Compras
                 </span>
-                <ArrowDownRight className="w-5 h-5 text-amber-400" />
+                <ArrowDownRight className="w-5 h-5 text-amber-600 dark:text-amber-400" />
               </div>
-              <div className="text-2xl sm:text-3xl font-black text-amber-300 font-mono">
+              <div className="text-2xl sm:text-3xl font-black text-amber-600 dark:text-amber-400 font-mono">
                 {formatCurrency(totalInvertido)}
               </div>
-              <p className="text-xs text-slate-400 mt-1">
-                Desembolsado: <strong className="text-slate-200">{formatCurrency(totalPagadoCompras)}</strong>
+              <p className={`text-xs mt-1 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                Desembolsado: <strong>{formatCurrency(totalPagadoCompras)}</strong>
               </p>
             </div>
 
-            <div className={`rounded-3xl p-5 shadow-xl border ${
-              flujoCajaNeto >= 0
-                ? 'bg-slate-900 border-emerald-500/40 bg-gradient-to-br from-slate-900 to-emerald-950/30'
-                : 'bg-slate-900 border-rose-500/40 bg-gradient-to-br from-slate-900 to-rose-950/30'
-            }`}>
+            <div
+              className={`rounded-3xl p-5 shadow-sm border ${
+                flujoCajaNeto >= 0
+                  ? isDark
+                    ? 'bg-[#16234F] border-emerald-500/40'
+                    : 'bg-white border-emerald-300'
+                  : isDark
+                  ? 'bg-[#16234F] border-rose-500/40'
+                  : 'bg-white border-rose-300'
+              }`}
+            >
               <div className="flex items-center justify-between mb-2">
-                <span className={`text-xs font-bold uppercase tracking-wider ${flujoCajaNeto >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                <span
+                  className={`text-xs font-bold uppercase tracking-wider ${
+                    flujoCajaNeto >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                  }`}
+                >
                   3. Flujo Neto de Caja
                 </span>
-                <Scale className="w-5 h-5 text-emerald-400" />
+                <Scale className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
               </div>
-              <div className={`text-2xl sm:text-3xl font-black font-mono ${flujoCajaNeto >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+              <div
+                className={`text-2xl sm:text-3xl font-black font-mono ${
+                  flujoCajaNeto >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                }`}
+              >
                 {formatCurrency(flujoCajaNeto)}
               </div>
-              <p className="text-xs text-slate-400 mt-1">
+              <p className={`text-xs mt-1 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
                 (Ingreso cobrado - Desembolso de compras)
               </p>
             </div>
           </div>
 
           {/* Comparative Summary Table */}
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
-            <h3 className="text-base font-bold text-white font-['Outfit',sans-serif]">
+          <div
+            className={`border rounded-3xl p-6 shadow-sm space-y-4 ${
+              isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+            }`}
+          >
+            <h3 className={`text-base font-bold font-['Outfit',sans-serif] ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
               Resumen Financiero Consolidado
             </h3>
             <div className="space-y-2.5 text-xs sm:text-sm">
-              <div className="flex justify-between p-3 bg-slate-950 rounded-xl border border-slate-800">
-                <span className="text-slate-400">Total Facturado en Ventas (TikTok / Envíos):</span>
-                <span className="font-mono font-bold text-white">{formatCurrency(totalVendido)}</span>
+              <div
+                className={`flex justify-between p-3 rounded-xl border ${
+                  isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+                }`}
+              >
+                <span className={isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}>Total Facturado en Ventas:</span>
+                <span className={`font-mono font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                  {formatCurrency(totalVendido)}
+                </span>
               </div>
-              <div className="flex justify-between p-3 bg-slate-950 rounded-xl border border-slate-800">
-                <span className="text-slate-400">Total Inversión en Mercadería y Embalajes:</span>
-                <span className="font-mono font-bold text-amber-300">{formatCurrency(totalInvertido)}</span>
+              <div
+                className={`flex justify-between p-3 rounded-xl border ${
+                  isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+                }`}
+              >
+                <span className={isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}>Total Inversión en Mercadería:</span>
+                <span className="font-mono font-bold text-amber-600 dark:text-amber-400">{formatCurrency(totalInvertido)}</span>
               </div>
-              <div className="flex justify-between p-3 bg-slate-950 rounded-xl border border-slate-800">
-                <span className="text-slate-400">Cuentas por Cobrar a Clientes (Saldos):</span>
-                <span className="font-mono font-bold text-cyan-300">{formatCurrency(totalPorCobrar)}</span>
+              <div
+                className={`flex justify-between p-3 rounded-xl border ${
+                  isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+                }`}
+              >
+                <span className={isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}>Cuentas por Cobrar (Saldos):</span>
+                <span className={`font-mono font-bold ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`}>
+                  {formatCurrency(totalPorCobrar)}
+                </span>
               </div>
-              <div className="flex justify-between p-3 bg-slate-950 rounded-xl border border-slate-800">
-                <span className="text-slate-400">Cuentas por Pagar a Proveedores:</span>
-                <span className="font-mono font-bold text-rose-400">{formatCurrency(totalDeudaProveedores)}</span>
+              <div
+                className={`flex justify-between p-3 rounded-xl border ${
+                  isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+                }`}
+              >
+                <span className={isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}>Cuentas por Pagar a Proveedores:</span>
+                <span className="font-mono font-bold text-rose-600 dark:text-rose-400">{formatCurrency(totalDeudaProveedores)}</span>
               </div>
-              <div className="flex justify-between p-3.5 bg-slate-950 rounded-xl border border-emerald-500/40 text-base font-bold">
-                <span className="text-emerald-400">Margen Bruto de Ganancia Teórico:</span>
-                <span className="font-mono text-emerald-300">{formatCurrency(margenBrutoTeorico)}</span>
+              <div
+                className={`flex justify-between p-3.5 rounded-xl border text-base font-bold ${
+                  isDark
+                    ? 'bg-[#0F1B3C] border-emerald-500/40 text-emerald-300'
+                    : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                }`}
+              >
+                <span>Margen Bruto de Ganancia Teórico:</span>
+                <span className="font-mono">{formatCurrency(margenBrutoTeorico)}</span>
               </div>
             </div>
           </div>

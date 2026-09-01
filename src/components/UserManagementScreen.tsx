@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import {
   Users,
   UserPlus,
@@ -20,6 +21,7 @@ import { subscribeToUsers, updateUserInFirestore } from '../lib/storage';
 
 export const UserManagementScreen: React.FC = () => {
   const { isJefe, isSupervisor, canAdminResetPasswords, registerNewUserByJefe, adminResetUserPassword, userProfile } = useAuth();
+  const { isDark } = useTheme();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -126,10 +128,14 @@ export const UserManagementScreen: React.FC = () => {
 
   if (!canAdminResetPasswords) {
     return (
-      <div className="max-w-xl mx-auto p-8 text-center bg-slate-900 border border-slate-800 rounded-3xl mt-8">
-        <Shield className="w-12 h-12 text-rose-400 mx-auto mb-3" />
-        <h2 className="text-xl font-bold text-white">Acceso Restringido</h2>
-        <p className="text-sm text-slate-400 mt-1">
+      <div
+        className={`max-w-xl mx-auto p-8 text-center border rounded-3xl mt-8 ${
+          isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+        }`}
+      >
+        <Shield className="w-12 h-12 text-rose-500 mx-auto mb-3" />
+        <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>Acceso Restringido</h2>
+        <p className={`text-sm mt-1 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
           Solo el Jefe y el Supervisor pueden acceder a la gestión y restablecimiento de claves del equipo.
         </p>
       </div>
@@ -141,15 +147,25 @@ export const UserManagementScreen: React.FC = () => {
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-[11px] font-extrabold uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/40 px-2.5 py-0.5 rounded-full">
+          <span
+            className={`text-[11px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
+              isDark
+                ? 'bg-[#FF6FA5]/20 text-[#FF6FA5] border-[#FF6FA5]/30'
+                : 'bg-[#1A2B5C]/10 text-[#1A2B5C] border-[#1A2B5C]/20'
+            }`}
+          >
             {isJefe ? '👑 Panel de Administración del Jefe' : '📊 Panel de Supervisor'}
           </span>
-          <span className="text-xs text-slate-400">Control de Personal & Claves</span>
+          <span className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>Control de Personal & Claves</span>
         </div>
-        <h1 className="text-xl sm:text-2xl font-black text-white font-['Outfit',sans-serif] tracking-tight">
+        <h1
+          className={`text-xl sm:text-2xl font-black font-['Outfit',sans-serif] tracking-tight ${
+            isDark ? 'text-white' : 'text-[#1A2B5C]'
+          }`}
+        >
           Gestión de Cuentas, Personal & Contraseñas
         </h1>
-        <p className="text-xs sm:text-sm text-slate-400">
+        <p className={`text-xs sm:text-sm ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
           {isJefe
             ? 'Crea cuentas para tu equipo, asigna roles y cambia contraseñas si un vendedor lo olvida.'
             : 'Como Supervisor puedes consultar el personal y cambiar contraseñas de vendedores autorizados.'}
@@ -160,97 +176,167 @@ export const UserManagementScreen: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Create User Form (Only for Jefe) */}
         {isJefe ? (
-          <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4">
-            <div className="flex items-center gap-2.5 border-b border-slate-800 pb-3">
-              <div className="w-9 h-9 rounded-xl bg-purple-950 border border-purple-500/40 flex items-center justify-center text-purple-300">
+          <div
+            className={`lg:col-span-5 border rounded-3xl p-5 sm:p-6 shadow-sm space-y-4 ${
+              isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+            }`}
+          >
+            <div
+              className={`flex items-center gap-2.5 border-b pb-3 ${
+                isDark ? 'border-[#223368]' : 'border-[#E8DFC8]'
+              }`}
+            >
+              <div
+                className={`w-9 h-9 rounded-xl border flex items-center justify-center ${
+                  isDark
+                    ? 'bg-[#0F1B3C] border-[#223368] text-[#FF6FA5]'
+                    : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C]'
+                }`}
+              >
                 <UserPlus className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-base font-bold text-white font-['Outfit',sans-serif]">
+                <h2 className={`text-base font-bold font-['Outfit',sans-serif] ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
                   Registrar Nuevo Usuario
                 </h2>
-                <p className="text-[11px] text-slate-400">Vendedor o Supervisor</p>
+                <p className={`text-[11px] ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>Vendedor o Supervisor</p>
               </div>
             </div>
 
             {successMsg && (
-              <div className="p-3 bg-emerald-950/80 border border-emerald-500/50 rounded-xl text-emerald-200 text-xs flex items-center gap-2">
-                <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+              <div
+                className={`p-3 border rounded-xl text-xs flex items-center gap-2 ${
+                  isDark
+                    ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-200'
+                    : 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                }`}
+              >
+                <Check className="w-4 h-4 text-emerald-500 shrink-0" />
                 <span>{successMsg}</span>
               </div>
             )}
 
             {errorMsg && (
-              <div className="p-3 bg-rose-950/80 border border-rose-500/50 rounded-xl text-rose-200 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <div
+                className={`p-3 border rounded-xl text-xs flex items-center gap-2 ${
+                  isDark
+                    ? 'bg-rose-950/80 border-rose-500/50 text-rose-200'
+                    : 'bg-rose-50 border-rose-300 text-rose-800'
+                }`}
+              >
+                <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
                 <span>{errorMsg}</span>
               </div>
             )}
 
             <form onSubmit={handleCreateUser} className="space-y-3.5">
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                <label
+                  className={`block text-[11px] font-bold uppercase tracking-wider mb-1 ${
+                    isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                  }`}
+                >
                   Nombre Completo
                 </label>
                 <div className="relative">
-                  <User className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <User
+                    className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${
+                      isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                    }`}
+                  />
                   <input
                     type="text"
                     required
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
                     placeholder="ej: Paola Vargas"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 pl-9 pr-3 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                    className={`w-full border rounded-xl py-2.5 pl-9 pr-3 text-xs sm:text-sm focus:outline-none transition ${
+                      isDark
+                        ? 'bg-[#0F1B3C] border-[#223368] text-white placeholder-[#9AA6C9]/60 focus:ring-2 focus:ring-[#FF6FA5]'
+                        : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/60 focus:ring-2 focus:ring-[#1A2B5C]'
+                    }`}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                <label
+                  className={`block text-[11px] font-bold uppercase tracking-wider mb-1 ${
+                    isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                  }`}
+                >
                   Correo Electrónico (Login)
                 </label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Mail
+                    className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${
+                      isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                    }`}
+                  />
                   <input
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="vendedor1@tienda.com"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 pl-9 pr-3 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                    className={`w-full border rounded-xl py-2.5 pl-9 pr-3 text-xs sm:text-sm focus:outline-none transition ${
+                      isDark
+                        ? 'bg-[#0F1B3C] border-[#223368] text-white placeholder-[#9AA6C9]/60 focus:ring-2 focus:ring-[#FF6FA5]'
+                        : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/60 focus:ring-2 focus:ring-[#1A2B5C]'
+                    }`}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                <label
+                  className={`block text-[11px] font-bold uppercase tracking-wider mb-1 ${
+                    isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                  }`}
+                >
                   Contraseña Inicial
                 </label>
                 <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Lock
+                    className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${
+                      isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                    }`}
+                  />
                   <input
                     type="password"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Mínimo 4 caracteres"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 pl-9 pr-3 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                    className={`w-full border rounded-xl py-2.5 pl-9 pr-3 text-xs sm:text-sm focus:outline-none transition ${
+                      isDark
+                        ? 'bg-[#0F1B3C] border-[#223368] text-white placeholder-[#9AA6C9]/60 focus:ring-2 focus:ring-[#FF6FA5]'
+                        : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/60 focus:ring-2 focus:ring-[#1A2B5C]'
+                    }`}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                <label
+                  className={`block text-[11px] font-bold uppercase tracking-wider mb-1 ${
+                    isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                  }`}
+                >
                   Rol / Nivel de Acceso
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => setRole('vendedor')}
-                    className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition ${
+                    className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition cursor-pointer ${
                       role === 'vendedor'
-                        ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300 shadow-md'
-                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                        ? isDark
+                          ? 'bg-[#0F1B3C] border-emerald-500 text-emerald-300 shadow-sm'
+                          : 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-sm'
+                        : isDark
+                        ? 'bg-[#0F1B3C] border-[#223368] text-[#9AA6C9] hover:text-white'
+                        : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#78716C] hover:text-[#1A2B5C]'
                     }`}
                   >
                     <Briefcase className="w-4 h-4" />
@@ -260,10 +346,14 @@ export const UserManagementScreen: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setRole('comprador')}
-                    className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition ${
+                    className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition cursor-pointer ${
                       role === 'comprador'
-                        ? 'bg-amber-950/80 border-amber-500 text-amber-300 shadow-md'
-                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                        ? isDark
+                          ? 'bg-[#0F1B3C] border-amber-500 text-amber-300 shadow-sm'
+                          : 'bg-amber-50 border-amber-500 text-amber-800 shadow-sm'
+                        : isDark
+                        ? 'bg-[#0F1B3C] border-[#223368] text-[#9AA6C9] hover:text-white'
+                        : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#78716C] hover:text-[#1A2B5C]'
                     }`}
                   >
                     <ShoppingBag className="w-4 h-4" />
@@ -273,10 +363,14 @@ export const UserManagementScreen: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setRole('supervisor')}
-                    className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition ${
+                    className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition cursor-pointer ${
                       role === 'supervisor'
-                        ? 'bg-blue-950/80 border-blue-500 text-blue-300 shadow-md'
-                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                        ? isDark
+                          ? 'bg-[#0F1B3C] border-blue-500 text-blue-300 shadow-sm'
+                          : 'bg-blue-50 border-blue-500 text-blue-800 shadow-sm'
+                        : isDark
+                        ? 'bg-[#0F1B3C] border-[#223368] text-[#9AA6C9] hover:text-white'
+                        : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#78716C] hover:text-[#1A2B5C]'
                     }`}
                   >
                     <Eye className="w-4 h-4" />
@@ -288,10 +382,14 @@ export const UserManagementScreen: React.FC = () => {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-white bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 active:scale-95 shadow-lg shadow-purple-900/40 flex items-center justify-center gap-2 transition disabled:opacity-50"
+                className={`w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm active:scale-95 shadow-md flex items-center justify-center gap-2 transition disabled:opacity-50 cursor-pointer ${
+                  isDark
+                    ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C]'
+                    : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white'
+                }`}
               >
                 {submitting ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
                     <UserPlus className="w-4 h-4" />
@@ -302,32 +400,50 @@ export const UserManagementScreen: React.FC = () => {
             </form>
           </div>
         ) : (
-          <div className="lg:col-span-4 bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl space-y-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-950 border border-blue-500/40 flex items-center justify-center text-blue-300">
+          <div
+            className={`lg:col-span-4 border rounded-3xl p-5 sm:p-6 shadow-sm space-y-3 ${
+              isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+            }`}
+          >
+            <div
+              className={`w-10 h-10 rounded-xl border flex items-center justify-center ${
+                isDark
+                  ? 'bg-[#0F1B3C] border-[#223368] text-[#FF6FA5]'
+                  : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C]'
+              }`}
+            >
               <KeyRound className="w-5 h-5" />
             </div>
-            <h3 className="text-base font-bold text-white">Gestión de Claves de Personal</h3>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Como Supervisor tienes permiso para restablecer o cambiar la contraseña de cualquier vendedor cuando lo solicite. Haz clic en el botón <strong className="text-purple-300">"Cambiar Clave"</strong> junto a su usuario.
+            <h3 className={`text-base font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>Gestión de Claves de Personal</h3>
+            <p className={`text-xs leading-relaxed ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+              Como Supervisor tienes permiso para restablecer o cambiar la contraseña de cualquier vendedor cuando lo solicite. Haz clic en el botón <strong className={isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}>"Cambiar Clave"</strong> junto a su usuario.
             </p>
           </div>
         )}
 
         {/* Right Column: Existing Users List & Password Management */}
-        <div className={`${isJefe ? 'lg:col-span-7' : 'lg:col-span-8'} bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4`}>
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div
+          className={`${isJefe ? 'lg:col-span-7' : 'lg:col-span-8'} border rounded-3xl p-5 sm:p-6 shadow-sm space-y-4 ${
+            isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+          }`}
+        >
+          <div
+            className={`flex items-center justify-between border-b pb-3 ${
+              isDark ? 'border-[#223368]' : 'border-[#E8DFC8]'
+            }`}
+          >
             <div className="flex items-center gap-2">
-              <Users className="w-5 h-5 text-cyan-400" />
-              <h2 className="text-base font-bold text-white font-['Outfit',sans-serif]">
+              <Users className={`w-5 h-5 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
+              <h2 className={`text-base font-bold font-['Outfit',sans-serif] ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
                 Personal Registrado ({users.length})
               </h2>
             </div>
-            <span className="text-xs text-slate-400">Control de Claves & Roles</span>
+            <span className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>Control de Claves & Roles</span>
           </div>
 
           <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
             {users.length === 0 ? (
-              <p className="text-xs text-slate-500 py-6 text-center">
+              <p className={`text-xs py-6 text-center ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
                 Aún no hay usuarios secundarios creados.
               </p>
             ) : (
@@ -338,25 +454,33 @@ export const UserManagementScreen: React.FC = () => {
                 return (
                   <div
                     key={u.uid}
-                    className="p-3.5 bg-slate-950 border border-slate-800 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    className={`p-3.5 border rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                      isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+                    }`}
                   >
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-white">
+                        <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
                           {u.displayName || 'Usuario'}
                         </span>
                         {isCurrent && (
-                          <span className="text-[9px] bg-cyan-950 text-cyan-300 border border-cyan-500/40 px-1.5 py-0.2 rounded-full font-bold">
+                          <span
+                            className={`text-[9px] border px-1.5 py-0.5 rounded-full font-bold ${
+                              isDark
+                                ? 'bg-[#FF6FA5]/20 text-[#FF6FA5] border-[#FF6FA5]/30'
+                                : 'bg-[#1A2B5C]/10 text-[#1A2B5C] border-[#1A2B5C]/20'
+                            }`}
+                          >
                             Tú
                           </span>
                         )}
                         {isJefeAccount && (
-                          <span className="text-[9px] bg-purple-950 text-purple-300 border border-purple-500/40 px-1.5 py-0.2 rounded-full font-bold">
+                          <span className="text-[9px] bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded-full font-bold">
                             👑 Jefe
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-400">{u.email}</p>
+                      <p className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>{u.email}</p>
                     </div>
 
                     <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
@@ -367,13 +491,9 @@ export const UserManagementScreen: React.FC = () => {
                           disabled={isJefeAccount}
                           onChange={(e) => handleRoleChange(u.uid, e.target.value as UserRole)}
                           className={`text-xs font-bold rounded-xl px-2.5 py-1.5 border focus:outline-none transition ${
-                            u.role === 'jefe'
-                              ? 'bg-purple-950 text-purple-300 border-purple-500/40'
-                              : u.role === 'supervisor'
-                              ? 'bg-blue-950 text-blue-300 border-blue-500/40'
-                              : u.role === 'comprador'
-                              ? 'bg-amber-950 text-amber-300 border-amber-500/40'
-                              : 'bg-emerald-950 text-emerald-300 border-emerald-500/40'
+                            isDark
+                              ? 'bg-[#16234F] text-white border-[#223368]'
+                              : 'bg-white text-[#1A2B5C] border-[#E8DFC8]'
                           }`}
                         >
                           <option value="jefe">👑 Jefe / Admin</option>
@@ -382,15 +502,13 @@ export const UserManagementScreen: React.FC = () => {
                           <option value="vendedor">💼 Vendedor (Ventas)</option>
                         </select>
                       ) : (
-                        <span className={`text-[11px] font-bold rounded-xl px-2 py-1 border ${
-                          u.role === 'jefe'
-                            ? 'bg-purple-950 text-purple-300 border-purple-500/40'
-                            : u.role === 'supervisor'
-                            ? 'bg-blue-950 text-blue-300 border-blue-500/40'
-                            : u.role === 'comprador'
-                            ? 'bg-amber-950 text-amber-300 border-amber-500/40'
-                            : 'bg-emerald-950 text-emerald-300 border-emerald-500/40'
-                        }`}>
+                        <span
+                          className={`text-[11px] font-bold rounded-xl px-2 py-1 border ${
+                            isDark
+                              ? 'bg-[#16234F] text-white border-[#223368]'
+                              : 'bg-white text-[#1A2B5C] border-[#E8DFC8]'
+                          }`}
+                        >
                           {u.role?.toUpperCase()}
                         </span>
                       )}
@@ -400,10 +518,12 @@ export const UserManagementScreen: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleToggleComprasAccess(u.uid, u.comprasAccess)}
-                          className={`text-[10px] font-bold rounded-xl px-2 py-1 border transition flex items-center gap-1 ${
+                          className={`text-[10px] font-bold rounded-xl px-2 py-1 border transition flex items-center gap-1 cursor-pointer ${
                             u.comprasAccess
-                              ? 'bg-amber-950 text-amber-300 border-amber-500/50 hover:bg-amber-900'
-                              : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-slate-200'
+                              ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/40'
+                              : isDark
+                              ? 'bg-[#16234F] text-[#9AA6C9] border-[#223368] hover:text-white'
+                              : 'bg-white text-[#78716C] border-[#E8DFC8] hover:text-[#1A2B5C]'
                           }`}
                           title="Permitir o denegar que este vendedor registre compras de material"
                         >
@@ -419,10 +539,14 @@ export const UserManagementScreen: React.FC = () => {
                           setResetError(null);
                           setResetSuccess(null);
                         }}
-                        className="px-2.5 py-1.5 bg-slate-800 hover:bg-purple-950 hover:border-purple-500/40 border border-slate-700 text-slate-300 hover:text-purple-200 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition"
+                        className={`px-2.5 py-1.5 border text-xs font-semibold rounded-xl flex items-center gap-1.5 transition cursor-pointer ${
+                          isDark
+                            ? 'bg-[#16234F] hover:bg-[#1E2D5A] border-[#223368] text-white'
+                            : 'bg-white hover:bg-[#F5EFE0] border-[#E8DFC8] text-[#1A2B5C]'
+                        }`}
                         title="Cambiar contraseña de este usuario"
                       >
-                        <KeyRound className="w-3.5 h-3.5 text-purple-400" />
+                        <KeyRound className={`w-3.5 h-3.5 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
                         <span>Cambiar Clave</span>
                       </button>
                     </div>
@@ -436,56 +560,96 @@ export const UserManagementScreen: React.FC = () => {
 
       {/* Modal for Resetting a User's Password by Jefe / Supervisor */}
       {selectedUserForReset && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div
+            className={`w-full max-w-md border rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 ${
+              isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+            }`}
+          >
+            <div
+              className={`flex items-center justify-between border-b pb-3 ${
+                isDark ? 'border-[#223368]' : 'border-[#E8DFC8]'
+              }`}
+            >
               <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-xl bg-purple-950 border border-purple-500/40 flex items-center justify-center text-purple-300">
+                <div
+                  className={`w-9 h-9 rounded-xl border flex items-center justify-center ${
+                    isDark
+                      ? 'bg-[#0F1B3C] border-[#223368] text-[#FF6FA5]'
+                      : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C]'
+                  }`}
+                >
                   <KeyRound className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">Cambiar Contraseña</h3>
-                  <p className="text-xs text-slate-400">
-                    Para: <strong className="text-cyan-300">{selectedUserForReset.displayName || selectedUserForReset.email}</strong>
+                  <h3 className={`text-base font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>Cambiar Contraseña</h3>
+                  <p className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                    Para: <strong className={isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}>{selectedUserForReset.displayName || selectedUserForReset.email}</strong>
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setSelectedUserForReset(null)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+                className={`p-1.5 rounded-lg cursor-pointer ${
+                  isDark ? 'text-[#9AA6C9] hover:text-white hover:bg-[#0F1B3C]' : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
+                }`}
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {resetSuccess && (
-              <div className="p-3 bg-emerald-950/80 border border-emerald-500/50 rounded-xl text-emerald-200 text-xs flex items-center gap-2">
-                <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+              <div
+                className={`p-3 border rounded-xl text-xs flex items-center gap-2 ${
+                  isDark
+                    ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-200'
+                    : 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                }`}
+              >
+                <Check className="w-4 h-4 text-emerald-500 shrink-0" />
                 <span>{resetSuccess}</span>
               </div>
             )}
 
             {resetError && (
-              <div className="p-3 bg-rose-950/80 border border-rose-500/50 rounded-xl text-rose-200 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <div
+                className={`p-3 border rounded-xl text-xs flex items-center gap-2 ${
+                  isDark
+                    ? 'bg-rose-950/80 border-rose-500/50 text-rose-200'
+                    : 'bg-rose-50 border-rose-300 text-rose-800'
+                }`}
+              >
+                <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
                 <span>{resetError}</span>
               </div>
             )}
 
             <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                <label
+                  className={`block text-[11px] font-bold uppercase tracking-wider mb-1 ${
+                    isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                  }`}
+                >
                   Nueva Contraseña para el Usuario
                 </label>
                 <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Lock
+                    className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${
+                      isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                    }`}
+                  />
                   <input
                     type="password"
                     required
                     value={resetNewPass}
                     onChange={(e) => setResetNewPass(e.target.value)}
                     placeholder="Mínimo 4 caracteres"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 pl-9 pr-3 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                    className={`w-full border rounded-xl py-2.5 pl-9 pr-3 text-xs sm:text-sm focus:outline-none transition ${
+                      isDark
+                        ? 'bg-[#0F1B3C] border-[#223368] text-white placeholder-[#9AA6C9]/60 focus:ring-2 focus:ring-[#FF6FA5]'
+                        : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/60 focus:ring-2 focus:ring-[#1A2B5C]'
+                    }`}
                   />
                 </div>
               </div>
@@ -494,17 +658,25 @@ export const UserManagementScreen: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setSelectedUserForReset(null)}
-                  className="flex-1 py-2.5 px-3 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 font-bold text-xs transition"
+                  className={`flex-1 py-2.5 px-3 rounded-xl border font-bold text-xs transition cursor-pointer ${
+                    isDark
+                      ? 'border-[#223368] text-[#9AA6C9] hover:bg-[#0F1B3C]'
+                      : 'border-[#E8DFC8] text-[#78716C] hover:bg-[#FBF7EF]'
+                  }`}
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={resetLoading}
-                  className="flex-1 py-2.5 px-3 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 shadow-lg shadow-purple-900/40 flex items-center justify-center gap-2 transition disabled:opacity-50"
+                  className={`flex-1 py-2.5 px-3 rounded-xl font-bold text-xs shadow-md flex items-center justify-center gap-2 transition disabled:opacity-50 cursor-pointer ${
+                    isDark
+                      ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C]'
+                      : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white'
+                  }`}
                 >
                   {resetLoading ? (
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                   ) : (
                     <>
                       <Check className="w-4 h-4" />

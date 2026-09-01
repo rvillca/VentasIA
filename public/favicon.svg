@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="chiquiBg" x1="6" y1="6" x2="58" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1A2B5C" />
+      <stop offset="100%" stop-color="#0F1B3C" />
+    </linearGradient>
+    <linearGradient id="pinkGrad" x1="14" y1="18" x2="50" y2="54" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FF85B3" />
+      <stop offset="100%" stop-color="#FF6FA5" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000000" flood-opacity="0.3" />
+    </filter>
+  </defs>
+
+  <!-- Background rounded badge -->
+  <rect x="2" y="2" width="60" height="60" rx="18" fill="url(#chiquiBg)" stroke="#E8DFC8" stroke-width="1.5" />
+
+  <!-- Kawaii Bag/Shopping Body -->
+  <!-- Bag Handles -->
+  <path d="M23 20V14C23 9 27 5 32 5C37 5 41 9 41 14V20" stroke="#FF6FA5" stroke-width="4" stroke-linecap="round" fill="none" />
+
+  <!-- Bag Body -->
+  <rect x="13" y="19" width="38" height="36" rx="9" fill="url(#pinkGrad)" filter="url(#glow)" />
+
+  <!-- Cute Eyes -->
+  <circle cx="25" cy="34" r="3.2" fill="#1A2B5C" />
+  <circle cx="39" cy="34" r="3.2" fill="#1A2B5C" />
+  <circle cx="26.2" cy="32.8" r="1.2" fill="#FFFFFF" />
+  <circle cx="40.2" cy="32.8" r="1.2" fill="#FFFFFF" />
+
+  <!-- Sweet Kawaii Smile -->
+  <path d="M29.5 39C30.5 41 33.5 41 34.5 39" stroke="#1A2B5C" stroke-width="2.2" stroke-linecap="round" fill="none" />
+
+  <!-- Mint / Peach Blush Cheeks -->
+  <ellipse cx="20" cy="38" rx="2.5" ry="1.5" fill="#FFFFFF" opacity="0.75" />
+  <ellipse cx="44" cy="38" rx="2.5" ry="1.5" fill="#FFFFFF" opacity="0.75" />
+
+  <!-- Golden Kawaii Sparkle Star -->
+  <path d="M46 12L47.5 17L52.5 18.5L47.5 20L46 25L44.5 20L39.5 18.5L44.5 17Z" fill="#FFA26B" />
+  <circle cx="46" cy="18.5" r="1" fill="#FFFFFF" />
+</svg>

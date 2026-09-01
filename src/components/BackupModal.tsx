@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Download, Upload, X, Check, AlertCircle, HardDrive, RefreshCw } from 'lucide-react';
 import { Order } from '../types';
 import { INITIAL_SAMPLE_ORDERS } from '../lib/storage';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface BackupModalProps {
   orders: Order[];
@@ -14,6 +15,7 @@ export const BackupModal: React.FC<BackupModalProps> = ({
   onClose,
   onRestoreOrders,
 }) => {
+  const { isDark } = useTheme();
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(
     null
   );
@@ -77,90 +79,147 @@ export const BackupModal: React.FC<BackupModalProps> = ({
   return (
     <div
       id="backup-modal-backdrop"
-      className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
     >
       <div
         id="backup-modal-content"
-        className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5"
+        className={`border rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5 ${
+          isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+        }`}
       >
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className={`flex items-center justify-between border-b pb-3 ${
+          isDark ? 'border-[#223368]' : 'border-[#E8DFC8]'
+        }`}>
           <div className="flex items-center gap-2">
-            <HardDrive className="w-5 h-5 text-cyan-400" />
-            <h2 className="text-lg font-bold text-white font-['Outfit',sans-serif]">
+            <HardDrive className={`w-5 h-5 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
+            <h2 className={`text-lg font-bold font-['Outfit',sans-serif] ${
+              isDark ? 'text-white' : 'text-[#1A2B5C]'
+            }`}>
               Gestión de Datos y Respaldo
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="p-1 text-slate-400 hover:text-white rounded-lg"
+            className={`p-1 rounded-lg transition cursor-pointer ${
+              isDark ? 'text-[#9AA6C9] hover:text-white hover:bg-[#0F1B3C]' : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
+            }`}
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <p className="text-xs text-slate-300 leading-relaxed">
-          Tus pedidos se guardan <strong className="text-cyan-300">permanentemente</strong> en tu navegador. Puedes descargar una copia de seguridad en JSON o importarla en cualquier momento.
-        </p>
-
         {message && (
           <div
-            className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+            className={`p-3 rounded-xl text-xs flex items-center gap-2 border ${
               message.type === 'success'
-                ? 'bg-emerald-950/80 border border-emerald-500/40 text-emerald-300'
-                : 'bg-rose-950/80 border border-rose-500/40 text-rose-300'
+                ? isDark
+                  ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-200'
+                  : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : isDark
+                ? 'bg-rose-950/80 border-rose-500/50 text-rose-200'
+                : 'bg-rose-50 border-rose-200 text-rose-800'
             }`}
           >
             {message.type === 'success' ? (
-              <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+              <Check className="w-4 h-4 text-emerald-500 shrink-0" />
             ) : (
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
             )}
             <span>{message.text}</span>
           </div>
         )}
 
         <div className="space-y-3">
-          {/* Export Button */}
-          <button
-            onClick={handleExport}
-            className="w-full py-3 px-4 bg-slate-800 hover:bg-slate-750 text-cyan-300 border border-slate-700 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-95"
-          >
-            <Download className="w-4 h-4" />
-            <span>Descargar Respaldo JSON ({orders.length} pedidos)</span>
-          </button>
+          {/* Export JSON */}
+          <div className={`p-4 rounded-2xl border space-y-2 ${
+            isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+          }`}>
+            <h3 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+              Exportar Copia de Seguridad
+            </h3>
+            <p className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+              Descarga un archivo .json con los {orders.length} pedidos registrados.
+            </p>
+            <button
+              onClick={handleExport}
+              className={`w-full py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer ${
+                isDark
+                  ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C]'
+                  : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white'
+              }`}
+            >
+              <Download className="w-4 h-4" />
+              <span>Descargar Archivo JSON</span>
+            </button>
+          </div>
 
-          {/* Import Button */}
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleImportFile}
-            accept=".json"
-            className="hidden"
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="w-full py-3 px-4 bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-95"
-          >
-            <Upload className="w-4 h-4 text-indigo-400" />
-            <span>Importar Archivo de Respaldo (.json)</span>
-          </button>
+          {/* Import JSON */}
+          <div className={`p-4 rounded-2xl border space-y-2 ${
+            isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+          }`}>
+            <h3 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+              Restaurar desde Archivo
+            </h3>
+            <p className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+              Carga un archivo de respaldo previo para sincronizar pedidos.
+            </p>
+            <input
+              type="file"
+              accept=".json"
+              ref={fileInputRef}
+              onChange={handleImportFile}
+              className="hidden"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className={`w-full py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition border cursor-pointer ${
+                isDark
+                  ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-white border-[#223368]'
+                  : 'bg-white hover:bg-[#E8DFC8] text-[#1A2B5C] border-[#E8DFC8]'
+              }`}
+            >
+              <Upload className="w-4 h-4" />
+              <span>Seleccionar Archivo JSON</span>
+            </button>
+          </div>
 
-          {/* Sample Demo Data */}
-          <button
-            onClick={handleLoadSamples}
-            className="w-full py-2.5 px-4 bg-slate-950 hover:bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800 rounded-xl text-xs font-medium flex items-center justify-center gap-2 transition-all"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Cargar Ejemplos de TikTok</span>
-          </button>
+          {/* Reset Demo Samples */}
+          <div className={`p-3 rounded-2xl border flex items-center justify-between gap-2 ${
+            isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+          }`}>
+            <div>
+              <h4 className={`text-xs font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                Datos de Demostración
+              </h4>
+              <p className={`text-[11px] ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                Carga pedidos iniciales de ejemplo
+              </p>
+            </div>
+            <button
+              onClick={handleLoadSamples}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer ${
+                isDark
+                  ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-[#9AA6C9] border-[#223368]'
+                  : 'bg-white hover:bg-[#E8DFC8] text-[#78716C] border-[#E8DFC8]'
+              }`}
+            >
+              Recargar
+            </button>
+          </div>
         </div>
 
-        <button
-          onClick={onClose}
-          className="w-full py-2.5 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold hover:bg-slate-700 transition-colors"
-        >
-          Cerrar
-        </button>
+        <div className="pt-2">
+          <button
+            onClick={onClose}
+            className={`w-full py-2.5 px-4 rounded-xl border font-bold text-xs transition cursor-pointer ${
+              isDark
+                ? 'border-[#223368] text-white hover:bg-[#0F1B3C]'
+                : 'border-[#E8DFC8] text-[#1A2B5C] hover:bg-[#FBF7EF]'
+            }`}
+          >
+            Cerrar
+          </button>
+        </div>
       </div>
     </div>
   );

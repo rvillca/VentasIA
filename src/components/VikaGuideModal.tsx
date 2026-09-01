@@ -7,10 +7,8 @@ import {
   CheckCircle2,
   Copy,
   Lightbulb,
-  Layers,
-  Bot,
-  DollarSign,
 } from 'lucide-react';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface VikaGuideModalProps {
   isOpen: boolean;
@@ -23,6 +21,7 @@ export const VikaGuideModal: React.FC<VikaGuideModalProps> = ({
   onClose,
   onSelectPrompt,
 }) => {
+  const { isDark } = useTheme();
   const [copiedIndex, setCopiedIndex] = React.useState<number | null>(null);
 
   if (!isOpen) return null;
@@ -60,23 +59,33 @@ export const VikaGuideModal: React.FC<VikaGuideModalProps> = ({
   return (
     <div
       id="vika-guide-modal"
-      className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150"
     >
-      <div className="bg-slate-900 border border-purple-500/40 rounded-3xl max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl ring-1 ring-purple-500/30">
+      <div
+        className={`border rounded-3xl max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl ${
+          isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+        }`}
+      >
         {/* Header */}
-        <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-950 via-purple-950/60 to-slate-900 border-b border-slate-800 flex items-center justify-between">
+        <div
+          className={`p-4 sm:p-5 border-b flex items-center justify-between shadow-sm ${
+            isDark
+              ? 'bg-[#0F1B3C] border-[#223368] text-white'
+              : 'bg-[#1A2B5C] border-[#1A2B5C] text-white'
+          }`}
+        >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-purple-500 to-cyan-400 flex items-center justify-center text-white shadow-lg shadow-purple-900/40">
-              <Lightbulb className="w-5 h-5 text-yellow-300" />
+            <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-white shadow-inner">
+              <Lightbulb className="w-5 h-5 text-amber-300" />
             </div>
             <div>
               <h2 className="text-base font-bold text-white font-['Outfit',sans-serif] flex items-center gap-1.5">
                 Guía de Dictado con VIKA IA
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30">
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/20 text-white font-bold">
                   Bolivia 🇧🇴
                 </span>
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-white/80">
                 Aprende a dictar tus pedidos en boxes, docenas y unidades
               </p>
             </div>
@@ -84,59 +93,81 @@ export const VikaGuideModal: React.FC<VikaGuideModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition"
+            className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-4 sm:p-6 overflow-y-auto space-y-5 text-xs sm:text-sm text-slate-200">
+        <div className="p-4 sm:p-6 overflow-y-auto space-y-5 text-xs sm:text-sm">
           {/* Key Rule Box */}
-          <div className="bg-gradient-to-br from-purple-950/40 to-slate-950 border border-purple-500/30 rounded-2xl p-4 space-y-2">
-            <div className="flex items-center gap-2 text-purple-300 font-bold text-xs uppercase tracking-wider">
-              <Sparkles className="w-4 h-4 text-yellow-300" />
+          <div
+            className={`border rounded-2xl p-4 space-y-2 ${
+              isDark
+                ? 'bg-[#0F1B3C] border-[#223368]'
+                : 'bg-[#FBF7EF] border-[#E8DFC8]'
+            }`}
+          >
+            <div className={`flex items-center gap-2 font-bold text-xs uppercase tracking-wider ${
+              isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'
+            }`}>
+              <Sparkles className="w-4 h-4 text-amber-400" />
               ¿Cómo funciona el armado de pedidos?
             </div>
-            <p className="text-slate-300 leading-relaxed text-xs sm:text-[13px]">
-              VIKA está entrenada para <strong>identificar productos, paquetes y cantidades exactas</strong>. No necesitas preocuparte por los precios al dictar: VIKA creará la lista limpia y luego le colocas los precios en el formulario con cálculo automático del total en <strong>Bolivianos (Bs.)</strong>.
+            <p className={`leading-relaxed text-xs sm:text-[13px] ${isDark ? 'text-slate-300' : 'text-[#78716C]'}`}>
+              VIKA está entrenada para <strong className={isDark ? 'text-white' : 'text-[#1A2B5C]'}>identificar productos, paquetes y cantidades exactas</strong>. No necesitas preocuparte por los precios al dictar: VIKA creará la lista limpia y luego le colocas los precios en el formulario con cálculo automático del total en <strong className={isDark ? 'text-white' : 'text-[#1A2B5C]'}>Bolivianos (Bs.)</strong>.
             </p>
           </div>
 
           {/* Formats Supported */}
           <div className="space-y-2.5">
-            <h3 className="text-xs font-bold text-cyan-300 uppercase tracking-wider flex items-center gap-1.5">
+            <h3 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+              isDark ? 'text-cyan-300' : 'text-[#1A2B5C]'
+            }`}>
               <Package className="w-4 h-4" />
               Presentaciones y Unidades Soportadas
             </h3>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-center">
-                <span className="block text-purple-400 font-bold text-xs">📦 Box Entero</span>
-                <span className="text-[11px] text-slate-400">24, 36, 48 ó 60 u.</span>
+              <div className={`border rounded-xl p-2.5 text-center ${
+                isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+              }`}>
+                <span className={`block font-bold text-xs ${isDark ? 'text-purple-300' : 'text-[#1A2B5C]'}`}>📦 Box Entero</span>
+                <span className={`text-[11px] ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>24, 36, 48 ó 60 u.</span>
               </div>
-              <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-center">
-                <span className="block text-fuchsia-400 font-bold text-xs">📦 Medio Box (½)</span>
-                <span className="text-[11px] text-slate-400">12, 18, 24 ó 30 u.</span>
+              <div className={`border rounded-xl p-2.5 text-center ${
+                isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+              }`}>
+                <span className={`block font-bold text-xs ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`}>📦 Medio Box (½)</span>
+                <span className={`text-[11px] ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>12, 18, 24 ó 30 u.</span>
               </div>
-              <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-center">
-                <span className="block text-indigo-400 font-bold text-xs">🎁 1 Docena</span>
-                <span className="text-[11px] text-slate-400">12 unidades</span>
+              <div className={`border rounded-xl p-2.5 text-center ${
+                isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+              }`}>
+                <span className={`block font-bold text-xs ${isDark ? 'text-indigo-300' : 'text-[#1A2B5C]'}`}>🎁 1 Docena</span>
+                <span className={`text-[11px] ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>12 unidades</span>
               </div>
-              <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-center">
-                <span className="block text-cyan-400 font-bold text-xs">✨ Media Docena</span>
-                <span className="text-[11px] text-slate-400">6 unidades</span>
+              <div className={`border rounded-xl p-2.5 text-center ${
+                isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+              }`}>
+                <span className={`block font-bold text-xs ${isDark ? 'text-cyan-300' : 'text-[#1A2B5C]'}`}>✨ Media Docena</span>
+                <span className={`text-[11px] ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>6 unidades</span>
               </div>
-              <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-center sm:col-span-2">
-                <span className="block text-emerald-400 font-bold text-xs">🏷️ Unidad Suelta</span>
-                <span className="text-[11px] text-slate-400">1 pieza individual</span>
+              <div className={`border rounded-xl p-2.5 text-center sm:col-span-2 ${
+                isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+              }`}>
+                <span className={`block font-bold text-xs ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>🏷️ Unidad Suelta</span>
+                <span className={`text-[11px] ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>1 pieza individual</span>
               </div>
             </div>
           </div>
 
           {/* Example Dictations */}
           <div className="space-y-3">
-            <h3 className="text-xs font-bold text-yellow-300 uppercase tracking-wider flex items-center gap-1.5">
+            <h3 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+              isDark ? 'text-amber-300' : 'text-[#1A2B5C]'
+            }`}>
               <Mic className="w-4 h-4" />
               Ejemplos Prácticos de Dictado
             </h3>
@@ -145,10 +176,14 @@ export const VikaGuideModal: React.FC<VikaGuideModalProps> = ({
               {examples.map((ex, idx) => (
                 <div
                   key={idx}
-                  className="bg-slate-950/80 border border-slate-800 rounded-2xl p-3.5 space-y-2 hover:border-purple-500/40 transition"
+                  className={`border rounded-2xl p-3.5 space-y-2 transition ${
+                    isDark
+                      ? 'bg-[#0F1B3C] border-[#223368]'
+                      : 'bg-[#FBF7EF] border-[#E8DFC8]'
+                  }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs text-purple-200">
+                    <span className={`font-bold text-xs ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
                       {ex.title}
                     </span>
                     <div className="flex items-center gap-1">
@@ -159,7 +194,11 @@ export const VikaGuideModal: React.FC<VikaGuideModalProps> = ({
                             onSelectPrompt(ex.dictado);
                             onClose();
                           }}
-                          className="px-2 py-0.5 bg-purple-600/30 hover:bg-purple-600/60 text-purple-200 rounded-lg text-[10px] font-semibold transition"
+                          className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold transition border cursor-pointer ${
+                            isDark
+                              ? 'bg-[#16234F] text-[#FF6FA5] border-[#223368]'
+                              : 'bg-white text-[#1A2B5C] border-[#E8DFC8]'
+                          }`}
                         >
                           Usar este ejemplo
                         </button>
@@ -167,11 +206,13 @@ export const VikaGuideModal: React.FC<VikaGuideModalProps> = ({
                       <button
                         type="button"
                         onClick={() => handleCopy(ex.dictado, idx)}
-                        className="p-1 text-slate-400 hover:text-white rounded-lg transition"
+                        className={`p-1 rounded-lg transition cursor-pointer ${
+                          isDark ? 'text-[#9AA6C9] hover:text-white' : 'text-[#78716C] hover:text-[#1A2B5C]'
+                        }`}
                         title="Copiar texto"
                       >
                         {copiedIndex === idx ? (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                         ) : (
                           <Copy className="w-3.5 h-3.5" />
                         )}
@@ -179,11 +220,15 @@ export const VikaGuideModal: React.FC<VikaGuideModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-white font-mono leading-relaxed">
+                  <div className={`border rounded-xl p-2.5 text-xs font-mono leading-relaxed ${
+                    isDark
+                      ? 'bg-[#16234F] border-[#223368] text-white'
+                      : 'bg-white border-[#E8DFC8] text-[#1A2B5C]'
+                  }`}>
                     "{ex.dictado}"
                   </div>
 
-                  <p className="text-[11px] text-slate-400 leading-snug">
+                  <p className={`text-[11px] leading-snug ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
                     {ex.explicacion}
                   </p>
                 </div>
@@ -192,17 +237,19 @@ export const VikaGuideModal: React.FC<VikaGuideModalProps> = ({
           </div>
 
           {/* Step by Step Flow */}
-          <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-4 space-y-2">
-            <h4 className="text-xs font-bold text-white flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <div className={`border rounded-2xl p-4 space-y-2 ${
+            isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+          }`}>
+            <h4 className={`text-xs font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
               Flujo Rápido de 3 Pasos:
             </h4>
-            <ol className="list-decimal list-inside space-y-1.5 text-xs text-slate-300">
+            <ol className={`list-decimal list-inside space-y-1.5 text-xs ${isDark ? 'text-slate-300' : 'text-[#78716C]'}`}>
               <li>
-                <strong>Habla o escribe a VIKA</strong> con tus artículos (ej. 1 box de 48, 1 docena, etc.).
+                <strong className={isDark ? 'text-white' : 'text-[#1A2B5C]'}>Habla o escribe a VIKA</strong> con tus artículos (ej. 1 box de 48, 1 docena, etc.).
               </li>
               <li>
-                VIKA arma la lista ordenada y tocas <strong>«Cargar a Nuevo Pedido y Asignar Precios»</strong>.
+                VIKA arma la lista ordenada y tocas <strong className={isDark ? 'text-white' : 'text-[#1A2B5C]'}>«Cargar a Nuevo Pedido y Asignar Precios»</strong>.
               </li>
               <li>
                 Colocas los precios unitarios (Bs.) en el formulario, se auto-calcula el total y guardas.
@@ -212,11 +259,17 @@ export const VikaGuideModal: React.FC<VikaGuideModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-3 bg-slate-950 border-t border-slate-800 flex justify-end">
+        <div className={`p-3 border-t flex justify-end ${
+          isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+        }`}>
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2 bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white rounded-xl text-xs font-bold transition active:scale-95"
+            className={`px-5 py-2 rounded-xl text-xs font-bold transition active:scale-95 shadow-sm cursor-pointer ${
+              isDark
+                ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C]'
+                : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white'
+            }`}
           >
             ¡Entendido, vamos a dictar!
           </button>

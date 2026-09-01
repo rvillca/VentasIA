@@ -13,12 +13,15 @@ import {
   Bot,
   HelpCircle,
   Layers,
+  Box,
 } from 'lucide-react';
 import { Order, OrderItem } from '../types';
 import { formatCurrency, getNextOrderNumber, formatBoliviaPhone } from '../lib/storage';
 import { VikaGuideModal } from './VikaGuideModal';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { PackagingQuickSelector } from './PackagingQuickSelector';
+import { PackagingSelectionModal } from './PackagingSelectionModal';
 
 interface NewOrderScreenProps {
   orders: Order[];
@@ -40,16 +43,6 @@ interface NewOrderScreenProps {
   onOpenVika?: () => void;
 }
 
-const PACKAGING_PRESETS = [
-  'Box de 24 u.',
-  'Box de 36 u.',
-  'Box de 48 u.',
-  'Box de 60 u.',
-  'Docena (12 u.)',
-  'Media Docena (6 u.)',
-  'Unidad',
-];
-
 export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
   orders,
   onSaveOrder,
@@ -58,12 +51,15 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
   onOpenVika,
 }) => {
   const { userProfile } = useAuth();
+  const { isDark } = useTheme();
+
   // Order form state
   const [cliente, setCliente] = useState('');
   const [telefono, setTelefono] = useState('');
   const [lugarEntrega, setLugarEntrega] = useState('');
   const [observaciones, setObservaciones] = useState('');
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [packagingModalItem, setPackagingModalItem] = useState<OrderItem | null>(null);
   const [productos, setProductos] = useState<OrderItem[]>([
     {
       id: `item-${Date.now()}-0`,
@@ -152,7 +148,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
 
   const handleSetQuickPayment = (type: 'zero' | 'half' | 'full') => {
     if (type === 'zero') setPagado(0);
-    else if (type === 'half') setPagado(Math.round(calculatedTotal / 2));
+    else if (type === 'half') setPagado(Number((calculatedTotal / 2).toFixed(2)));
     else if (type === 'full') setPagado(calculatedTotal);
   };
 
@@ -204,16 +200,22 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
             id="back-to-list-btn"
             type="button"
             onClick={onCancel}
-            className="p-2.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 rounded-xl transition-all"
+            className={`p-2.5 rounded-2xl transition-all border cursor-pointer ${
+              isDark
+                ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-white border-[#223368]'
+                : 'bg-white hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]'
+            }`}
             title="Volver"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-xl sm:text-2xl font-black text-white font-['Outfit',sans-serif] tracking-tight">
+            <h1 className={`text-xl sm:text-2xl font-black font-['Outfit',sans-serif] tracking-tight ${
+              isDark ? 'text-white' : 'text-[#1A2B5C]'
+            }`}>
               Nuevo Pedido de Venta
             </h1>
-            <p className="text-xs sm:text-sm text-slate-400">
+            <p className={`text-xs sm:text-sm ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
               Registra artículos, presentaciones y asigna precios en Bolivianos (Bs.)
             </p>
           </div>
@@ -223,10 +225,14 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
           <button
             type="button"
             onClick={() => setIsGuideOpen(true)}
-            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-purple-300 hover:text-white border border-purple-500/30 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition active:scale-95"
+            className={`px-3 py-2 rounded-2xl text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 border cursor-pointer ${
+              isDark
+                ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-[#B39DDB] border-[#223368]'
+                : 'bg-white hover:bg-[#F5EFE0] text-[#5B21B6] border-[#E8DFC8]'
+            }`}
             title="Ver guía de dictado para VIKA"
           >
-            <HelpCircle className="w-4 h-4 text-yellow-300" />
+            <HelpCircle className="w-4 h-4 text-amber-400" />
             <span className="hidden sm:inline">Guía de Dictado</span>
           </button>
 
@@ -235,10 +241,14 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
               id="new-order-ask-vika-btn"
               type="button"
               onClick={onOpenVika}
-              className="px-3.5 py-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-purple-900/40 border border-cyan-400/40 transition active:scale-95"
+              className={`px-3.5 py-2 rounded-2xl text-xs font-black flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer ${
+                isDark
+                  ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C] shadow-[#FF6FA5]/25 border border-[#FF6FA5]'
+                  : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white shadow-[#1A2B5C]/25'
+              }`}
               title="Pedirle a VIKA que prepare el listado por ti"
             >
-              <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-spin" />
+              <Sparkles className="w-3.5 h-3.5" />
               <span>Dictar a VIKA</span>
             </button>
           )}
@@ -247,19 +257,29 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
 
       {/* VIKA Assistant Quick Banner */}
       {onOpenVika && (
-        <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-purple-950/40 to-slate-900 border border-purple-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg">
+        <div className={`mb-6 p-4 rounded-3xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm ${
+          isDark
+            ? 'bg-[#16234F] border-[#223368]'
+            : 'bg-white border-[#E8DFC8]'
+        }`}>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-500 to-cyan-400 flex items-center justify-center text-white shrink-0 shadow-md">
+            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
+              isDark ? 'bg-[#FF6FA5] text-[#0F1B3C]' : 'bg-[#1A2B5C] text-white'
+            }`}>
               <Bot className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs font-bold text-white font-['Outfit',sans-serif] flex items-center gap-2">
+              <p className={`text-xs font-bold font-['Outfit',sans-serif] flex items-center gap-2 ${
+                isDark ? 'text-white' : 'text-[#1A2B5C]'
+              }`}>
                 ¿Quieres armar el pedido dictando por voz o texto?
-                <span className="text-[10px] px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${
+                  isDark ? 'bg-[#FF6FA5]/20 text-[#FF6FA5]' : 'bg-[#E8DFC8] text-[#1A2B5C]'
+                }`}>
                   Boxes · Docenas · Unidades
                 </span>
               </p>
-              <p className="text-[11px] text-slate-300">
+              <p className={`text-[11px] ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
                 Dicta: <em>«1 box de 48 de gomas Kitty más 1 docena de bolígrafos más 1 box de 24 de tajadores Kuromi»</em>.
               </p>
             </div>
@@ -269,16 +289,24 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
             <button
               type="button"
               onClick={() => setIsGuideOpen(true)}
-              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition"
+              className={`px-3 py-2 text-xs font-semibold rounded-xl transition border cursor-pointer ${
+                isDark
+                  ? 'bg-[#0F1B3C] text-[#9AA6C9] hover:text-white border-[#223368]'
+                  : 'bg-[#F5EFE0] text-[#1A2B5C] hover:bg-[#EBE2CF] border-[#E8DFC8]'
+              }`}
             >
               Ver ejemplos
             </button>
             <button
               type="button"
               onClick={onOpenVika}
-              className="flex-1 sm:flex-initial px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition active:scale-95 shadow-md shadow-purple-900/30"
+              className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-black rounded-xl flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer ${
+                isDark
+                  ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C]'
+                  : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white'
+              }`}
             >
-              <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
+              <Sparkles className="w-3.5 h-3.5" />
               <span>Abrir VIKA</span>
             </button>
           </div>
@@ -288,39 +316,55 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
       {/* Main Order Form */}
       <form onSubmit={handleSaveOrder} className="space-y-6">
         {/* Customer & Delivery Card */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl space-y-4">
-          <h2 className="text-base font-bold text-white font-['Outfit',sans-serif] flex items-center gap-2 border-b border-slate-800 pb-3">
-            <User className="w-5 h-5 text-cyan-400" />
+        <div className={`border rounded-3xl p-4 sm:p-6 shadow-sm space-y-4 ${
+          isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+        }`}>
+          <h2 className={`text-base font-bold font-['Outfit',sans-serif] flex items-center gap-2 border-b pb-3 ${
+            isDark ? 'text-white border-[#223368]' : 'text-[#1A2B5C] border-[#E8DFC8]'
+          }`}>
+            <User className={`w-5 h-5 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
             Datos del Destinatario y Entrega
           </h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Cliente */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${
+                isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+              }`}>
                 Nombre del Cliente
               </label>
               <div className="relative">
-                <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <User className={`w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 ${
+                  isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                }`} />
                 <input
                   id="input-cliente-name"
                   type="text"
                   value={cliente}
                   onChange={(e) => setCliente(e.target.value)}
                   placeholder="Ej. Camila Rodriguez / TikTok Live"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 pl-10 pr-3.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                  className={`w-full border rounded-xl py-2.5 pl-10 pr-3.5 text-sm focus:outline-none ${
+                    isDark
+                      ? 'bg-[#0F1B3C] border-[#223368] text-white placeholder-[#9AA6C9]/60 focus:ring-2 focus:ring-[#FF6FA5]'
+                      : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/60 focus:ring-2 focus:ring-[#1A2B5C]'
+                  }`}
                 />
               </div>
             </div>
 
             {/* Teléfono */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+              <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 flex items-center justify-between ${
+                isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+              }`}>
                 <span>Teléfono / WhatsApp</span>
-                <span className="text-[10px] text-cyan-400 font-bold">🇧🇴 +591</span>
+                <span className={`text-[10px] font-bold ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`}>🇧🇴 +591</span>
               </label>
               <div className="relative">
-                <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Phone className={`w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 ${
+                  isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                }`} />
                 <input
                   id="input-cliente-phone"
                   type="tel"
@@ -332,25 +376,37 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
                     }
                   }}
                   placeholder="Ej. 71234567 o +591 71234567"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 pl-10 pr-3.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                  className={`w-full border rounded-xl py-2.5 pl-10 pr-3.5 text-sm focus:outline-none ${
+                    isDark
+                      ? 'bg-[#0F1B3C] border-[#223368] text-white placeholder-[#9AA6C9]/60 focus:ring-2 focus:ring-[#FF6FA5]'
+                      : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/60 focus:ring-2 focus:ring-[#1A2B5C]'
+                  }`}
                 />
               </div>
             </div>
 
             {/* Lugar de Entrega */}
             <div className="sm:col-span-2">
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${
+                isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+              }`}>
                 Lugar o Punto de Entrega
               </label>
               <div className="relative mb-2">
-                <MapPin className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <MapPin className={`w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 ${
+                  isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                }`} />
                 <input
                   id="input-delivery-location"
                   type="text"
                   value={lugarEntrega}
                   onChange={(e) => setLugarEntrega(e.target.value)}
                   placeholder="Ej. Teleférico Morado Prado / Envío Cochabamba"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 pl-10 pr-3.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                  className={`w-full border rounded-xl py-2.5 pl-10 pr-3.5 text-sm focus:outline-none ${
+                    isDark
+                      ? 'bg-[#0F1B3C] border-[#223368] text-white placeholder-[#9AA6C9]/60 focus:ring-2 focus:ring-[#FF6FA5]'
+                      : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/60 focus:ring-2 focus:ring-[#1A2B5C]'
+                  }`}
                 />
               </div>
 
@@ -370,7 +426,11 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
                     key={loc}
                     type="button"
                     onClick={() => setLugarEntrega(loc)}
-                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 rounded-lg border border-slate-700/60 transition-colors"
+                    className={`px-2.5 py-1 text-[11px] rounded-lg border transition-colors cursor-pointer ${
+                      isDark
+                        ? 'bg-[#0F1B3C] hover:bg-[#1E2D5A] text-[#9AA6C9] hover:text-white border-[#223368]'
+                        : 'bg-[#F5EFE0] hover:bg-[#EBE2CF] text-[#1A2B5C] border-[#E8DFC8]'
+                    }`}
                   >
                     {loc}
                   </button>
@@ -380,7 +440,9 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
 
             {/* Observaciones */}
             <div className="sm:col-span-2">
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${
+                isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+              }`}>
                 Observaciones / Notas Especiales
               </label>
               <textarea
@@ -389,22 +451,32 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
                 value={observaciones}
                 onChange={(e) => setObservaciones(e.target.value)}
                 placeholder="Detalles de empaque, regalo, horario convenido o especificaciones..."
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                className={`w-full border rounded-xl p-3 text-sm focus:outline-none ${
+                  isDark
+                    ? 'bg-[#0F1B3C] border-[#223368] text-white placeholder-[#9AA6C9]/60 focus:ring-2 focus:ring-[#FF6FA5]'
+                    : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/60 focus:ring-2 focus:ring-[#1A2B5C]'
+                }`}
               />
             </div>
           </div>
         </div>
 
         {/* Products List Card */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className={`border rounded-3xl p-4 sm:p-6 shadow-sm space-y-4 ${
+          isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+        }`}>
+          <div className={`flex items-center justify-between border-b pb-3 ${
+            isDark ? 'border-[#223368]' : 'border-[#E8DFC8]'
+          }`}>
             <div>
-              <h2 className="text-base font-bold text-white font-['Outfit',sans-serif] flex items-center gap-2">
-                <Package className="w-5 h-5 text-indigo-400" />
+              <h2 className={`text-base font-bold font-['Outfit',sans-serif] flex items-center gap-2 ${
+                isDark ? 'text-white' : 'text-[#1A2B5C]'
+              }`}>
+                <Package className={`w-5 h-5 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
                 Artículos del Pedido ({productos.length})
               </h2>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Ingresa o ajusta el precio unitario en Bs. para cada artículo dictado
+              <p className={`text-[11px] mt-0.5 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                Ingresa o ajusta el precio unitario en Bs. para cada artículo
               </p>
             </div>
 
@@ -412,9 +484,13 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
               id="add-product-btn"
               type="button"
               onClick={handleAddProduct}
-              className="px-3 py-1.5 bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-200 text-xs font-semibold rounded-lg flex items-center gap-1 transition-colors"
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1 transition-colors border cursor-pointer ${
+                isDark
+                  ? 'bg-[#0F1B3C] hover:bg-[#1E2D5A] text-[#FF6FA5] border-[#223368]'
+                  : 'bg-[#F5EFE0] hover:bg-[#EBE2CF] text-[#1A2B5C] border-[#E8DFC8]'
+              }`}
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-3.5 h-3.5 stroke-[3]" />
               <span>Agregar Artículo</span>
             </button>
           </div>
@@ -425,13 +501,17 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
               return (
                 <div
                   key={prod.id}
-                  className="p-3.5 bg-slate-950/70 border border-slate-800 rounded-xl space-y-3"
+                  className={`p-3.5 border rounded-2xl space-y-3 ${
+                    isDark ? 'bg-[#0F1B3C]/70 border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+                  }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 space-y-2">
                       {/* Product Name */}
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                        <label className={`block text-[11px] font-bold uppercase tracking-wider mb-1 ${
+                          isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                        }`}>
                           Producto #{index + 1}
                         </label>
                         <input
@@ -441,34 +521,69 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
                             handleUpdateProduct(prod.id, 'nombre', e.target.value)
                           }
                           placeholder="Ej. Gomas Kitty, Bolígrafos Sanrio, Tajadores Kuromi..."
-                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 font-semibold"
+                          className={`w-full border rounded-xl px-3 py-2 text-sm font-semibold focus:outline-none ${
+                            isDark
+                              ? 'bg-[#16234F] border-[#223368] text-white placeholder-[#9AA6C9]/60 focus:ring-2 focus:ring-[#FF6FA5]'
+                              : 'bg-white border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/60 focus:ring-2 focus:ring-[#1A2B5C]'
+                          }`}
                         />
                       </div>
 
                       {/* Variant / Presentation */}
                       <div>
-                        <label className="block text-[11px] font-medium text-slate-400 mb-1 flex items-center justify-between">
+                        <label className={`block text-[11px] font-bold mb-1 flex items-center justify-between ${
+                          isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                        }`}>
                           <span>Presentación / Empaque / Variante</span>
-                          <span className="text-[10px] text-purple-300">Selección rápida:</span>
+                          <span className={`text-[10px] font-bold ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`}>
+                            Toca para abrir ventana:
+                          </span>
                         </label>
-                        <input
-                          type="text"
-                          value={prod.variante}
-                          onChange={(e) =>
-                            handleUpdateProduct(prod.id, 'variante', e.target.value)
-                          }
-                          placeholder="Ej. Box de 48 u., Docena (12 u.), Media Docena..."
-                          className="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400 mb-1.5"
-                        />
-
-                        {/* Quick Presentation presets */}
-                        <div className="mt-1">
-                          <PackagingQuickSelector
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
                             value={prod.variante}
-                            onChange={(preset) => handleUpdateProduct(prod.id, 'variante', preset)}
-                            theme="indigo"
+                            onClick={() => setPackagingModalItem(prod)}
+                            onChange={(e) =>
+                              handleUpdateProduct(prod.id, 'variante', e.target.value)
+                            }
+                            placeholder="Ej. Box de 48 u., Docena (12 u.), Medio Box..."
+                            className={`flex-1 border rounded-xl px-3 py-2 text-xs focus:outline-none ${
+                              isDark
+                                ? 'bg-[#16234F] border-[#223368] text-white placeholder-[#9AA6C9]/60 focus:ring-2 focus:ring-[#FF6FA5]'
+                                : 'bg-white border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/60 focus:ring-2 focus:ring-[#1A2B5C]'
+                            }`}
                           />
+                          <button
+                            type="button"
+                            onClick={() => setPackagingModalItem(prod)}
+                            className={`px-3.5 py-2 rounded-xl font-black text-xs flex items-center gap-1.5 transition active:scale-95 shrink-0 cursor-pointer ${
+                              isDark
+                                ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C]'
+                                : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white'
+                            }`}
+                            title="Abrir ventana de selección de cajas y docenas"
+                          >
+                            <Box className="w-3.5 h-3.5" />
+                            <span>Elegir Box</span>
+                          </button>
                         </div>
+
+                        {/* Direct Mobile Quick Badge if selected */}
+                        {prod.variante && (
+                          <div className="mt-1.5 flex items-center gap-1.5">
+                            <span className={`text-[10px] font-semibold ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                              Seleccionado:
+                            </span>
+                            <span className={`text-xs font-black px-2.5 py-0.5 rounded-lg flex items-center gap-1 border ${
+                              isDark
+                                ? 'bg-[#16234F] text-[#FF6FA5] border-[#223368]'
+                                : 'bg-white text-[#1A2B5C] border-[#E8DFC8]'
+                            }`}>
+                              ✨ {prod.variante}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -476,7 +591,11 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
                     <button
                       type="button"
                       onClick={() => handleRemoveProduct(prod.id)}
-                      className="p-2 text-slate-500 hover:text-rose-400 hover:bg-slate-900 rounded-lg transition-colors mt-6"
+                      className={`p-2 rounded-xl transition-colors mt-6 cursor-pointer ${
+                        isDark
+                          ? 'text-[#9AA6C9] hover:text-rose-400 hover:bg-[#16234F]'
+                          : 'text-[#78716C] hover:text-rose-600 hover:bg-white'
+                      }`}
                       title="Eliminar artículo"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -484,13 +603,19 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
                   </div>
 
                   {/* Quantity & Unit Price & Subtotal Row */}
-                  <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800/80 items-center">
+                  <div className={`grid grid-cols-3 gap-2 pt-2 border-t items-center ${
+                    isDark ? 'border-[#223368]' : 'border-[#E8DFC8]'
+                  }`}>
                     {/* Quantity with touch buttons */}
                     <div>
-                      <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">
+                      <label className={`block text-[10px] uppercase font-bold mb-1 ${
+                        isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                      }`}>
                         Cantidad
                       </label>
-                      <div className="flex items-center bg-slate-900 border border-slate-700 rounded-lg overflow-hidden">
+                      <div className={`flex items-center border rounded-xl overflow-hidden ${
+                        isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+                      }`}>
                         <button
                           type="button"
                           onClick={() =>
@@ -500,7 +625,9 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
                               Math.max(0, (prod.cantidad || 0) - 1)
                             )
                           }
-                          className="w-8 h-8 flex items-center justify-center text-slate-300 hover:bg-slate-800 active:bg-slate-700 text-base font-bold"
+                          className={`w-8 h-8 flex items-center justify-center text-base font-bold ${
+                            isDark ? 'text-white hover:bg-[#0F1B3C]' : 'text-[#1A2B5C] hover:bg-[#F5EFE0]'
+                          }`}
                         >
                           -
                         </button>
@@ -518,7 +645,9 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
                             )
                           }}
                           placeholder="0"
-                          className="w-full bg-transparent text-center text-xs font-bold text-white focus:outline-none"
+                          className={`w-full bg-transparent text-center text-xs font-black focus:outline-none ${
+                            isDark ? 'text-white' : 'text-[#1A2B5C]'
+                          }`}
                         />
                         <button
                           type="button"
@@ -529,7 +658,9 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
                               (prod.cantidad || 0) + 1
                             )
                           }
-                          className="w-8 h-8 flex items-center justify-center text-slate-300 hover:bg-slate-800 active:bg-slate-700 text-base font-bold"
+                          className={`w-8 h-8 flex items-center justify-center text-base font-bold ${
+                            isDark ? 'text-white hover:bg-[#0F1B3C]' : 'text-[#1A2B5C] hover:bg-[#F5EFE0]'
+                          }`}
                         >
                           +
                         </button>
@@ -538,17 +669,21 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
 
                     {/* Unit Price */}
                     <div>
-                      <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">
+                      <label className={`block text-[10px] uppercase font-bold mb-1 ${
+                        isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                      }`}>
                         Precio Unitario (Bs.)
                       </label>
                       <div className="relative">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">
+                        <span className={`absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold ${
+                          isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                        }`}>
                           Bs.
                         </span>
                         <input
                           type="number"
                           min="0"
-                          step="0.5"
+                          step="any"
                           value={prod.precioUnitario === 0 ? '' : (prod.precioUnitario || '')}
                           onFocus={(e) => e.target.select()}
                           onChange={(e) => {
@@ -559,18 +694,26 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
                               val === '' ? 0 : Math.max(0, parseFloat(val) || 0)
                             )
                           }}
-                          placeholder="0"
-                          className="w-full bg-slate-900 border border-slate-700 rounded-lg py-1.5 pl-9 pr-2 text-xs font-bold text-white focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                          placeholder="0.00"
+                          className={`w-full border rounded-xl py-1.5 pl-9 pr-2 text-xs font-black focus:outline-none ${
+                            isDark
+                              ? 'bg-[#16234F] border-[#223368] text-white focus:ring-2 focus:ring-[#FF6FA5]'
+                              : 'bg-white border-[#E8DFC8] text-[#1A2B5C] focus:ring-2 focus:ring-[#1A2B5C]'
+                          }`}
                         />
                       </div>
                     </div>
 
                     {/* Subtotal Display */}
                     <div className="text-right">
-                      <span className="block text-[10px] uppercase font-bold text-slate-400 mb-0.5">
+                      <span className={`block text-[10px] uppercase font-bold mb-0.5 ${
+                        isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                      }`}>
                         Subtotal
                       </span>
-                      <span className="text-sm font-extrabold text-cyan-300">
+                      <span className={`text-sm font-black font-['Outfit',sans-serif] ${
+                        isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'
+                      }`}>
                         {formatCurrency(subtotal)}
                       </span>
                     </div>
@@ -582,48 +725,68 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
         </div>
 
         {/* Financial Calculation Summary Card */}
-        <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-blue-950 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl space-y-4">
-          <h2 className="text-base font-bold text-white font-['Outfit',sans-serif] flex items-center gap-2 border-b border-slate-800 pb-3">
-            <DollarSign className="w-5 h-5 text-emerald-400" />
+        <div className={`border rounded-3xl p-5 sm:p-6 shadow-sm space-y-4 ${
+          isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+        }`}>
+          <h2 className={`text-base font-bold font-['Outfit',sans-serif] flex items-center gap-2 border-b pb-3 ${
+            isDark ? 'text-white border-[#223368]' : 'text-[#1A2B5C] border-[#E8DFC8]'
+          }`}>
+            <DollarSign className={`w-5 h-5 ${isDark ? 'text-[#4FD1B5]' : 'text-[#0F766E]'}`} />
             Cálculo de Pagos y Saldo (Bolivia)
           </h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
             {/* Total Calculado */}
-            <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4">
-              <span className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <div className={`border rounded-2xl p-4 ${
+              isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+            }`}>
+              <span className={`block text-xs font-bold uppercase tracking-wider ${
+                isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+              }`}>
                 Total Pedido
               </span>
-              <span className="text-2xl font-black text-white font-['Outfit',sans-serif] tracking-tight">
+              <span className={`text-2xl font-black font-['Outfit',sans-serif] tracking-tight ${
+                isDark ? 'text-white' : 'text-[#1A2B5C]'
+              }`}>
                 {formatCurrency(calculatedTotal)}
               </span>
-              <p className="text-[11px] text-slate-500 mt-0.5">
+              <p className={`text-[11px] mt-0.5 ${isDark ? 'text-[#9AA6C9]/70' : 'text-[#78716C]/80'}`}>
                 Calculado automáticamente
               </p>
             </div>
 
             {/* Pagado (Abono Manual) */}
-            <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 space-y-2">
-              <label className="block text-xs font-semibold text-emerald-300 uppercase tracking-wider">
+            <div className={`border rounded-2xl p-4 space-y-2 ${
+              isDark ? 'bg-[#0F1B3C] border-[#4FD1B5]/30' : 'bg-[#E6FFFA] border-[#99F6E4]'
+            }`}>
+              <label className={`block text-xs font-bold uppercase tracking-wider ${
+                isDark ? 'text-[#4FD1B5]' : 'text-[#0D9488]'
+              }`}>
                 Monto Pagado / Abono (Bs.)
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">
+                <span className={`absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold ${
+                  isDark ? 'text-[#4FD1B5]' : 'text-[#0D9488]'
+                }`}>
                   Bs.
                 </span>
                 <input
                   id="input-order-pagado"
                   type="number"
                   min="0"
-                  step="1"
+                  step="any"
                   value={pagado === 0 ? '' : pagado}
                   onFocus={(e) => e.target.select()}
                   onChange={(e) => {
                     const val = e.target.value;
                     setPagado(val === '' ? 0 : Math.max(0, parseFloat(val) || 0));
                   }}
-                  placeholder="0"
-                  className="w-full bg-slate-900 border border-emerald-500/40 rounded-lg py-2 pl-9 pr-3 text-base font-bold text-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                  placeholder="0.00"
+                  className={`w-full border rounded-xl py-2 pl-9 pr-3 text-base font-black focus:outline-none ${
+                    isDark
+                      ? 'bg-[#16234F] border-[#4FD1B5]/50 text-[#4FD1B5] focus:ring-2 focus:ring-[#4FD1B5]'
+                      : 'bg-white border-[#99F6E4] text-[#0F766E] focus:ring-2 focus:ring-[#0F766E]'
+                  }`}
                 />
               </div>
 
@@ -632,21 +795,33 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
                 <button
                   type="button"
                   onClick={() => handleSetQuickPayment('zero')}
-                  className="flex-1 py-1 bg-slate-800 hover:bg-slate-700 text-[10px] text-slate-300 rounded font-medium"
+                  className={`flex-1 py-1 rounded-lg text-[10px] font-bold border transition ${
+                    isDark
+                      ? 'bg-[#16234F] text-[#9AA6C9] hover:text-white border-[#223368]'
+                      : 'bg-white text-[#1A2B5C] hover:bg-[#F5EFE0] border-[#E8DFC8]'
+                  }`}
                 >
                   Bs. 0
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSetQuickPayment('half')}
-                  className="flex-1 py-1 bg-slate-800 hover:bg-slate-700 text-[10px] text-slate-300 rounded font-medium"
+                  className={`flex-1 py-1 rounded-lg text-[10px] font-bold border transition ${
+                    isDark
+                      ? 'bg-[#16234F] text-[#9AA6C9] hover:text-white border-[#223368]'
+                      : 'bg-white text-[#1A2B5C] hover:bg-[#F5EFE0] border-[#E8DFC8]'
+                  }`}
                 >
                   50%
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSetQuickPayment('full')}
-                  className="flex-1 py-1 bg-emerald-950 hover:bg-emerald-900 border border-emerald-500/30 text-[10px] text-emerald-300 rounded font-medium"
+                  className={`flex-1 py-1 rounded-lg text-[10px] font-black border transition ${
+                    isDark
+                      ? 'bg-[#4FD1B5] text-[#064E3B] border-[#4FD1B5]'
+                      : 'bg-[#0F766E] text-white border-[#0F766E]'
+                  }`}
                 >
                   Total
                 </button>
@@ -655,27 +830,41 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
 
             {/* Saldo Pendiente */}
             <div
-              className={`border rounded-xl p-4 transition-colors ${
+              className={`border rounded-2xl p-4 transition-colors ${
                 calculatedSaldo <= 0
-                  ? 'bg-emerald-950/40 border-emerald-500/40'
-                  : 'bg-amber-950/40 border-amber-500/40'
+                  ? isDark
+                    ? 'bg-[#0F1B3C] border-[#4FD1B5]/30'
+                    : 'bg-[#E6FFFA] border-[#99F6E4]'
+                  : isDark
+                  ? 'bg-[#0F1B3C] border-[#FFA26B]/30'
+                  : 'bg-[#FFF7ED] border-[#FED7AA]'
               }`}
             >
-              <span className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
+              <span className={`block text-xs font-bold uppercase tracking-wider ${
+                calculatedSaldo <= 0
+                  ? isDark ? 'text-[#4FD1B5]' : 'text-[#0D9488]'
+                  : isDark ? 'text-[#FFA26B]' : 'text-[#EA580C]'
+              }`}>
                 Saldo Pendiente
               </span>
               <span
                 className={`text-2xl font-black font-['Outfit',sans-serif] tracking-tight ${
-                  calculatedSaldo <= 0 ? 'text-emerald-400' : 'text-amber-400'
+                  calculatedSaldo <= 0
+                    ? isDark ? 'text-[#4FD1B5]' : 'text-[#0F766E]'
+                    : isDark ? 'text-[#FFA26B]' : 'text-[#C2410C]'
                 }`}
               >
                 {formatCurrency(calculatedSaldo)}
               </span>
               <span
-                className={`inline-block text-[11px] font-bold mt-1 px-2 py-0.5 rounded-md ${
+                className={`inline-block text-[11px] font-black mt-1 px-2.5 py-0.5 rounded-lg border ${
                   calculatedSaldo <= 0
-                    ? 'bg-emerald-500/20 text-emerald-300'
-                    : 'bg-amber-500/20 text-amber-300'
+                    ? isDark
+                      ? 'bg-[#4FD1B5]/20 text-[#4FD1B5] border-[#4FD1B5]/30'
+                      : 'bg-[#CCFBF1] text-[#0F766E] border-[#99F6E4]'
+                    : isDark
+                    ? 'bg-[#FFA26B]/20 text-[#FFA26B] border-[#FFA26B]/30'
+                    : 'bg-[#FFEDD5] text-[#C2410C] border-[#FED7AA]'
                 }`}
               >
                 {calculatedSaldo <= 0 ? '✅ Totalmente Pagado' : '⚠️ Pendiente de Cobro'}
@@ -689,7 +878,11 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
           <button
             id="confirm-save-order-btn"
             type="submit"
-            className="flex-1 py-4 px-6 rounded-xl font-bold text-base text-white bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-500 hover:from-emerald-500 hover:to-cyan-400 active:scale-[0.99] shadow-xl shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all"
+            className={`flex-1 py-4 px-6 rounded-2xl font-black text-base active:scale-[0.99] shadow-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              isDark
+                ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C] shadow-[#FF6FA5]/25 border border-[#FF6FA5]'
+                : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white shadow-[#1A2B5C]/25'
+            }`}
           >
             <CheckCircle2 className="w-5 h-5" />
             <span>Guardar Pedido Permanentemente</span>
@@ -699,12 +892,32 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
             id="cancel-confirmation-btn"
             type="button"
             onClick={onCancel}
-            className="py-3.5 px-6 rounded-xl font-semibold text-sm text-slate-300 bg-slate-800 hover:bg-slate-700 active:scale-[0.99] transition-all"
+            className={`py-3.5 px-6 rounded-2xl font-bold text-sm transition-all border cursor-pointer ${
+              isDark
+                ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-white border-[#223368]'
+                : 'bg-white hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]'
+            }`}
           >
             Cancelar
           </button>
         </div>
       </form>
+
+      {/* Packaging Selection Modal for Mobile & Quick selection */}
+      {packagingModalItem && (
+        <PackagingSelectionModal
+          isOpen={!!packagingModalItem}
+          onClose={() => setPackagingModalItem(null)}
+          productName={packagingModalItem.nombre || `Producto #${productos.findIndex((p) => p.id === packagingModalItem.id) + 1}`}
+          currentValue={packagingModalItem.variante}
+          onSelect={(presetLabel, suggestedUnits) => {
+            handleUpdateProduct(packagingModalItem.id, 'variante', presetLabel);
+            if (suggestedUnits && (!packagingModalItem.cantidad || packagingModalItem.cantidad === 0)) {
+              handleUpdateProduct(packagingModalItem.id, 'cantidad', 1);
+            }
+          }}
+        />
+      )}
 
       {/* Guide Modal */}
       <VikaGuideModal

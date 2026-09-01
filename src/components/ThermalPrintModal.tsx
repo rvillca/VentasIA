@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Order } from '../types';
 import { formatCurrency, formatBoliviaPhone } from '../lib/storage';
+import { useTheme } from '../contexts/ThemeContext';
 
 export type PrintMode = 'sale' | 'shipping' | 'both';
 
@@ -33,6 +34,7 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
   onClose,
   initialMode = 'both',
 }) => {
+  const { isDark } = useTheme();
   const [printMode, setPrintMode] = useState<PrintMode>(initialMode);
   const [copied, setCopied] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
@@ -93,7 +95,7 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
     return t;
   };
 
-  // 2. Text generator for Shipping / Package Label (No prices details, clear logistics)
+  // 2. Text generator for Shipping / Package Label
   const generateShippingText = () => {
     let t = `================================\n`;
     t += `   IMPORTADORA CHIQUIMINISOS    \n`;
@@ -251,19 +253,19 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
         <div class="divider"></div>
 
         <div class="shipping-box">
-          <div class="shipping-label">DESTINO / LUGAR DE ENTREGA:</div>
+          <div class="shipping-label">DESTINO / ENTREGA:</div>
           <div class="shipping-value" style="font-size:12px;">${(order.lugarEntrega || 'Mostrador / Por coordinar').toUpperCase()}</div>
         </div>
 
-        <div class="divider"></div>
+        <div class="double-divider"></div>
 
-        <div>
-          <div class="bold" style="font-size:10px;">CONTENIDO (${totalItemsCount} artículos):</div>
-          <div style="font-size:9px; margin-top:2px;">
+        <div class="shipping-box">
+          <div class="shipping-label">CONTENIDO (${totalItemsCount} art.):</div>
+          <div style="font-size:9.5px; margin-top:2px;">
             ${order.productos
               .map(
                 (item) => `
-              <div>• ${item.cantidad}x ${item.nombre} ${item.variante ? `(${item.variante})` : ''}</div>
+              <div>• <strong>${item.cantidad}x</strong> ${item.nombre} ${item.variante ? `(${item.variante})` : ''}</div>
             `
               )
               .join('')}
@@ -272,18 +274,11 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
 
         <div class="divider"></div>
 
-        <div class="center" style="margin: 4px 0;">
+        <div class="center" style="margin: 6px 0;">
           ${
             order.saldo <= 0
-              ? `
-            <div class="status-paid">✅ PAGADO COMPLETO</div>
-          `
-              : `
-            <div class="status-collect">
-              ⚠️ COBRAR EN DESTINO<br>
-              <span style="font-size:14px; font-weight:900;">SALDO: ${formatCurrency(order.saldo)}</span>
-            </div>
-          `
+              ? `<div class="status-paid">✅ PAGADO COMPLETO (ENTREGAR)</div>`
+              : `<div class="status-collect">⚠️ COBRAR EN DESTINO: <strong>${formatCurrency(order.saldo)}</strong></div>`
           }
         </div>
 
@@ -439,23 +434,31 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
 
   return (
     <>
-      {/* Interactive Modal Preview (hidden on print) */}
+      {/* Interactive Modal Preview */}
       <div
         id="thermal-print-modal"
-        className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 print:hidden animate-in fade-in duration-150 overflow-y-auto"
+        className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 print:hidden animate-in fade-in duration-150 overflow-y-auto"
       >
-        <div className="bg-slate-900 border border-purple-500/40 rounded-2xl sm:rounded-3xl max-w-md w-full my-auto max-h-[95vh] flex flex-col overflow-hidden shadow-2xl ring-1 ring-purple-500/30">
+        <div
+          className={`border rounded-2xl sm:rounded-3xl max-w-md w-full my-auto max-h-[95vh] flex flex-col overflow-hidden shadow-2xl ${
+            isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+          }`}
+        >
           {/* Header */}
-          <div className="p-3.5 sm:p-4 bg-gradient-to-r from-slate-950 via-slate-900 to-purple-950/70 border-b border-slate-800 flex items-center justify-between">
+          <div
+            className={`p-3.5 sm:p-4 border-b flex items-center justify-between ${
+              isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#1A2B5C] border-[#1A2B5C]'
+            }`}
+          >
             <div className="flex items-center gap-2.5 sm:gap-3">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-purple-500 to-cyan-400 flex items-center justify-center text-white shadow-lg shadow-purple-900/40 shrink-0">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-white shadow-sm shrink-0">
                 <Printer className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
               <div>
                 <h2 className="text-sm sm:text-base font-bold text-white font-['Outfit',sans-serif]">
                   Imprimir Tickets Térmicos
                 </h2>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-white/80">
                   Importadora Chiquiminisos · 58mm / 80mm
                 </p>
               </div>
@@ -463,7 +466,7 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
 
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition"
+              className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition cursor-pointer"
               title="Cerrar"
             >
               <X className="w-5 h-5" />
@@ -471,21 +474,35 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
           </div>
 
           {/* Mode Selector Tabs (Venta / Envío / Ambos) */}
-          <div className="px-3 pt-3 pb-1 bg-slate-950/90 border-b border-slate-800/80">
-            <div className="text-[11px] font-medium text-slate-400 mb-1.5 flex items-center justify-between">
-              <span>¿Qué deseas imprimir?</span>
-              <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider">
+          <div
+            className={`px-3 pt-3 pb-2 border-b ${
+              isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+            }`}
+          >
+            <div className="text-[11px] font-medium mb-1.5 flex items-center justify-between">
+              <span className={isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}>¿Qué deseas imprimir?</span>
+              <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'
+              }`}>
                 Pedido #{String(order.orderNumber).padStart(3, '0')}
               </span>
             </div>
-            <div className="grid grid-cols-3 gap-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800">
+            <div
+              className={`grid grid-cols-3 gap-1.5 p-1 rounded-xl border ${
+                isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+              }`}
+            >
               <button
                 type="button"
                 onClick={() => setPrintMode('both')}
-                className={`py-2 px-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                className={`py-2 px-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   printMode === 'both'
-                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    ? isDark
+                      ? 'bg-[#FF6FA5] text-[#0F1B3C] shadow-sm'
+                      : 'bg-[#1A2B5C] text-white shadow-sm'
+                    : isDark
+                    ? 'text-[#9AA6C9] hover:text-white hover:bg-[#0F1B3C]'
+                    : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
                 }`}
               >
                 <Layers className="w-3.5 h-3.5" />
@@ -495,10 +512,14 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
               <button
                 type="button"
                 onClick={() => setPrintMode('sale')}
-                className={`py-2 px-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                className={`py-2 px-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   printMode === 'sale'
-                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    ? isDark
+                      ? 'bg-[#FF6FA5] text-[#0F1B3C] shadow-sm'
+                      : 'bg-[#1A2B5C] text-white shadow-sm'
+                    : isDark
+                    ? 'text-[#9AA6C9] hover:text-white hover:bg-[#0F1B3C]'
+                    : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
                 }`}
               >
                 <Receipt className="w-3.5 h-3.5" />
@@ -508,10 +529,14 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
               <button
                 type="button"
                 onClick={() => setPrintMode('shipping')}
-                className={`py-2 px-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                className={`py-2 px-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   printMode === 'shipping'
-                    ? 'bg-gradient-to-r from-cyan-600 to-teal-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    ? isDark
+                      ? 'bg-[#2DD4BF] text-[#0F1B3C] shadow-sm'
+                      : 'bg-emerald-600 text-white shadow-sm'
+                    : isDark
+                    ? 'text-[#9AA6C9] hover:text-white hover:bg-[#0F1B3C]'
+                    : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
                 }`}
               >
                 <Truck className="w-3.5 h-3.5" />
@@ -521,11 +546,21 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
           </div>
 
           {/* Ticket Live Preview Area */}
-          <div className="p-3 sm:p-5 overflow-y-auto bg-slate-950/70 flex flex-col items-center space-y-3">
+          <div
+            className={`p-3 sm:p-5 overflow-y-auto flex flex-col items-center space-y-3 ${
+              isDark ? 'bg-[#0F1B3C]' : 'bg-[#F5EFE0]'
+            }`}
+          >
             {/* Guide Button / Info Alert */}
-            <div className="w-full max-w-[320px] bg-indigo-950/40 border border-indigo-500/30 rounded-xl p-2.5 flex items-start justify-between gap-2 text-[11px] text-indigo-200">
+            <div
+              className={`w-full max-w-[320px] border rounded-xl p-2.5 flex items-start justify-between gap-2 text-[11px] ${
+                isDark
+                  ? 'bg-[#16234F] border-[#223368] text-[#9AA6C9]'
+                  : 'bg-white border-[#E8DFC8] text-[#1A2B5C]'
+              }`}
+            >
               <div className="flex items-start gap-1.5">
-                <Smartphone className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
+                <Smartphone className="w-4 h-4 text-[#1A2B5C] dark:text-[#FF6FA5] shrink-0 mt-0.5" />
                 <span>
                   <strong>Tip:</strong> Puedes imprimir sólo el rótulo de paquete, la comanda o ambos juntos.
                 </span>
@@ -533,19 +568,27 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
               <button
                 type="button"
                 onClick={() => setShowGuide(!showGuide)}
-                className="text-cyan-400 hover:text-cyan-300 font-bold underline shrink-0"
+                className={`font-bold underline shrink-0 cursor-pointer ${
+                  isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'
+                }`}
               >
                 {showGuide ? 'Ocultar' : 'Guía'}
               </button>
             </div>
 
             {showGuide && (
-              <div className="w-full max-w-[320px] bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-slate-300 space-y-2 animate-in fade-in">
-                <p className="font-bold text-white flex items-center gap-1.5">
-                  <Bluetooth className="w-3.5 h-3.5 text-purple-400" />
+              <div
+                className={`w-full max-w-[320px] border rounded-xl p-3 text-xs space-y-2 animate-in fade-in ${
+                  isDark
+                    ? 'bg-[#16234F] border-[#223368] text-slate-300'
+                    : 'bg-white border-[#E8DFC8] text-[#1A2B5C]'
+                }`}
+              >
+                <p className="font-bold flex items-center gap-1.5">
+                  <Bluetooth className="w-3.5 h-3.5 text-blue-500" />
                   Uso en celular / tablet con comanderas Bluetooth:
                 </p>
-                <ol className="list-decimal pl-4 space-y-1 text-[11px] text-slate-300">
+                <ol className="list-decimal pl-4 space-y-1 text-[11px]">
                   <li>
                     <strong>Opción 1:</strong> Pulsa <em>"Mandar a Imprimir"</em> para seleccionar la impresora nativa en Android o iOS.
                   </li>
@@ -561,9 +604,9 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
 
             {/* LIVE PAPER PREVIEW */}
             <div className="w-full max-w-[300px] sm:max-w-[320px] space-y-3 select-all">
-              {/* TICKET 1: VENTA (Rendered if 'sale' or 'both') */}
+              {/* TICKET 1: VENTA */}
               {(printMode === 'sale' || printMode === 'both') && (
-                <div className="bg-white text-black p-3.5 sm:p-4 rounded-xl shadow-2xl font-mono text-xs border border-slate-300 space-y-2.5">
+                <div className="bg-white text-black p-3.5 sm:p-4 rounded-xl shadow-xl font-mono text-xs border border-stone-300 space-y-2.5">
                   <div className="text-center border-b border-dashed border-black pb-2 space-y-0.5">
                     <p className="text-xs sm:text-sm font-black tracking-wider uppercase font-sans">
                       IMPORTADORA CHIQUIMINISOS
@@ -659,16 +702,16 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
 
               {/* Cut Line indicator when previewing 'both' */}
               {printMode === 'both' && (
-                <div className="flex items-center justify-center gap-2 text-cyan-400 font-mono text-[10px] font-bold py-1">
+                <div className="flex items-center justify-center gap-2 text-stone-500 font-mono text-[10px] font-bold py-1">
                   <span>- - - - -</span>
                   <span>✂️ CORTAR TICKET AQUÍ ✂️</span>
                   <span>- - - - -</span>
                 </div>
               )}
 
-              {/* TICKET 2: RÓTULO DE ENVÍO (Rendered if 'shipping' or 'both') */}
+              {/* TICKET 2: RÓTULO DE ENVÍO */}
               {(printMode === 'shipping' || printMode === 'both') && (
-                <div className="bg-white text-black p-3.5 sm:p-4 rounded-xl shadow-2xl font-mono text-xs border-2 border-slate-800 space-y-2">
+                <div className="bg-white text-black p-3.5 sm:p-4 rounded-xl shadow-xl font-mono text-xs border-2 border-stone-800 space-y-2">
                   <div className="text-center border-b-2 border-black pb-2 space-y-0.5">
                     <p className="text-xs font-black uppercase font-sans tracking-wide">
                       IMPORTADORA CHIQUIMINISOS
@@ -680,7 +723,7 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
                     <p className="text-[10px] text-gray-600">{formattedDate}</p>
                   </div>
 
-                  {/* Big Shipping Destination Block */}
+                  {/* Destination */}
                   <div className="space-y-2 py-1">
                     <div className="bg-gray-100 p-2 rounded border border-gray-300">
                       <p className="text-[9px] font-bold text-gray-600 uppercase font-sans">DESTINATARIO / CLIENTE:</p>
@@ -704,7 +747,7 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Summary of Items without Prices */}
+                  {/* Summary */}
                   <div className="border-t border-b border-dashed border-black py-2 space-y-1">
                     <div className="flex justify-between font-bold text-[10px]">
                       <span>CONTENIDO DEL PAQUETE:</span>
@@ -720,7 +763,7 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Payment Status for Delivery Guy / Freight */}
+                  {/* Payment status */}
                   <div className="text-center py-1">
                     {order.saldo <= 0 ? (
                       <div className="border-2 border-emerald-600 bg-emerald-50 text-emerald-900 font-black text-xs py-1.5 px-2 rounded">
@@ -750,12 +793,20 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
           </div>
 
           {/* Action Bar */}
-          <div className="p-3 sm:p-4 bg-slate-950 border-t border-slate-800 space-y-2">
+          <div
+            className={`p-3 sm:p-4 border-t space-y-2 ${
+              isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+            }`}
+          >
             {/* Primary Print Button */}
             <button
               type="button"
               onClick={handlePrint}
-              className="w-full py-3 px-4 bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white rounded-xl font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg shadow-purple-900/40 active:scale-[0.98] transition"
+              className={`w-full py-3 px-4 rounded-xl font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition cursor-pointer ${
+                isDark
+                  ? 'bg-[#FF6FA5] hover:bg-[#ff5b98] text-[#0F1B3C]'
+                  : 'bg-[#1A2B5C] hover:bg-[#223773] text-white'
+              }`}
             >
               <Printer className="w-5 h-5" />
               <span>
@@ -767,42 +818,54 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
               </span>
             </button>
 
-            {/* Mobile Alternative Actions (Bluetooth / Share / Copy) */}
+            {/* Mobile Alternative Actions */}
             <div className="grid grid-cols-3 gap-1.5 sm:gap-2 pt-1">
               <button
                 type="button"
                 onClick={handleBluetoothRawBT}
-                className="py-2 px-1 sm:px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-medium text-[11px] flex flex-col sm:flex-row items-center justify-center gap-1 transition text-center"
+                className={`py-2 px-1 sm:px-2 rounded-xl font-medium text-[11px] flex flex-col sm:flex-row items-center justify-center gap-1 transition text-center cursor-pointer border ${
+                  isDark
+                    ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-slate-200 border-[#223368]'
+                    : 'bg-[#FBF7EF] hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]'
+                }`}
                 title="Abrir con app RawBT Bluetooth"
               >
-                <Bluetooth className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <Bluetooth className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                 <span className="truncate">App RawBT</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleShare}
-                className="py-2 px-1 sm:px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-medium text-[11px] flex flex-col sm:flex-row items-center justify-center gap-1 transition text-center"
+                className={`py-2 px-1 sm:px-2 rounded-xl font-medium text-[11px] flex flex-col sm:flex-row items-center justify-center gap-1 transition text-center cursor-pointer border ${
+                  isDark
+                    ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-slate-200 border-[#223368]'
+                    : 'bg-[#FBF7EF] hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]'
+                }`}
                 title="Compartir comanda a otra app o Bluetooth"
               >
-                <Share2 className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                <Share2 className="w-3.5 h-3.5 text-purple-500 shrink-0" />
                 <span className="truncate">Compartir</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleCopyText}
-                className="py-2 px-1 sm:px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-medium text-[11px] flex flex-col sm:flex-row items-center justify-center gap-1 transition text-center"
+                className={`py-2 px-1 sm:px-2 rounded-xl font-medium text-[11px] flex flex-col sm:flex-row items-center justify-center gap-1 transition text-center cursor-pointer border ${
+                  isDark
+                    ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-slate-200 border-[#223368]'
+                    : 'bg-[#FBF7EF] hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]'
+                }`}
                 title="Copiar texto de ticket"
               >
                 {copied ? (
                   <>
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span className="text-emerald-400 font-bold">¡Copiado!</span>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">¡Copiado!</span>
                   </>
                 ) : (
                   <>
-                    <Copy className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <Copy className="w-3.5 h-3.5 text-stone-500 shrink-0" />
                     <span className="truncate">Copiar</span>
                   </>
                 )}

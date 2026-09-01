@@ -330,6 +330,27 @@ export function getNextPurchaseNumber(purchases: Purchase[]): number {
   return max + 1;
 }
 
+// Quick complete balance for an order (sets pagado = total, saldo = 0)
+export async function completeOrderBalanceInFirestore(orderId: string, orderTotal: number): Promise<void> {
+  const docRef = doc(db, ORDERS_COLLECTION, orderId);
+  await updateDoc(docRef, {
+    pagado: orderTotal,
+    saldo: 0,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+// Quick complete balance for a purchase (sets pagado = total, saldo = 0, estado = 'Pagado')
+export async function completePurchaseBalanceInFirestore(purchaseId: string, purchaseTotal: number): Promise<void> {
+  const docRef = doc(db, PURCHASES_COLLECTION, purchaseId);
+  await updateDoc(docRef, {
+    pagado: purchaseTotal,
+    saldo: 0,
+    estado: 'Pagado',
+    updatedAt: new Date().toISOString(),
+  });
+}
+
 // Save or create order in Firestore
 export async function saveOrderToFirestore(order: Order): Promise<void> {
   const docRef = doc(db, ORDERS_COLLECTION, order.id);
@@ -389,12 +410,12 @@ export function getNextOrderNumber(orders: Order[]): number {
 }
 
 /**
- * Format currency strictly in Bolivianos (Bs.)
+ * Format currency strictly in Bolivianos (Bs.) with seamless decimal support
  */
 export function formatCurrency(amount: number): string {
   const num = Number(amount || 0);
   const formatted = new Intl.NumberFormat('es-BO', {
-    minimumFractionDigits: 0,
+    minimumFractionDigits: num % 1 === 0 ? 0 : 2,
     maximumFractionDigits: 2,
   }).format(num);
   return `Bs. ${formatted}`;
@@ -502,3 +523,51 @@ export function getWhatsAppUrl(order: Order): string {
   }
   return `https://wa.me/?text=${text}`;
 }
+
+/**
+ * Generates structured warehouse / dispatch preparation text for WhatsApp group
+ */
+export function generateWhatsAppPreparationText(order: Order): string {
+  const dateStr = new Date(order.createdAt).toLocaleDateString('es-BO', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const totalPiezas = order.productos.reduce((sum, p) => sum + (p.cantidad || 0), 0);
+
+  const itemsList = order.productos
+    .map((item, idx) => {
+      const variantText = item.variante && item.variante.trim() ? ` [${item.variante.trim()}]` : '';
+      return `  ▫️ *${item.cantidad}x* ${item.nombre}${variantText}`;
+    })
+    .join('\n');
+
+  const paymentAlert =
+    order.saldo <= 0
+      ? '🟢 *PAGADO 100%* (Solo despachar)'
+      : `🔴 *COBRAR EN DESTINO:* ${formatCurrency(order.saldo)}`;
+
+  let msg = `📦 *FICHA DE PREPARACIÓN Y EMPAQUE* 📦\n`;
+  msg += `🏷️ *PEDIDO #${String(order.orderNumber).padStart(3, '0')}*\n`;
+  msg += `─────────────────────────\n`;
+  msg += `👤 *Cliente:* ${order.cliente || 'Sin nombre'}\n`;
+  if (order.telefono) msg += `📱 *Teléfono:* ${order.telefono}\n`;
+  msg += `📍 *Destino / Envío:* ${order.lugarEntrega || 'Mostrador / Por coordinar'}\n`;
+  if (order.vendedorNombre) msg += `🧑‍💼 *Vendedor:* ${order.vendedorNombre}\n`;
+  msg += `⏰ *Fecha:* ${dateStr}\n`;
+  msg += `─────────────────────────\n`;
+  msg += `📋 *ARTÍCULOS A PREPARAR (${totalPiezas} piezas en total):*\n`;
+  msg += `${itemsList}\n`;
+  msg += `─────────────────────────\n`;
+  msg += `💰 *COBRO:* ${paymentAlert}\n`;
+  if (order.observaciones && order.observaciones.trim()) {
+    msg += `📝 *Nota especial:* ${order.observaciones.trim()}\n`;
+  }
+  msg += `─────────────────────────\n`;
+  msg += `⚠️ *Por favor armar el paquete y confirmar en el grupo cuando esté embalado listo para salida.* ✨`;
+
+  return msg;
+}
+

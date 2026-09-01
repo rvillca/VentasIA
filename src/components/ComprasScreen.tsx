@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { Purchase, PurchaseItem, PurchaseStatus } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import {
   formatCurrency,
   formatBoliviaPhone,
@@ -40,6 +41,7 @@ import {
   anularPurchaseInFirestore,
   deletePurchaseFromFirestore,
   getNextPurchaseNumber,
+  completePurchaseBalanceInFirestore,
 } from '../lib/storage';
 import { PurchaseEditModal } from './compras/PurchaseEditModal';
 import { PurchaseAnularModal } from './compras/PurchaseAnularModal';
@@ -74,6 +76,7 @@ const CATEGORIES = [
 
 export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) => {
   const { isJefe, isSupervisor, isComprador, userProfile, currentUser } = useAuth();
+  const { isDark } = useTheme();
 
   // Navigation & Sub-views
   const [activeSubTab, setActiveSubTab] = useState<'list' | 'reports'>('list');
@@ -711,20 +714,39 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                         Por: <strong className="text-slate-300">{purchase.compradorNombre || 'Supervisor'}</strong>
                       </div>
 
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         {isPending && !isAnulado && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowPayModal(purchase);
-                              setAbonoMonto(String(purchase.saldo));
-                            }}
-                            className="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold rounded-xl flex items-center gap-1 transition"
-                            title="Registrar Abono a Proveedor"
-                          >
-                            <DollarSign className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">Pagar Saldo</span>
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  await completePurchaseBalanceInFirestore(purchase.id, purchase.total);
+                                  setToastMessage(`¡Saldo de compra #C-${String(purchase.purchaseNumber).padStart(3, '0')} liquidado al 100%!`);
+                                } catch (err) {
+                                  console.error('Error completando saldo de compra:', err);
+                                }
+                              }}
+                              className="px-2.5 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold rounded-xl flex items-center gap-1 transition active:scale-95 shadow-sm"
+                              title="Completar saldo de compra inmediatamente en 1 clic"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>Liquidar Saldo</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowPayModal(purchase);
+                                setAbonoMonto(String(purchase.saldo));
+                              }}
+                              className="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold rounded-xl flex items-center gap-1 transition"
+                              title="Registrar Abono parcial a Proveedor"
+                            >
+                              <DollarSign className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Abono</span>
+                            </button>
+                          </>
                         )}
 
                         <button
@@ -760,6 +782,25 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
               })}
             </div>
           )}
+
+          {/* Floating Action Button (FAB) for New Purchase on mobile and desktop */}
+          <div className="fixed bottom-6 right-6 z-40">
+            <button
+              id="fab-new-purchase-btn"
+              type="button"
+              onClick={openNewPurchaseModal}
+              className={`py-3.5 px-5 rounded-full font-black text-sm active:scale-95 shadow-2xl flex items-center gap-2 transition-all cursor-pointer ${
+                isDark
+                  ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C] shadow-[#FF6FA5]/40 border border-[#FF6FA5]'
+                  : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white shadow-[#1A2B5C]/40'
+              }`}
+              title="Registrar nueva compra"
+            >
+              <Plus className="w-5 h-5 stroke-[3]" />
+              <span className="hidden sm:inline">Nueva Compra</span>
+              <span className="sm:hidden">Compra</span>
+            </button>
+          </div>
         </div>
       ) : (
         /* Sub Tab: Compras Analytics / Reports */
@@ -957,11 +998,12 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                             <input
                               type="number"
                               min="0"
+                              step="any"
                               value={item.cantidad === 0 ? '' : item.cantidad}
                               onFocus={(e) => e.target.select()}
                               onChange={(e) => {
                                 const val = e.target.value;
-                                handleItemChange(index, 'cantidad', val === '' ? 0 : Math.max(0, parseInt(val, 10) || 0));
+                                handleItemChange(index, 'cantidad', val === '' ? 0 : Math.max(0, parseFloat(val) || 0));
                               }}
                               placeholder="0"
                               className="w-full bg-transparent text-xs text-white font-mono focus:outline-none text-right"
@@ -975,14 +1017,14 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                             <input
                               type="number"
                               min="0"
-                              step="0.5"
+                              step="any"
                               value={item.costoUnitario === 0 ? '' : item.costoUnitario}
                               onFocus={(e) => e.target.select()}
                               onChange={(e) => {
                                 const val = e.target.value;
                                 handleItemChange(index, 'costoUnitario', val === '' ? 0 : Math.max(0, parseFloat(val) || 0));
                               }}
-                              placeholder="0"
+                              placeholder="0.00"
                               className="w-full bg-transparent text-xs text-white font-mono focus:outline-none text-right"
                             />
                           </div>
@@ -990,7 +1032,7 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
 
                         <div className="col-span-2 flex items-center justify-end gap-1">
                           <span className="text-xs font-mono font-bold text-amber-300">
-                            Bs. {item.subtotal || 0}
+                            {formatCurrency(item.subtotal || 0)}
                           </span>
                           {items.length > 1 && (
                             <button
@@ -1028,6 +1070,7 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                       <input
                         type="number"
                         min="0"
+                        step="any"
                         max={calculatedTotal}
                         value={pagadoMonto === 0 ? '' : pagadoMonto}
                         onFocus={(e) => e.target.select()}
@@ -1035,7 +1078,7 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                           const val = e.target.value;
                           setPagadoMonto(val === '' ? 0 : Math.max(0, parseFloat(val) || 0));
                         }}
-                        placeholder="0"
+                        placeholder="0.00"
                         className="w-full bg-slate-900 border border-emerald-500/40 rounded-xl py-2 px-3 text-sm font-bold text-emerald-300 font-mono focus:outline-none focus:ring-2 focus:ring-emerald-400"
                       />
                       <button
@@ -1265,6 +1308,26 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
           purchase={showPrintModal}
           onClose={() => setShowPrintModal(null)}
         />
+      )}
+
+      {/* Floating Action Button (FAB) for Nueva Compra - Always visible while scrolling */}
+      {activeSubTab === 'list' && (
+        <div className="fixed bottom-6 right-6 z-30 sm:bottom-8 sm:right-8 pointer-events-none">
+          <button
+            id="fab-new-purchase-btn"
+            type="button"
+            onClick={() => setShowNewModal(true)}
+            className="pointer-events-auto group flex items-center gap-2.5 px-4 sm:px-5 py-3 sm:py-3.5 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-extrabold text-xs sm:text-sm rounded-full shadow-2xl shadow-amber-900/60 hover:shadow-amber-500/50 hover:scale-105 active:scale-95 transition-all duration-200 border border-amber-300/40 cursor-pointer"
+            title="Registrar Nueva Compra (Botón Rápido Flotante)"
+          >
+            <div className="w-6 h-6 rounded-full bg-slate-950/20 flex items-center justify-center group-hover:rotate-90 transition-transform duration-200">
+              <Plus className="w-4 h-4 text-slate-950 stroke-[3]" />
+            </div>
+            <span className="font-['Outfit',sans-serif] tracking-tight font-black">
+              + Nueva Compra
+            </span>
+          </button>
+        </div>
       )}
     </div>
   );
