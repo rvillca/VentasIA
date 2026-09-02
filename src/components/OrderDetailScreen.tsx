@@ -592,9 +592,11 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
                         {formatArticleItem(item)}
                       </span>
                     </div>
-                    <p className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
-                      Precio unitario: {formatCurrency(item.precioUnitario)}
-                    </p>
+                    {item.cantidad > 1 && (
+                      <p className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                        Precio unitario: {formatCurrency(item.precioUnitario)} c/u
+                      </p>
+                    )}
                   </div>
 
                   <div className="text-right shrink-0">

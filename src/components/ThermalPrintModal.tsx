@@ -37,6 +37,7 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
 }) => {
   const { isDark } = useTheme();
   const [printMode, setPrintMode] = useState<PrintMode>(initialMode);
+  const [rawbtFormat, setRawbtFormat] = useState<'text' | 'html'>('text');
   const [copied, setCopied] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
 
@@ -52,74 +53,164 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
 
   const totalItemsCount = order.productos.reduce((acc, p) => acc + p.cantidad, 0);
 
-  // 1. Text generator for Sale / Complete Ticket
+  const LINE_WIDTH = 32;
+
+  // Center string within exact width
+  const centerText = (str: string, width: number = LINE_WIDTH) => {
+    const clean = str.trim();
+    if (clean.length >= width) return clean.slice(0, width);
+    const diff = width - clean.length;
+    const left = Math.floor(diff / 2);
+    const right = diff - left;
+    return ' '.repeat(left) + clean + ' '.repeat(right);
+  };
+
+  // Align two columns with right column pinned tightly to the right border (column 32)
+  const justifyCols = (left: string, right: string, width: number = LINE_WIDTH) => {
+    const l = left.trim();
+    const r = right.trim();
+    const space = width - l.length - r.length;
+    if (space >= 1) {
+      return l + ' '.repeat(space) + r;
+    }
+    const maxLeft = width - r.length - 1;
+    if (maxLeft > 3) {
+      return l.slice(0, maxLeft) + ' ' + r;
+    }
+    return l + '\n' + r.padStart(width, ' ');
+  };
+
+  // Wrap text cleanly by words to exact width
+  const wrapTextToLines = (text: string, width: number = LINE_WIDTH): string[] => {
+    const words = text.trim().split(/\s+/);
+    const lines: string[] = [];
+    let cur = '';
+    for (const w of words) {
+      if (!cur) {
+        cur = w;
+      } else if (cur.length + 1 + w.length <= width) {
+        cur += ' ' + w;
+      } else {
+        lines.push(cur);
+        cur = w;
+      }
+    }
+    if (cur) lines.push(cur);
+    return lines.length > 0 ? lines : [''];
+  };
+
+  // 1. Text generator for Sale / Complete Ticket (384 dots / 32 columns full width)
   const generateSaleText = () => {
     let t = `================================\n`;
-    t += `   IMPORTADORA CHIQUIMINISOS    \n`;
-    t += ` Papelería y artículos Kawaii  \n`;
+    t += `${centerText('IMPORTADORA CHIQUIMINISOS')}\n`;
+    t += `${centerText('Papelería y artículos Kawaii')}\n`;
+    t += `${centerText('*** TICKET DE VENTA ***')}\n`;
     t += `================================\n`;
-    t += `PEDIDO #${String(order.orderNumber).padStart(3, '0')}\n`;
-    t += `Fecha: ${formattedDate}\n`;
+    t += `${centerText(`PEDIDO #${String(order.orderNumber).padStart(3, '0')}`)}\n`;
+    t += `${centerText(`Fecha: ${formattedDate}`)}\n`;
     if (order.vendedorNombre) {
-      t += `Atendido por: ${order.vendedorNombre}\n`;
+      t += `${centerText(`Atendido por: ${order.vendedorNombre}`)}\n`;
     }
     t += `--------------------------------\n`;
-    t += `CLIENTE: ${order.cliente || 'Mostrador / TikTok'}\n`;
+
+    const clientLines = wrapTextToLines(`CLIENTE: ${order.cliente || 'Mostrador / TikTok'}`);
+    clientLines.forEach((l) => {
+      t += `${l}\n`;
+    });
     if (order.telefono) {
       t += `TEL/WPP: ${formatBoliviaPhone(order.telefono)}\n`;
     }
     if (order.lugarEntrega) {
-      t += `ENTREGA: ${order.lugarEntrega}\n`;
+      const entregaLines = wrapTextToLines(`ENTREGA: ${order.lugarEntrega}`);
+      entregaLines.forEach((l) => {
+        t += `${l}\n`;
+      });
     }
     t += `--------------------------------\n`;
-    t += `ARTÍCULO / DETALLE         TOTAL\n`;
+    t += `${justifyCols('ARTÍCULO / DETALLE', 'TOTAL', LINE_WIDTH)}\n`;
     t += `--------------------------------\n`;
+
     order.productos.forEach((item) => {
       const subtotal = item.cantidad * item.precioUnitario;
-      t += `${formatArticleItem(item)}\n`;
-      t += `   ↳ Subtotal: ${formatCurrency(subtotal)} (${formatCurrency(item.precioUnitario)} c/u)\n`;
+      const subtotalStr = formatCurrency(subtotal);
+      const itemTitle = formatArticleItem(item);
+      const isMultiQty = item.cantidad > 1;
+
+      // Print full article title wrapped to line width
+      const titleLines = wrapTextToLines(itemTitle, LINE_WIDTH);
+      titleLines.forEach((l) => {
+        t += `${l}\n`;
+      });
+
+      if (isMultiQty) {
+        // Multi-quantity: show subtotal and (Bs. X c/u)
+        t += `${justifyCols('   ↳ Subtotal:', subtotalStr, LINE_WIDTH)}\n`;
+        t += `      (${formatCurrency(item.precioUnitario)} c/u)\n`;
+      } else {
+        // Single quantity (cantidad === 1): show ONLY subtotal without (c/u)
+        t += `${justifyCols('   ↳ Subtotal:', subtotalStr, LINE_WIDTH)}\n`;
+      }
     });
+
     t += `--------------------------------\n`;
-    t += `TOTAL A PAGAR:      ${formatCurrency(order.total).padStart(12, ' ')}\n`;
-    t += `PAGADO / ADELANTO:  ${formatCurrency(order.pagado).padStart(12, ' ')}\n`;
-    t += `SALDO POR COBRAR:   ${formatCurrency(order.saldo).padStart(12, ' ')}\n`;
+    t += `${justifyCols('TOTAL A PAGAR:', formatCurrency(order.total), LINE_WIDTH)}\n`;
+    t += `${justifyCols('PAGADO / ADELANTO:', formatCurrency(order.pagado), LINE_WIDTH)}\n`;
+    t += `--------------------------------\n`;
+    t += `${justifyCols('SALDO POR COBRAR:', formatCurrency(order.saldo), LINE_WIDTH)}\n`;
+
     if (order.observaciones) {
       t += `--------------------------------\n`;
-      t += `OBS: ${order.observaciones}\n`;
+      const obsLines = wrapTextToLines(`OBS: ${order.observaciones}`);
+      obsLines.forEach((l) => {
+        t += `${l}\n`;
+      });
     }
+
     t += `================================\n`;
-    t += ` ¡Gracias por tu compra! 🇧🇴 \n`;
-    t += `   Importadora Chiquiminisos    \n`;
+    t += `${centerText('¡Gracias por tu compra! 🇧🇴')}\n`;
+    t += `${centerText('Importadora Chiquiminisos')}\n`;
     t += `================================\n`;
     return t;
   };
 
-  // 2. Text generator for Shipping / Package Label
+  // 2. Text generator for Shipping / Package Label (384 dots / 32 columns full width)
   const generateShippingText = () => {
     let t = `================================\n`;
-    t += `   IMPORTADORA CHIQUIMINISOS    \n`;
-    t += ` Papelería y artículos Kawaii  \n`;
-    t += `      📦 RÓTULO DE ENVÍO 📦     \n`;
+    t += `${centerText('IMPORTADORA CHIQUIMINISOS')}\n`;
+    t += `${centerText('Papelería y artículos Kawaii')}\n`;
+    t += `${centerText('📦 RÓTULO DE ENVÍO 📦')}\n`;
     t += `================================\n`;
-    t += `PEDIDO #${String(order.orderNumber).padStart(3, '0')}\n`;
-    t += `Fecha: ${formattedDate}\n`;
+    t += `${centerText(`PEDIDO #${String(order.orderNumber).padStart(3, '0')}`)}\n`;
+    t += `${centerText(`Fecha: ${formattedDate}`)}\n`;
     t += `--------------------------------\n`;
-    t += `CLIENTE:\n`;
-    t += `${(order.cliente || 'CLIENTE').toUpperCase()}\n`;
+    t += `DESTINATARIO / CLIENTE:\n`;
+    const clientLines = wrapTextToLines((order.cliente || 'CLIENTE').toUpperCase());
+    clientLines.forEach((l) => {
+      t += `${l}\n`;
+    });
     if (order.telefono) {
       t += `TEL/WPP: ${formatBoliviaPhone(order.telefono)}\n`;
     }
     t += `--------------------------------\n`;
     t += `DIRECCIÓN DE ENTREGA:\n`;
-    t += `${(order.lugarEntrega || 'Mostrador / Por coordinar').toUpperCase()}\n`;
+    const entregaLines = wrapTextToLines((order.lugarEntrega || 'Mostrador / Por coordinar').toUpperCase());
+    entregaLines.forEach((l) => {
+      t += `${l}\n`;
+    });
     t += `--------------------------------\n`;
-    t += `DETALLE DE PRODUCTOS (${totalItemsCount} art.):\n`;
+    t += `${justifyCols('DETALLE PRODUCTOS:', `${totalItemsCount} ART. TOTAL`, LINE_WIDTH)}\n`;
     order.productos.forEach((item) => {
-      t += `• ${formatArticleItem(item)}\n`;
+      const itemLines = wrapTextToLines(`• ${formatArticleItem(item)}`);
+      itemLines.forEach((l) => {
+        t += `${l}\n`;
+      });
     });
     if (order.observaciones) {
       t += `--------------------------------\n`;
-      t += `OBS / NOTA: ${order.observaciones}\n`;
+      const obsLines = wrapTextToLines(`OBS / NOTA: ${order.observaciones}`);
+      obsLines.forEach((l) => {
+        t += `${l}\n`;
+      });
     }
     t += `================================\n`;
     return t;
@@ -131,87 +222,90 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
     if (printMode === 'shipping') return generateShippingText() + '\n\n';
     return (
       generateSaleText() +
-      `\n- - - - - - - - - - - - - - - - \n      ✂️ CORTAR AQUÍ ✂️      \n- - - - - - - - - - - - - - - - \n\n` +
+      `\n--------------------------------\n      ✂️ CORTAR AQUÍ ✂️      \n--------------------------------\n\n` +
       generateShippingText() +
       '\n\n'
     );
   };
 
-  // HTML Builder for Browser & Direct Thermal Print
+  // HTML Builder for Browser & Direct Thermal Print (48mm / 384 dots full printable area)
   const getSelectedPrintHtml = () => {
     const saleHtml = `
       <div class="ticket-block">
         <div class="center">
           <div class="title">IMPORTADORA CHIQUIMINISOS</div>
           <div class="subtitle">Papelería y artículos Kawaii</div>
-          <div class="bold" style="margin-top:2px; font-size:10px;">*** TICKET DE VENTA ***</div>
-          <div style="font-size:14px; font-weight:900; margin: 2px 0;">PEDIDO #${String(order.orderNumber).padStart(3, '0')}</div>
-          <div style="font-size:9px;">${formattedDate}</div>
-          ${order.vendedorNombre ? `<div style="font-size:9px;">Atendido por: ${order.vendedorNombre}</div>` : ''}
+          <div class="ticket-type-banner">*** TICKET DE VENTA ***</div>
+          <div class="order-number">PEDIDO #${String(order.orderNumber).padStart(3, '0')}</div>
+          <div class="order-meta">${formattedDate}</div>
+          ${order.vendedorNombre ? `<div class="order-meta">Atendido por: ${order.vendedorNombre}</div>` : ''}
         </div>
 
         <div class="divider"></div>
 
-        <div>
-          <div><span class="bold">CLIENTE:</span> ${order.cliente || 'Mostrador / TikTok'}</div>
-          ${order.telefono ? `<div><span class="bold">TEL/WPP:</span> ${formatBoliviaPhone(order.telefono)}</div>` : ''}
-          ${order.lugarEntrega ? `<div><span class="bold">ENTREGA:</span> ${order.lugarEntrega}</div>` : ''}
+        <div class="info-section">
+          <div class="info-row"><span class="bold">CLIENTE:</span> ${order.cliente || 'Mostrador / TikTok'}</div>
+          ${order.telefono ? `<div class="info-row"><span class="bold">TEL/WPP:</span> ${formatBoliviaPhone(order.telefono)}</div>` : ''}
+          ${order.lugarEntrega ? `<div class="info-row"><span class="bold">ENTREGA:</span> ${order.lugarEntrega}</div>` : ''}
         </div>
+
+        <table class="items-table">
+          <thead>
+            <tr>
+              <th class="th-art">ARTÍCULO / DETALLE</th>
+              <th class="th-tot">TOTAL</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${order.productos
+              .map((item) => {
+                const sub = item.cantidad * item.precioUnitario;
+                return `
+                <tr class="item-row">
+                  <td class="td-art">
+                    <div class="item-title">${formatArticleItem(item)}</div>
+                    ${item.cantidad > 1 ? `<div class="item-pu">(${formatCurrency(item.precioUnitario)} c/u)</div>` : ''}
+                  </td>
+                  <td class="td-tot">${formatCurrency(sub)}</td>
+                </tr>
+              `;
+              })
+              .join('')}
+          </tbody>
+        </table>
 
         <div class="divider"></div>
 
-        <div class="row bold" style="font-size:9px;">
-          <span>ARTÍCULO / DETALLE</span>
-          <span>TOTAL</span>
-        </div>
-        <div class="divider"></div>
-
-        ${order.productos
-          .map((item) => {
-            const sub = item.cantidad * item.precioUnitario;
-            return `
-            <div class="item-row">
-              <div class="row">
-                <span class="bold">${formatArticleItem(item)}</span>
-                <span class="bold">${formatCurrency(sub)}</span>
-              </div>
-              <div class="variante">(P.U: ${formatCurrency(item.precioUnitario)})</div>
-            </div>
-          `;
-          })
-          .join('')}
-
-        <div class="divider"></div>
-
-        <div class="row">
-          <span>TOTAL A PAGAR:</span>
-          <span class="total-box">${formatCurrency(order.total)}</span>
-        </div>
-        <div class="row">
-          <span>PAGADO:</span>
-          <span>${formatCurrency(order.pagado)}</span>
-        </div>
-        <div class="divider"></div>
-        <div class="row total-box">
-          <span>SALDO POR COBRAR:</span>
-          <span>${formatCurrency(order.saldo)}</span>
-        </div>
+        <table class="totals-table">
+          <tr>
+            <td class="tot-label">TOTAL A PAGAR:</td>
+            <td class="tot-amount tot-grand">${formatCurrency(order.total)}</td>
+          </tr>
+          <tr>
+            <td class="tot-label">PAGADO / ADELANTO:</td>
+            <td class="tot-amount">${formatCurrency(order.pagado)}</td>
+          </tr>
+          <tr class="saldo-row">
+            <td class="tot-label tot-saldo-lbl">SALDO POR COBRAR:</td>
+            <td class="tot-amount tot-saldo-val">${formatCurrency(order.saldo)}</td>
+          </tr>
+        </table>
 
         ${
           order.observaciones
             ? `
           <div class="divider"></div>
-          <div style="font-size:9px;"><span class="bold">OBS:</span> ${order.observaciones}</div>
+          <div class="info-row" style="font-size:11.5px;"><span class="bold">OBS:</span> ${order.observaciones}</div>
         `
             : ''
         }
 
         <div class="divider"></div>
 
-        <div class="center" style="font-size:9px; margin-top: 4px;">
+        <div class="center" style="font-size:11.5px; margin-top: 5px;">
           <div class="bold">¡Gracias por tu compra! 🇧🇴</div>
           <div>Importadora Chiquiminisos</div>
-          <div>Papelería y artículos Kawaii</div>
+          <div style="font-size:10px;">Papelería y artículos Kawaii</div>
         </div>
       </div>
     `;
@@ -222,34 +316,35 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
           <div class="title">IMPORTADORA CHIQUIMINISOS</div>
           <div class="subtitle">Papelería y artículos Kawaii</div>
           <div class="shipping-banner">📦 RÓTULO DE ENVÍO / PAQUETE 📦</div>
-          <div style="font-size:15px; font-weight:900; margin: 3px 0;">PEDIDO #${String(order.orderNumber).padStart(3, '0')}</div>
-          <div style="font-size:9px;">Fecha: ${formattedDate}</div>
+          <div class="order-number">PEDIDO #${String(order.orderNumber).padStart(3, '0')}</div>
+          <div class="order-meta">Fecha: ${formattedDate}</div>
         </div>
 
         <div class="double-divider"></div>
 
         <div class="shipping-box">
           <div class="shipping-label">CLIENTE / DESTINATARIO:</div>
-          <div class="shipping-value" style="font-size:13px;">${(order.cliente || 'CLIENTE').toUpperCase()}</div>
-          ${order.telefono ? `<div style="font-size:12px; margin-top:2px;"><strong>TEL/WPP:</strong> ${formatBoliviaPhone(order.telefono)}</div>` : ''}
+          <div class="shipping-name">${(order.cliente || 'CLIENTE').toUpperCase()}</div>
+          ${order.telefono ? `<div class="shipping-phone">TEL/WPP: ${formatBoliviaPhone(order.telefono)}</div>` : ''}
         </div>
-
-        <div class="divider"></div>
 
         <div class="shipping-box">
           <div class="shipping-label">DIRECCIÓN DE ENTREGA:</div>
-          <div class="shipping-value" style="font-size:12px;">${(order.lugarEntrega || 'Mostrador / Por coordinar').toUpperCase()}</div>
+          <div class="shipping-address">${(order.lugarEntrega || 'Mostrador / Por coordinar').toUpperCase()}</div>
         </div>
 
         <div class="double-divider"></div>
 
         <div class="shipping-box">
-          <div class="shipping-label">DETALLE DE PRODUCTOS (${totalItemsCount} art.):</div>
-          <div style="font-size:9.5px; margin-top:3px;">
+          <div class="shipping-products-header">
+            <span>DETALLE DE PRODUCTOS:</span>
+            <span>${totalItemsCount} ART. TOTAL</span>
+          </div>
+          <div style="margin-top:3px;">
             ${order.productos
               .map(
                 (item) => `
-              <div>• <strong>${formatArticleItem(item)}</strong></div>
+              <div class="shipping-item">• <strong>${formatArticleItem(item)}</strong></div>
             `
               )
               .join('')}
@@ -260,7 +355,7 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
           order.observaciones
             ? `
           <div class="divider"></div>
-          <div style="font-size:9px;"><span class="bold">OBS / NOTA:</span> ${order.observaciones}</div>
+          <div style="font-size:11.5px; word-break: break-word;"><span class="bold">OBS / NOTA:</span> ${order.observaciones}</div>
         `
             : ''
         }
@@ -296,36 +391,242 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
               size: 58mm auto;
               margin: 0;
             }
+            *, *:before, *:after {
+              box-sizing: border-box;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            html {
+              margin: 0;
+              padding: 0;
+              width: 100%;
+              background: #fff;
+            }
             body {
-              font-family: 'Courier New', Courier, monospace;
-              font-size: 11px;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+              font-size: 13px;
               line-height: 1.25;
               margin: 0;
-              padding: 4px 4px 6px 4px;
+              padding: 3px 2px 8px 2px;
               background: #fff;
               color: #000;
               width: 100%;
-              max-width: 58mm;
             }
             .ticket-block {
-              padding: 2px 0;
+              width: 100%;
+              padding: 1px 0;
             }
             .center { text-align: center; }
             .right { text-align: right; }
             .bold { font-weight: bold; }
-            .title { font-size: 12px; font-weight: 900; font-family: sans-serif; }
-            .subtitle { font-size: 8.5px; font-family: sans-serif; }
-            .shipping-banner { font-size: 10px; font-weight: 900; background: #000; color: #fff; padding: 2px 0; margin-top: 2px; }
-            .divider { border-top: 1px dashed #000; margin: 4px 0; }
-            .double-divider { border-top: 2px solid #000; margin: 4px 0; }
-            .row { display: flex; justify-content: space-between; }
-            .item-row { margin: 2px 0; }
-            .variante { font-size: 9px; padding-left: 10px; color: #333; }
-            .total-box { font-size: 12px; font-weight: 900; }
-            .shipping-box { margin: 2px 0; }
-            .shipping-label { font-size: 8.5px; font-weight: bold; color: #333; }
-            .shipping-value { font-weight: 900; }
-            .cut-line { text-align: center; font-size: 9px; font-weight: bold; margin: 8px 0; }
+            .title {
+              font-size: 16px;
+              font-weight: 900;
+              letter-spacing: 0.5px;
+              line-height: 1.15;
+            }
+            .subtitle {
+              font-size: 11px;
+              font-weight: 600;
+              color: #222;
+              margin-top: 1px;
+            }
+            .ticket-type-banner {
+              font-size: 12px;
+              font-weight: 900;
+              letter-spacing: 0.5px;
+              margin: 3px 0 2px 0;
+            }
+            .order-number {
+              font-size: 20px;
+              font-weight: 900;
+              margin: 2px 0;
+              line-height: 1.1;
+            }
+            .order-meta {
+              font-size: 11px;
+              color: #111;
+            }
+            .divider {
+              border-top: 1.5px dashed #000;
+              margin: 5px 0;
+              width: 100%;
+            }
+            .double-divider {
+              border-top: 2.5px solid #000;
+              margin: 5px 0;
+              width: 100%;
+            }
+            .info-section {
+              font-size: 12.5px;
+              line-height: 1.35;
+            }
+            .info-row {
+              margin: 2px 0;
+              word-break: break-word;
+            }
+
+            /* Items Table - 100% full width, edge-to-edge */
+            .items-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin: 3px 0;
+              table-layout: auto;
+            }
+            .items-table th {
+              font-size: 11.5px;
+              font-weight: 900;
+              padding: 3px 0;
+              border-top: 1.5px dashed #000;
+              border-bottom: 1.5px dashed #000;
+            }
+            .th-art {
+              text-align: left;
+            }
+            .th-tot {
+              text-align: right;
+              white-space: nowrap;
+              padding-left: 6px;
+            }
+            .item-row td {
+              padding: 4px 0 3px 0;
+              vertical-align: top;
+              border-bottom: 0.5px dashed #ccc;
+            }
+            .td-art {
+              text-align: left;
+              padding-right: 6px;
+            }
+            .item-title {
+              font-size: 13px;
+              font-weight: 800;
+              line-height: 1.25;
+              color: #000;
+              word-break: break-word;
+            }
+            .item-pu {
+              font-size: 11px;
+              font-weight: 600;
+              color: #333;
+              margin-top: 2px;
+            }
+            .td-tot {
+              text-align: right;
+              white-space: nowrap;
+              font-size: 14px;
+              font-weight: 900;
+              color: #000;
+              vertical-align: top;
+              padding-top: 1px;
+            }
+
+            /* Totals Table - 100% width, amounts strictly right-aligned */
+            .totals-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin: 4px 0 2px 0;
+            }
+            .totals-table td {
+              padding: 2px 0;
+            }
+            .tot-label {
+              text-align: left;
+              font-size: 12.5px;
+              font-weight: 700;
+            }
+            .tot-amount {
+              text-align: right;
+              white-space: nowrap;
+              font-size: 13px;
+              font-weight: 800;
+            }
+            .tot-grand {
+              font-size: 16px;
+              font-weight: 900;
+            }
+            .saldo-row {
+              border-top: 1.5px dashed #000;
+            }
+            .saldo-row td {
+              padding-top: 4px;
+            }
+            .tot-saldo-lbl {
+              font-size: 13.5px;
+              font-weight: 900;
+            }
+            .tot-saldo-val {
+              font-size: 16px;
+              font-weight: 900;
+            }
+
+            /* Shipping Ticket Elements */
+            .shipping-banner {
+              font-size: 13px;
+              font-weight: 900;
+              background: #000;
+              color: #fff;
+              padding: 4px 2px;
+              margin: 3px 0;
+              text-align: center;
+              width: 100%;
+            }
+            .shipping-box {
+              width: 100%;
+              border: 2px solid #000;
+              padding: 5px 6px;
+              background: #fafafa;
+              margin: 4px 0;
+            }
+            .shipping-label {
+              font-size: 10.5px;
+              font-weight: 900;
+              text-transform: uppercase;
+              color: #333;
+              margin-bottom: 2px;
+            }
+            .shipping-name {
+              font-size: 16px;
+              font-weight: 900;
+              line-height: 1.2;
+              color: #000;
+              word-break: break-word;
+            }
+            .shipping-phone {
+              font-size: 14px;
+              font-weight: 900;
+              color: #000;
+              margin-top: 3px;
+            }
+            .shipping-address {
+              font-size: 14px;
+              font-weight: 800;
+              line-height: 1.25;
+              color: #000;
+              word-break: break-word;
+            }
+            .shipping-products-header {
+              display: flex;
+              justify-content: space-between;
+              font-size: 11.5px;
+              font-weight: 900;
+              border-bottom: 1px dashed #000;
+              padding-bottom: 3px;
+              margin-bottom: 4px;
+            }
+            .shipping-item {
+              font-size: 12.5px;
+              font-weight: 700;
+              line-height: 1.3;
+              margin: 3px 0;
+              word-break: break-word;
+            }
+            .cut-line {
+              text-align: center;
+              font-size: 11px;
+              font-weight: bold;
+              margin: 10px 0;
+              letter-spacing: 1px;
+            }
           </style>
         </head>
         <body>
@@ -357,12 +658,46 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
     }
   };
 
-  // RawBT Bluetooth app launcher
-  const handleBluetoothRawBT = () => {
-    const text = getSelectedPlainText();
+  // Safe UTF-8 to Base64 encoder for full Unicode, ñ, and Spanish accent support
+  const encodeUtf8Base64 = (str: string): string => {
+    const bytes = new TextEncoder().encode(str);
+    let binary = '';
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  };
+
+  // Safe external URI launcher for Android browsers
+  const launchExternalUri = (uri: string) => {
+    const link = document.createElement('a');
+    link.href = uri;
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      if (document.body.contains(link)) {
+        document.body.removeChild(link);
+      }
+    }, 250);
+  };
+
+  // RawBT Bluetooth app launcher with explicit UTF-8 charset
+  const handleBluetoothRawBT = (formatChoice?: 'text' | 'html') => {
+    const format = formatChoice || rawbtFormat;
     try {
-      const rawbtUri = `rawbt:data:text/plain;base64,${btoa(unescape(encodeURIComponent(text)))}`;
-      window.location.href = rawbtUri;
+      if (format === 'html') {
+        const html = getSelectedPrintHtml();
+        const base64Data = encodeUtf8Base64(html);
+        const rawbtUri = `rawbt:data:text/html;charset=utf-8;base64,${base64Data}`;
+        launchExternalUri(rawbtUri);
+      } else {
+        const text = getSelectedPlainText();
+        const base64Data = encodeUtf8Base64(text);
+        const rawbtUri = `rawbt:data:text/plain;charset=utf-8;base64,${base64Data}`;
+        launchExternalUri(rawbtUri);
+      }
     } catch (err) {
       console.warn('RawBT error, copying text instead:', err);
       handleCopyText();
@@ -553,118 +888,138 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
               >
                 <p className="font-bold flex items-center gap-1.5">
                   <Bluetooth className="w-3.5 h-3.5 text-blue-500" />
-                  Uso en celular / tablet con comanderas Bluetooth:
+                  Impresión Bluetooth con RawBT (tildes y 'ñ'):
                 </p>
-                <ol className="list-decimal pl-4 space-y-1 text-[11px]">
+                <ol className="list-decimal pl-4 space-y-1.5 text-[11px]">
                   <li>
-                    <strong>Opción 1:</strong> Pulsa <em>"Mandar a Imprimir"</em> para seleccionar la impresora nativa en Android o iOS.
+                    <strong>Soporte de caracteres especiales (ñ, tildes):</strong> Se envía con codificación explícita <em>UTF-8</em> para palabras como "Pestañas" o "Papelería".
                   </li>
                   <li>
-                    <strong>Opción 2 (Bluetooth con RawBT):</strong> Pulsa <em>"App RawBT"</em> para imprimir directo a tu comanderita inalámbrica.
+                    <strong>Si tu impresora aún no muestra la 'ñ':</strong> Selecciona el modo <em>"Gráfico (HTML)"</em> abajo. Este modo dibuja el ticket como gráfico vectorial nítido sin depender del hardware de la comanderita.
                   </li>
                   <li>
-                    <strong>Rótulo de Envío:</strong> Está optimizado sin precios para que lo pegues en la bolsa o caja de la encomienda.
+                    <strong>Ajuste en app RawBT:</strong> En la app RawBT &gt; Configuración &gt; Modelo de impresora, comprueba que la página de códigos sea <em>CP850 / Latin-1</em> o <em>UTF-8</em>.
+                  </li>
+                  <li>
+                    <strong>Rótulo de Envío:</strong> Diseñado sin montos para pegar directamente en paquetes de encomienda.
                   </li>
                 </ol>
               </div>
             )}
 
-            {/* LIVE PAPER PREVIEW */}
-            <div className="w-full max-w-[300px] sm:max-w-[320px] space-y-3 select-all">
+            {/* LIVE PAPER PREVIEW (58mm / 384 dots printable width) */}
+            <div className="w-full max-w-[320px] space-y-3 select-all">
               {/* TICKET 1: VENTA */}
               {(printMode === 'sale' || printMode === 'both') && (
-                <div className="bg-white text-black p-3.5 sm:p-4 rounded-xl shadow-xl font-mono text-xs border border-stone-300 space-y-2.5">
-                  <div className="text-center border-b border-dashed border-black pb-2 space-y-0.5">
-                    <p className="text-xs sm:text-sm font-black tracking-wider uppercase font-sans">
+                <div className="bg-white text-black p-3.5 sm:p-4 rounded-xl shadow-xl font-sans text-xs border border-stone-300 space-y-2.5 w-full">
+                  <div className="text-center border-b-2 border-dashed border-black pb-2 space-y-0.5">
+                    <p className="text-sm sm:text-base font-black tracking-wider uppercase">
                       IMPORTADORA CHIQUIMINISOS
                     </p>
-                    <p className="text-[10px] text-gray-700 font-sans font-semibold">
+                    <p className="text-[11px] text-gray-700 font-semibold">
                       Papelería y artículos Kawaii
                     </p>
-                    <p className="text-[11px] font-bold mt-1">*** TICKET DE VENTA ***</p>
-                    <p className="text-sm font-black mt-0.5">PEDIDO #{String(order.orderNumber).padStart(3, '0')}</p>
-                    <p className="text-[10px] text-gray-600">{formattedDate}</p>
+                    <p className="text-xs font-black mt-1">*** TICKET DE VENTA ***</p>
+                    <p className="text-base font-black mt-0.5">PEDIDO #{String(order.orderNumber).padStart(3, '0')}</p>
+                    <p className="text-[11px] text-gray-600">{formattedDate}</p>
                     {order.vendedorNombre && (
-                      <p className="text-[10px] text-gray-700">Atendido por: {order.vendedorNombre}</p>
+                      <p className="text-[11px] text-gray-700">Atendido por: {order.vendedorNombre}</p>
                     )}
                   </div>
 
                   {/* Customer Info */}
-                  <div className="border-b border-dashed border-black pb-2 text-[11px] space-y-0.5">
-                    <p>
-                      <span className="font-bold">CLIENTE:</span> {order.cliente || 'Mostrador / TikTok'}
+                  <div className="border-b-2 border-dashed border-black pb-2 text-xs space-y-1">
+                    <p className="break-words">
+                      <span className="font-black">CLIENTE:</span> {order.cliente || 'Mostrador / TikTok'}
                     </p>
                     {order.telefono && (
                       <p>
-                        <span className="font-bold">TEL/WPP:</span> {formatBoliviaPhone(order.telefono)}
+                        <span className="font-black">TEL/WPP:</span> {formatBoliviaPhone(order.telefono)}
                       </p>
                     )}
                     {order.lugarEntrega && (
-                      <p>
-                        <span className="font-bold">ENTREGA:</span> {order.lugarEntrega}
+                      <p className="break-words">
+                        <span className="font-black">ENTREGA:</span> {order.lugarEntrega}
                       </p>
                     )}
                   </div>
 
-                  {/* Items Detailed Table */}
-                  <div className="border-b border-dashed border-black pb-2 space-y-1.5 text-[11px]">
-                    <div className="flex justify-between font-bold border-b border-gray-300 pb-1 text-[10px]">
-                      <span>ARTÍCULO / DETALLE</span>
-                      <span>TOTAL</span>
-                    </div>
-                    {order.productos.map((item, idx) => {
-                      const subtotal = item.cantidad * item.precioUnitario;
-                      return (
-                        <div key={idx} className="space-y-0.5">
-                          <div className="flex justify-between items-start">
-                            <span className="font-bold">
-                              {formatArticleItem(item)}
-                            </span>
-                            <span className="font-bold">
-                              {formatCurrency(subtotal)}
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-gray-600 pl-3">
-                            (P.U: {formatCurrency(item.precioUnitario)})
-                          </p>
-                        </div>
-                      );
-                    })}
+                  {/* Items Full-Width Table */}
+                  <div className="border-b-2 border-dashed border-black pb-2">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-black text-[11px] font-black uppercase">
+                          <th className="text-left py-1">ARTÍCULO / DETALLE</th>
+                          <th className="text-right py-1 whitespace-nowrap pl-2">TOTAL</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {order.productos.map((item, idx) => {
+                          const subtotal = item.cantidad * item.precioUnitario;
+                          return (
+                            <tr key={idx} className="align-top">
+                              <td className="py-1.5 pr-2">
+                                <div className="font-bold text-xs leading-snug break-words">
+                                  {formatArticleItem(item)}
+                                </div>
+                                {item.cantidad > 1 && (
+                                  <div className="text-[11px] text-gray-600 font-medium mt-0.5">
+                                    ({formatCurrency(item.precioUnitario)} c/u)
+                                  </div>
+                                )}
+                              </td>
+                              <td className="py-1.5 text-right whitespace-nowrap font-black text-xs text-black">
+                                {formatCurrency(subtotal)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
 
-                  {/* Totals */}
-                  <div className="space-y-1 text-right text-[11px] pt-1">
-                    <div className="flex justify-between">
-                      <span>TOTAL A PAGAR:</span>
-                      <span className="font-black text-sm">{formatCurrency(order.total)}</span>
-                    </div>
-                    <div className="flex justify-between text-gray-700">
-                      <span>PAGADO / ADELANTO:</span>
-                      <span className="font-bold">{formatCurrency(order.pagado)}</span>
-                    </div>
-                    <div className="flex justify-between border-t border-dashed border-black pt-1 font-black text-sm">
-                      <span>SALDO POR COBRAR:</span>
-                      <span>{formatCurrency(order.saldo)}</span>
-                    </div>
-                  </div>
+                  {/* Totals Table */}
+                  <table className="w-full border-collapse text-xs pt-1">
+                    <tbody>
+                      <tr>
+                        <td className="py-1 text-left font-bold">TOTAL A PAGAR:</td>
+                        <td className="py-1 text-right whitespace-nowrap font-black text-sm text-black">
+                          {formatCurrency(order.total)}
+                        </td>
+                      </tr>
+                      <tr className="text-gray-700">
+                        <td className="py-0.5 text-left font-medium">PAGADO / ADELANTO:</td>
+                        <td className="py-0.5 text-right whitespace-nowrap font-bold">
+                          {formatCurrency(order.pagado)}
+                        </td>
+                      </tr>
+                      <tr className="border-t-2 border-dashed border-black">
+                        <td className="pt-1.5 text-left font-black text-xs">SALDO POR COBRAR:</td>
+                        <td className="pt-1.5 text-right whitespace-nowrap font-black text-sm text-black">
+                          {formatCurrency(order.saldo)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
 
                   {order.observaciones && (
-                    <div className="border-t border-dashed border-black pt-2 text-[10px]">
-                      <p className="font-bold">OBSERVACIONES:</p>
-                      <p className="italic text-gray-800">{order.observaciones}</p>
+                    <div className="border-t-2 border-dashed border-black pt-2 text-xs">
+                      <span className="font-black">OBS: </span>
+                      <span className="italic text-gray-800 break-words">{order.observaciones}</span>
                     </div>
                   )}
 
-                  <div className="text-center pt-2 border-t border-dashed border-black text-[10px] text-gray-700 space-y-0.5">
-                    <p className="font-semibold">¡Gracias por tu preferencia! 🇧🇴</p>
+                  <div className="text-center pt-2 border-t-2 border-dashed border-black text-[11px] text-gray-700 space-y-0.5">
+                    <p className="font-bold text-black">¡Gracias por tu compra! 🇧🇴</p>
                     <p>Importadora Chiquiminisos</p>
+                    <p className="text-[10px]">Papelería y artículos Kawaii</p>
                   </div>
                 </div>
               )}
 
               {/* Cut Line indicator when previewing 'both' */}
               {printMode === 'both' && (
-                <div className="flex items-center justify-center gap-2 text-stone-500 font-mono text-[10px] font-bold py-1">
+                <div className="flex items-center justify-center gap-2 text-stone-500 font-mono text-[11px] font-bold py-1">
                   <span>- - - - -</span>
                   <span>✂️ CORTAR TICKET AQUÍ ✂️</span>
                   <span>- - - - -</span>
@@ -673,52 +1028,52 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
 
               {/* TICKET 2: RÓTULO DE ENVÍO */}
               {(printMode === 'shipping' || printMode === 'both') && (
-                <div className="bg-white text-black p-3.5 sm:p-4 rounded-xl shadow-xl font-mono text-xs border-2 border-stone-800 space-y-2">
+                <div className="bg-white text-black p-3.5 sm:p-4 rounded-xl shadow-xl font-sans text-xs border-2 border-stone-800 space-y-2.5 w-full">
                   <div className="text-center border-b-2 border-black pb-2 space-y-0.5">
-                    <p className="text-xs font-black uppercase font-sans tracking-wide">
+                    <p className="text-sm font-black uppercase tracking-wide">
                       IMPORTADORA CHIQUIMINISOS
                     </p>
-                    <p className="text-[10px] text-gray-700 font-sans">
+                    <p className="text-[11px] text-gray-700 font-medium">
                       Papelería y artículos Kawaii
                     </p>
-                    <div className="bg-black text-white font-sans font-black text-[11px] py-1 px-2 rounded mt-1">
+                    <div className="bg-black text-white font-black text-xs py-1.5 px-2 rounded mt-1.5 tracking-wide">
                       📦 RÓTULO DE ENVÍO / PAQUETE 📦
                     </div>
-                    <p className="text-base font-black mt-1">PEDIDO #{String(order.orderNumber).padStart(3, '0')}</p>
-                    <p className="text-[10px] text-gray-600">{formattedDate}</p>
+                    <p className="text-lg font-black mt-1">PEDIDO #{String(order.orderNumber).padStart(3, '0')}</p>
+                    <p className="text-[11px] text-gray-600">{formattedDate}</p>
                   </div>
 
                   {/* Destination */}
                   <div className="space-y-2 py-1">
-                    <div className="bg-gray-100 p-2 rounded border border-gray-300">
-                      <p className="text-[9px] font-bold text-gray-600 uppercase font-sans">CLIENTE / DESTINATARIO:</p>
-                      <p className="text-sm font-black uppercase tracking-tight text-black">
+                    <div className="bg-gray-50 p-2.5 rounded-lg border-2 border-black">
+                      <p className="text-[10px] font-black text-gray-600 uppercase tracking-wider">CLIENTE / DESTINATARIO:</p>
+                      <p className="text-base font-black uppercase tracking-tight text-black break-words leading-tight mt-0.5">
                         {order.cliente || 'CLIENTE (MOSTRADOR / TIKTOK)'}
                       </p>
                       {order.telefono && (
-                        <p className="text-xs font-bold text-gray-800 mt-0.5">
+                        <p className="text-xs font-black text-gray-900 mt-1">
                           TEL/WPP: {formatBoliviaPhone(order.telefono)}
                         </p>
                       )}
                     </div>
 
-                    <div className="bg-gray-100 p-2 rounded border border-gray-300">
-                      <p className="text-[9px] font-bold text-gray-600 uppercase font-sans">DIRECCIÓN DE ENTREGA:</p>
-                      <p className="text-xs font-black uppercase text-black">
+                    <div className="bg-gray-50 p-2.5 rounded-lg border-2 border-black">
+                      <p className="text-[10px] font-black text-gray-600 uppercase tracking-wider">DIRECCIÓN DE ENTREGA:</p>
+                      <p className="text-xs sm:text-sm font-black uppercase text-black break-words leading-snug mt-0.5">
                         {order.lugarEntrega || 'Mostrador / Por coordinar'}
                       </p>
                     </div>
                   </div>
 
                   {/* Summary */}
-                  <div className="border-t border-b border-dashed border-black py-2 space-y-1">
-                    <div className="flex justify-between font-bold text-[10px]">
+                  <div className="border-t-2 border-b-2 border-dashed border-black py-2 space-y-1.5">
+                    <div className="flex justify-between font-black text-[11px] border-b border-gray-300 pb-1">
                       <span>DETALLE DE PRODUCTOS:</span>
                       <span>{totalItemsCount} ART. TOTAL</span>
                     </div>
-                    <div className="space-y-0.5 text-[10px] text-gray-800">
+                    <div className="space-y-1 text-xs text-gray-900">
                       {order.productos.map((item, idx) => (
-                        <div key={idx}>
+                        <div key={idx} className="break-words font-medium">
                           • <span className="font-bold">{formatArticleItem(item)}</span>
                         </div>
                       ))}
@@ -726,13 +1081,13 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
                   </div>
 
                   {order.observaciones && (
-                    <div className="border-t border-dashed border-black pt-1.5 text-[10px]">
-                      <span className="font-bold">OBS / NOTA: </span>
-                      <span className="italic">{order.observaciones}</span>
+                    <div className="border-t-2 border-dashed border-black pt-1.5 text-xs">
+                      <span className="font-black">OBS / NOTA: </span>
+                      <span className="italic break-words">{order.observaciones}</span>
                     </div>
                   )}
 
-                  <div className="border-t-2 border-black" />
+                  <div className="border-t-2 border-black pt-1" />
                 </div>
               )}
             </div>
@@ -740,17 +1095,51 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
 
           {/* Action Bar - RawBT as Primary Highlighted Action */}
           <div className="p-3 sm:p-4 border-t space-y-2 bg-white border-[#E8DFC8]">
+            {/* RawBT Format Mode Selector: Texto UTF-8 vs Gráfico HTML */}
+            <div className="flex items-center justify-between px-1 text-[11px]">
+              <span className="text-[#1A2B5C] font-semibold flex items-center gap-1">
+                <Bluetooth className="w-3.5 h-3.5 text-sky-600" />
+                Modo Bluetooth (RawBT):
+              </span>
+              <div className="flex items-center gap-1 bg-stone-100 p-0.5 rounded-lg border border-stone-300">
+                <button
+                  type="button"
+                  onClick={() => setRawbtFormat('text')}
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold transition cursor-pointer ${
+                    rawbtFormat === 'text'
+                      ? 'bg-[#1A2B5C] text-white shadow-xs'
+                      : 'text-stone-600 hover:text-black'
+                  }`}
+                  title="Impresión rápida de texto nativo con codificación UTF-8"
+                >
+                  Texto UTF-8
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRawbtFormat('html')}
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold transition cursor-pointer ${
+                    rawbtFormat === 'html'
+                      ? 'bg-[#1A2B5C] text-white shadow-xs'
+                      : 'text-stone-600 hover:text-black'
+                  }`}
+                  title="Impresión en modo gráfico: bordes exactos y 100% compatible con tildes y 'ñ'"
+                >
+                  Gráfico (HTML)
+                </button>
+              </div>
+            </div>
+
             {/* Primary Highlighted Print Button: RawBT */}
             <button
               id="btn-print-rawbt-primary"
               type="button"
-              onClick={handleBluetoothRawBT}
+              onClick={() => handleBluetoothRawBT()}
               className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm sm:text-base flex items-center justify-center gap-2.5 shadow-md active:scale-[0.98] transition cursor-pointer bg-[#1A2B5C] hover:bg-[#223773] text-white border border-[#1A2B5C]"
-              title="Abrir con App RawBT para imprimir por Bluetooth"
+              title={`Imprimir con RawBT en formato ${rawbtFormat === 'html' ? 'Gráfico (HTML con diseño exacto)' : 'Texto plano UTF-8'}`}
             >
               <Bluetooth className="w-5 h-5 text-sky-300 shrink-0" />
               <Printer className="w-5 h-5 shrink-0" />
-              <span>Imprimir con App RawBT (Bluetooth)</span>
+              <span>Imprimir con App RawBT ({rawbtFormat === 'html' ? 'Gráfico' : 'Texto UTF-8'})</span>
             </button>
 
             {/* Secondary Alternative Actions */}

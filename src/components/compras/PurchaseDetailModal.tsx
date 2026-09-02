@@ -265,9 +265,11 @@ export const PurchaseDetailModal: React.FC<PurchaseDetailModalProps> = ({
                     <span className={`font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
                       {formatArticleItem(item)}
                     </span>
-                    <span className={`text-[10px] block ${isDark ? 'text-[#9AA6C9]/70' : 'text-[#78716C]/70'}`}>
-                      ({formatCurrency(item.costoUnitario)} c/u)
-                    </span>
+                    {item.cantidad > 1 && (
+                      <span className={`text-[10px] block ${isDark ? 'text-[#9AA6C9]/70' : 'text-[#78716C]/70'}`}>
+                        ({formatCurrency(item.costoUnitario)} c/u)
+                      </span>
+                    )}
                   </div>
                   <span className={`font-mono font-bold ${isDark ? 'text-amber-300' : 'text-amber-800'}`}>
                     {formatCurrency(item.subtotal)}

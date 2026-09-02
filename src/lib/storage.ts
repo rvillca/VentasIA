@@ -520,7 +520,8 @@ export function generateWhatsAppReceiptText(order: Order): string {
     .map((item, idx) => {
       const formatted = formatArticleItem(item);
       const subtotal = item.cantidad * item.precioUnitario;
-      return `${idx + 1}. *${formatted}*\n   ↳ Subtotal: ${formatCurrency(subtotal)} (${formatCurrency(item.precioUnitario)} c/u)`;
+      const puDetail = item.cantidad > 1 ? ` (${formatCurrency(item.precioUnitario)} c/u)` : '';
+      return `${idx + 1}. *${formatted}*\n   ↳ Subtotal: ${formatCurrency(subtotal)}${puDetail}`;
     })
     .join('\n');
 
