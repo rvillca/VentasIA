@@ -13,12 +13,14 @@ import {
   Check,
   ChevronRight,
   Filter,
+  User,
 } from 'lucide-react';
 import { Order } from '../types';
 import {
   formatCurrency,
   formatBoliviaPhone,
   completeOrderBalanceInFirestore,
+  formatArticleItem,
 } from '../lib/storage';
 import { OrderPreparationCardModal } from './OrderPreparationCardModal';
 import { useTheme } from '../contexts/ThemeContext';
@@ -299,6 +301,16 @@ export const ShippingPendingScreen: React.FC<ShippingPendingScreenProps> = ({
                         <span className="font-bold truncate">{order.lugarEntrega}</span>
                       </div>
                     )}
+                    {order.vendedorNombre && (
+                      <div
+                        className={`flex items-center gap-1 mt-1 text-[11px] font-semibold ${
+                          isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                        }`}
+                      >
+                        <User className={`w-3 h-3 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
+                        <span>Venta por: {order.vendedorNombre}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Payment status badge */}
@@ -336,11 +348,7 @@ export const ShippingPendingScreen: React.FC<ShippingPendingScreenProps> = ({
                         }`}
                       >
                         <span className="truncate">
-                          <strong className={isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}>
-                            {prod.cantidad}x
-                          </strong>{' '}
-                          {prod.nombre}
-                          {prod.variante && ` (${prod.variante})`}
+                          {formatArticleItem(prod)}
                         </span>
                         <span className={`font-mono text-[11px] shrink-0 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
                           {formatCurrency(prod.cantidad * prod.precioUnitario)}

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Order } from '../types';
 import { formatCurrency, formatBoliviaPhone } from '../lib/storage';
+import { formatArticleItem } from '../lib/packaging';
 import { useTheme } from '../contexts/ThemeContext';
 
 export type PrintMode = 'sale' | 'shipping' | 'both';
@@ -71,14 +72,12 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
       t += `ENTREGA: ${order.lugarEntrega}\n`;
     }
     t += `--------------------------------\n`;
-    t += `CANT  ARTÍCULO             TOTAL\n`;
+    t += `ARTÍCULO / DETALLE         TOTAL\n`;
     t += `--------------------------------\n`;
     order.productos.forEach((item) => {
       const subtotal = item.cantidad * item.precioUnitario;
-      t += `${item.cantidad}x ${item.nombre.slice(0, 18).padEnd(18, ' ')} ${formatCurrency(subtotal).padStart(8, ' ')}\n`;
-      if (item.variante) {
-        t += `   └ ${item.variante}\n`;
-      }
+      t += `${formatArticleItem(item)}\n`;
+      t += `   ↳ Subtotal: ${formatCurrency(subtotal)} (${formatCurrency(item.precioUnitario)} c/u)\n`;
     });
     t += `--------------------------------\n`;
     t += `TOTAL A PAGAR:      ${formatCurrency(order.total).padStart(12, ' ')}\n`;
@@ -99,51 +98,42 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
   const generateShippingText = () => {
     let t = `================================\n`;
     t += `   IMPORTADORA CHIQUIMINISOS    \n`;
+    t += ` Papelería y artículos Kawaii  \n`;
     t += `      📦 RÓTULO DE ENVÍO 📦     \n`;
     t += `================================\n`;
     t += `PEDIDO #${String(order.orderNumber).padStart(3, '0')}\n`;
     t += `Fecha: ${formattedDate}\n`;
     t += `--------------------------------\n`;
-    t += `DESTINATARIO:\n`;
+    t += `CLIENTE:\n`;
     t += `${(order.cliente || 'CLIENTE').toUpperCase()}\n`;
+    if (order.telefono) {
+      t += `TEL/WPP: ${formatBoliviaPhone(order.telefono)}\n`;
+    }
     t += `--------------------------------\n`;
-    t += `TELÉFONO / WHATSAPP:\n`;
-    t += `${formatBoliviaPhone(order.telefono) || 'No especificado'}\n`;
-    t += `--------------------------------\n`;
-    t += `DESTINO / ENTREGA:\n`;
+    t += `DIRECCIÓN DE ENTREGA:\n`;
     t += `${(order.lugarEntrega || 'Mostrador / Por coordinar').toUpperCase()}\n`;
     t += `--------------------------------\n`;
-    t += `CONTENIDO (${totalItemsCount} art.):\n`;
+    t += `DETALLE DE PRODUCTOS (${totalItemsCount} art.):\n`;
     order.productos.forEach((item) => {
-      t += `- ${item.cantidad}x ${item.nombre}${item.variante ? ` (${item.variante})` : ''}\n`;
+      t += `• ${formatArticleItem(item)}\n`;
     });
-    t += `--------------------------------\n`;
-    if (order.saldo <= 0) {
-      t += `ESTADO: ✅ PAGADO COMPLETO\n`;
-    } else {
-      t += `ESTADO: ⚠️ COBRAR EN DESTINO\n`;
-      t += `SALDO PENDIENTE: ${formatCurrency(order.saldo)}\n`;
-    }
     if (order.observaciones) {
       t += `--------------------------------\n`;
-      t += `NOTA: ${order.observaciones}\n`;
+      t += `OBS / NOTA: ${order.observaciones}\n`;
     }
-    t += `================================\n`;
-    t += `Remite: Importadora Chiquiminisos\n`;
-    t += `Papelería y artículos Kawaii 🇧🇴\n`;
     t += `================================\n`;
     return t;
   };
 
-  // Combined text according to current printMode
+  // Combined text according to current printMode (only 2 lines feed for ~1cm end margin)
   const getSelectedPlainText = () => {
-    if (printMode === 'sale') return generateSaleText() + '\n\n\n';
-    if (printMode === 'shipping') return generateShippingText() + '\n\n\n';
+    if (printMode === 'sale') return generateSaleText() + '\n\n';
+    if (printMode === 'shipping') return generateShippingText() + '\n\n';
     return (
       generateSaleText() +
-      `\n\n- - - - - - - - - - - - - - - - \n      ✂️ CORTAR AQUÍ ✂️      \n- - - - - - - - - - - - - - - - \n\n` +
+      `\n- - - - - - - - - - - - - - - - \n      ✂️ CORTAR AQUÍ ✂️      \n- - - - - - - - - - - - - - - - \n\n` +
       generateShippingText() +
-      '\n\n\n'
+      '\n\n'
     );
   };
 
@@ -171,7 +161,7 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
         <div class="divider"></div>
 
         <div class="row bold" style="font-size:9px;">
-          <span>CANT / ARTÍCULO</span>
+          <span>ARTÍCULO / DETALLE</span>
           <span>TOTAL</span>
         </div>
         <div class="divider"></div>
@@ -182,10 +172,9 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
             return `
             <div class="item-row">
               <div class="row">
-                <span class="bold">${item.cantidad}x ${item.nombre}</span>
+                <span class="bold">${formatArticleItem(item)}</span>
                 <span class="bold">${formatCurrency(sub)}</span>
               </div>
-              ${item.variante ? `<div class="variante">└ ${item.variante}</div>` : ''}
               <div class="variante">(P.U: ${formatCurrency(item.precioUnitario)})</div>
             </div>
           `;
@@ -231,72 +220,52 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
       <div class="ticket-block">
         <div class="center">
           <div class="title">IMPORTADORA CHIQUIMINISOS</div>
+          <div class="subtitle">Papelería y artículos Kawaii</div>
           <div class="shipping-banner">📦 RÓTULO DE ENVÍO / PAQUETE 📦</div>
-          <div style="font-size:16px; font-weight:900; margin: 3px 0;">PEDIDO #${String(order.orderNumber).padStart(3, '0')}</div>
+          <div style="font-size:15px; font-weight:900; margin: 3px 0;">PEDIDO #${String(order.orderNumber).padStart(3, '0')}</div>
           <div style="font-size:9px;">Fecha: ${formattedDate}</div>
         </div>
 
         <div class="double-divider"></div>
 
         <div class="shipping-box">
-          <div class="shipping-label">DESTINATARIO:</div>
+          <div class="shipping-label">CLIENTE / DESTINATARIO:</div>
           <div class="shipping-value" style="font-size:13px;">${(order.cliente || 'CLIENTE').toUpperCase()}</div>
+          ${order.telefono ? `<div style="font-size:12px; margin-top:2px;"><strong>TEL/WPP:</strong> ${formatBoliviaPhone(order.telefono)}</div>` : ''}
         </div>
 
         <div class="divider"></div>
 
         <div class="shipping-box">
-          <div class="shipping-label">TELÉFONO / WHATSAPP:</div>
-          <div class="shipping-value" style="font-size:13px;">${formatBoliviaPhone(order.telefono) || 'No registrado'}</div>
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="shipping-box">
-          <div class="shipping-label">DESTINO / ENTREGA:</div>
+          <div class="shipping-label">DIRECCIÓN DE ENTREGA:</div>
           <div class="shipping-value" style="font-size:12px;">${(order.lugarEntrega || 'Mostrador / Por coordinar').toUpperCase()}</div>
         </div>
 
         <div class="double-divider"></div>
 
         <div class="shipping-box">
-          <div class="shipping-label">CONTENIDO (${totalItemsCount} art.):</div>
-          <div style="font-size:9.5px; margin-top:2px;">
+          <div class="shipping-label">DETALLE DE PRODUCTOS (${totalItemsCount} art.):</div>
+          <div style="font-size:9.5px; margin-top:3px;">
             ${order.productos
               .map(
                 (item) => `
-              <div>• <strong>${item.cantidad}x</strong> ${item.nombre} ${item.variante ? `(${item.variante})` : ''}</div>
+              <div>• <strong>${formatArticleItem(item)}</strong></div>
             `
               )
               .join('')}
           </div>
         </div>
 
-        <div class="divider"></div>
-
-        <div class="center" style="margin: 6px 0;">
-          ${
-            order.saldo <= 0
-              ? `<div class="status-paid">✅ PAGADO COMPLETO (ENTREGAR)</div>`
-              : `<div class="status-collect">⚠️ COBRAR EN DESTINO: <strong>${formatCurrency(order.saldo)}</strong></div>`
-          }
-        </div>
-
         ${
           order.observaciones
             ? `
           <div class="divider"></div>
-          <div style="font-size:9px;"><span class="bold">NOTA:</span> ${order.observaciones}</div>
+          <div style="font-size:9px;"><span class="bold">OBS / NOTA:</span> ${order.observaciones}</div>
         `
             : ''
         }
 
         <div class="double-divider"></div>
-
-        <div class="center" style="font-size:8px;">
-          <div>Remite: <strong>Importadora Chiquiminisos</strong></div>
-          <div>Papelería y artículos Kawaii · Bolivia 🇧🇴</div>
-        </div>
       </div>
     `;
 
@@ -332,7 +301,7 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
               font-size: 11px;
               line-height: 1.25;
               margin: 0;
-              padding: 4px;
+              padding: 4px 4px 6px 4px;
               background: #fff;
               color: #000;
               width: 100%;
@@ -356,9 +325,7 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
             .shipping-box { margin: 2px 0; }
             .shipping-label { font-size: 8.5px; font-weight: bold; color: #333; }
             .shipping-value { font-weight: 900; }
-            .status-paid { font-size: 11px; font-weight: 900; border: 1px solid #000; padding: 3px; }
-            .status-collect { font-size: 11px; font-weight: 900; border: 2px solid #000; padding: 3px; background: #f0f0f0; }
-            .cut-line { text-align: center; font-size: 9px; font-weight: bold; margin: 12px 0; }
+            .cut-line { text-align: center; font-size: 9px; font-weight: bold; margin: 8px 0; }
           </style>
         </head>
         <body>
@@ -642,7 +609,7 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
                   {/* Items Detailed Table */}
                   <div className="border-b border-dashed border-black pb-2 space-y-1.5 text-[11px]">
                     <div className="flex justify-between font-bold border-b border-gray-300 pb-1 text-[10px]">
-                      <span>CANT / ARTÍCULO</span>
+                      <span>ARTÍCULO / DETALLE</span>
                       <span>TOTAL</span>
                     </div>
                     {order.productos.map((item, idx) => {
@@ -651,17 +618,12 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
                         <div key={idx} className="space-y-0.5">
                           <div className="flex justify-between items-start">
                             <span className="font-bold">
-                              {item.cantidad}x {item.nombre}
+                              {formatArticleItem(item)}
                             </span>
                             <span className="font-bold">
                               {formatCurrency(subtotal)}
                             </span>
                           </div>
-                          {item.variante && (
-                            <p className="text-[10px] text-gray-600 pl-3">
-                              └ {item.variante}
-                            </p>
-                          )}
                           <p className="text-[10px] text-gray-600 pl-3">
                             (P.U: {formatCurrency(item.precioUnitario)})
                           </p>
@@ -716,6 +678,9 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
                     <p className="text-xs font-black uppercase font-sans tracking-wide">
                       IMPORTADORA CHIQUIMINISOS
                     </p>
+                    <p className="text-[10px] text-gray-700 font-sans">
+                      Papelería y artículos Kawaii
+                    </p>
                     <div className="bg-black text-white font-sans font-black text-[11px] py-1 px-2 rounded mt-1">
                       📦 RÓTULO DE ENVÍO / PAQUETE 📦
                     </div>
@@ -726,21 +691,19 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
                   {/* Destination */}
                   <div className="space-y-2 py-1">
                     <div className="bg-gray-100 p-2 rounded border border-gray-300">
-                      <p className="text-[9px] font-bold text-gray-600 uppercase font-sans">DESTINATARIO / CLIENTE:</p>
+                      <p className="text-[9px] font-bold text-gray-600 uppercase font-sans">CLIENTE / DESTINATARIO:</p>
                       <p className="text-sm font-black uppercase tracking-tight text-black">
                         {order.cliente || 'CLIENTE (MOSTRADOR / TIKTOK)'}
                       </p>
+                      {order.telefono && (
+                        <p className="text-xs font-bold text-gray-800 mt-0.5">
+                          TEL/WPP: {formatBoliviaPhone(order.telefono)}
+                        </p>
+                      )}
                     </div>
 
                     <div className="bg-gray-100 p-2 rounded border border-gray-300">
-                      <p className="text-[9px] font-bold text-gray-600 uppercase font-sans">TELÉFONO / WHATSAPP:</p>
-                      <p className="text-sm font-black text-black">
-                        {formatBoliviaPhone(order.telefono) || 'No especificado'}
-                      </p>
-                    </div>
-
-                    <div className="bg-gray-100 p-2 rounded border border-gray-300">
-                      <p className="text-[9px] font-bold text-gray-600 uppercase font-sans">DESTINO / ENTREGA:</p>
+                      <p className="text-[9px] font-bold text-gray-600 uppercase font-sans">DIRECCIÓN DE ENTREGA:</p>
                       <p className="text-xs font-black uppercase text-black">
                         {order.lugarEntrega || 'Mostrador / Por coordinar'}
                       </p>
@@ -750,122 +713,85 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
                   {/* Summary */}
                   <div className="border-t border-b border-dashed border-black py-2 space-y-1">
                     <div className="flex justify-between font-bold text-[10px]">
-                      <span>CONTENIDO DEL PAQUETE:</span>
+                      <span>DETALLE DE PRODUCTOS:</span>
                       <span>{totalItemsCount} ART. TOTAL</span>
                     </div>
                     <div className="space-y-0.5 text-[10px] text-gray-800">
                       {order.productos.map((item, idx) => (
                         <div key={idx}>
-                          • <span className="font-bold">{item.cantidad}x</span> {item.nombre}{' '}
-                          {item.variante ? `(${item.variante})` : ''}
+                          • <span className="font-bold">{formatArticleItem(item)}</span>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  {/* Payment status */}
-                  <div className="text-center py-1">
-                    {order.saldo <= 0 ? (
-                      <div className="border-2 border-emerald-600 bg-emerald-50 text-emerald-900 font-black text-xs py-1.5 px-2 rounded">
-                        ✅ PAGADO COMPLETO (ENTREGAR)
-                      </div>
-                    ) : (
-                      <div className="border-2 border-amber-600 bg-amber-50 text-amber-900 font-black text-xs py-1.5 px-2 rounded">
-                        ⚠️ COBRAR EN DESTINO: {formatCurrency(order.saldo)}
-                      </div>
-                    )}
-                  </div>
-
                   {order.observaciones && (
                     <div className="border-t border-dashed border-black pt-1.5 text-[10px]">
-                      <span className="font-bold">NOTA DE ENVÍO: </span>
+                      <span className="font-bold">OBS / NOTA: </span>
                       <span className="italic">{order.observaciones}</span>
                     </div>
                   )}
 
-                  <div className="text-center pt-2 border-t-2 border-black text-[9px] text-gray-700">
-                    <p className="font-bold">Remite: Importadora Chiquiminisos</p>
-                    <p>Papelería y artículos Kawaii · Bolivia 🇧🇴</p>
-                  </div>
+                  <div className="border-t-2 border-black" />
                 </div>
               )}
             </div>
           </div>
 
-          {/* Action Bar */}
-          <div
-            className={`p-3 sm:p-4 border-t space-y-2 ${
-              isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-white border-[#E8DFC8]'
-            }`}
-          >
-            {/* Primary Print Button */}
+          {/* Action Bar - RawBT as Primary Highlighted Action */}
+          <div className="p-3 sm:p-4 border-t space-y-2 bg-white border-[#E8DFC8]">
+            {/* Primary Highlighted Print Button: RawBT */}
             <button
+              id="btn-print-rawbt-primary"
               type="button"
-              onClick={handlePrint}
-              className={`w-full py-3 px-4 rounded-xl font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition cursor-pointer ${
-                isDark
-                  ? 'bg-[#FF6FA5] hover:bg-[#ff5b98] text-[#0F1B3C]'
-                  : 'bg-[#1A2B5C] hover:bg-[#223773] text-white'
-              }`}
+              onClick={handleBluetoothRawBT}
+              className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm sm:text-base flex items-center justify-center gap-2.5 shadow-md active:scale-[0.98] transition cursor-pointer bg-[#1A2B5C] hover:bg-[#223773] text-white border border-[#1A2B5C]"
+              title="Abrir con App RawBT para imprimir por Bluetooth"
             >
-              <Printer className="w-5 h-5" />
-              <span>
-                {printMode === 'both'
-                  ? 'Mandar a Imprimir Ambos Tickets'
-                  : printMode === 'sale'
-                  ? 'Mandar a Imprimir Ticket de Venta'
-                  : 'Mandar a Imprimir Rótulo de Envío'}
-              </span>
+              <Bluetooth className="w-5 h-5 text-sky-300 shrink-0" />
+              <Printer className="w-5 h-5 shrink-0" />
+              <span>Imprimir con App RawBT (Bluetooth)</span>
             </button>
 
-            {/* Mobile Alternative Actions */}
+            {/* Secondary Alternative Actions */}
             <div className="grid grid-cols-3 gap-1.5 sm:gap-2 pt-1">
               <button
+                id="btn-print-browser"
                 type="button"
-                onClick={handleBluetoothRawBT}
-                className={`py-2 px-1 sm:px-2 rounded-xl font-medium text-[11px] flex flex-col sm:flex-row items-center justify-center gap-1 transition text-center cursor-pointer border ${
-                  isDark
-                    ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-slate-200 border-[#223368]'
-                    : 'bg-[#FBF7EF] hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]'
-                }`}
-                title="Abrir con app RawBT Bluetooth"
+                onClick={handlePrint}
+                className="py-2.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition text-center cursor-pointer border bg-[#FBF7EF] hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]"
+                title="Impresión por diálogo de navegador o PC"
               >
-                <Bluetooth className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                <span className="truncate">App RawBT</span>
+                <Printer className="w-3.5 h-3.5 text-[#1A2B5C] shrink-0" />
+                <span className="truncate">Navegador / PC</span>
               </button>
 
               <button
+                id="btn-share-ticket"
                 type="button"
                 onClick={handleShare}
-                className={`py-2 px-1 sm:px-2 rounded-xl font-medium text-[11px] flex flex-col sm:flex-row items-center justify-center gap-1 transition text-center cursor-pointer border ${
-                  isDark
-                    ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-slate-200 border-[#223368]'
-                    : 'bg-[#FBF7EF] hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]'
-                }`}
+                className="py-2.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition text-center cursor-pointer border bg-[#FBF7EF] hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]"
                 title="Compartir comanda a otra app o Bluetooth"
               >
-                <Share2 className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+                <Share2 className="w-3.5 h-3.5 text-purple-600 shrink-0" />
                 <span className="truncate">Compartir</span>
               </button>
 
               <button
+                id="btn-copy-ticket"
                 type="button"
                 onClick={handleCopyText}
-                className={`py-2 px-1 sm:px-2 rounded-xl font-medium text-[11px] flex flex-col sm:flex-row items-center justify-center gap-1 transition text-center cursor-pointer border ${
-                  isDark
-                    ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-slate-200 border-[#223368]'
-                    : 'bg-[#FBF7EF] hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]'
-                }`}
+                className="py-2.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition text-center cursor-pointer border bg-[#FBF7EF] hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]"
                 title="Copiar texto de ticket"
               >
                 {copied ? (
                   <>
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">¡Copiado!</span>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span className="text-emerald-700 font-bold">¡Copiado!</span>
                   </>
                 ) : (
                   <>
-                    <Copy className="w-3.5 h-3.5 text-stone-500 shrink-0" />
+                    <Copy className="w-3.5 h-3.5 text-stone-600 shrink-0" />
                     <span className="truncate">Copiar</span>
                   </>
                 )}

@@ -18,6 +18,7 @@ import { Order } from '../types';
 import {
   formatCurrency,
   generateWhatsAppPreparationText,
+  formatArticleItem,
 } from '../lib/storage';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -77,70 +78,66 @@ export const OrderPreparationCardModal: React.FC<OrderPreparationCardModalProps>
 
     ctx.scale(2, 2);
 
-    // Background - Kawaii Dark Plum
-    ctx.fillStyle = '#140f20';
+    // Background - Clean Cream / White
+    ctx.fillStyle = '#FBF7EF';
     ctx.fillRect(0, 0, width, height);
 
-    // Header bar (Chic Pink/Purple Kawaii Gradient)
-    const grad = ctx.createLinearGradient(0, 0, width, 0);
-    grad.addColorStop(0, '#db2777'); // pink-600
-    grad.addColorStop(0.5, '#e11d48'); // rose-600
-    grad.addColorStop(1, '#9333ea'); // purple-600
-    ctx.fillStyle = grad;
+    // Header bar (Chic Navy Kawaii)
+    ctx.fillStyle = '#1A2B5C';
     ctx.fillRect(0, 0, width, 94);
 
     // Title text
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = '#FFFFFF';
     ctx.font = 'bold 22px "Segoe UI", Arial, sans-serif';
     ctx.fillText('📦 ORDEN DE PREPARACIÓN Y EMPAQUE', padding, 40);
 
     ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
-    ctx.fillStyle = '#fce7f3';
+    ctx.fillStyle = '#FFB5D0';
     ctx.fillText('✨ Importadora Chiquiminisos · Control de Almacén y Despacho', padding, 68);
 
     // Order # Badge (Big, contrasty)
     const badgeText = `PEDIDO #${String(order.orderNumber).padStart(3, '0')}`;
-    ctx.fillStyle = '#fbbf24'; // amber-400
+    ctx.fillStyle = '#FF6FA5';
     ctx.fillRect(width - padding - 150, 26, 150, 42);
-    ctx.fillStyle = '#0f172a';
+    ctx.fillStyle = '#FFFFFF';
     ctx.font = 'bold 16px "Segoe UI", Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(badgeText, width - padding - 75, 53);
     ctx.textAlign = 'left';
 
-    // Client Info Box
+    // Client Info Box (White with warm border)
     let y = 120;
-    ctx.fillStyle = '#1e172e';
-    ctx.strokeStyle = '#f472b640';
-    ctx.lineWidth = 1;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.strokeStyle = '#E8DFC8';
+    ctx.lineWidth = 1.5;
     ctx.fillRect(padding, y, width - padding * 2, 116);
     ctx.strokeRect(padding, y, width - padding * 2, 116);
 
-    ctx.fillStyle = '#f472b6';
+    ctx.fillStyle = '#78716C';
     ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
     ctx.fillText('CLIENTE:', padding + 16, y + 28);
     ctx.fillText('DESTINO / ENVÍO:', padding + 16, y + 60);
     ctx.fillText('TELÉFONO / FECHA:', padding + 16, y + 92);
 
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = '#1A2B5C';
     ctx.font = 'bold 17px "Segoe UI", Arial, sans-serif';
     ctx.fillText(order.cliente || 'Cliente Mostrador', padding + 90, y + 28);
 
-    ctx.fillStyle = '#38bdf8'; // Sky bright for location
+    ctx.fillStyle = '#059669'; // Emerald for location
     ctx.font = 'bold 16px "Segoe UI", Arial, sans-serif';
     ctx.fillText(order.lugarEntrega || 'Mostrador / Por coordinar', padding + 152, y + 60);
 
-    ctx.fillStyle = '#e2e8f0';
+    ctx.fillStyle = '#44403C';
     ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
     ctx.fillText(`${order.telefono || 'Sin teléfono'}   ·   ${dateFormatted}`, padding + 160, y + 92);
 
     // Items Section Header (Prominent)
     y += 145;
-    ctx.fillStyle = '#f472b6';
+    ctx.fillStyle = '#1A2B5C';
     ctx.font = 'bold 16px "Segoe UI", Arial, sans-serif';
     ctx.fillText(`📋 LISTA DE ARTÍCULOS (${totalPiezas} piezas en total)`, padding, y);
 
-    ctx.strokeStyle = '#4c3968';
+    ctx.strokeStyle = '#E8DFC8';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(padding, y + 10);
@@ -150,38 +147,23 @@ export const OrderPreparationCardModal: React.FC<OrderPreparationCardModalProps>
     // Items list with BIG, legible typography
     y += 32;
     order.productos.forEach((prod, i) => {
-      // Row box
-      ctx.fillStyle = i % 2 === 0 ? '#201933' : '#171225';
+      // Row box (White / Light Cream alternate)
+      ctx.fillStyle = i % 2 === 0 ? '#FFFFFF' : '#F5EFE0';
       ctx.fillRect(padding, y - 20, width - padding * 2, itemHeight);
+      ctx.strokeStyle = '#E8DFC8';
+      ctx.strokeRect(padding, y - 20, width - padding * 2, itemHeight);
 
-      // Checkbox placeholder square (bigger)
-      ctx.strokeStyle = '#f472b6';
+      // Checkbox placeholder square
+      ctx.strokeStyle = '#1A2B5C';
       ctx.lineWidth = 1.5;
       ctx.strokeRect(padding + 12, y - 9, 20, 20);
 
-      // Quantity Badge (Big & bold)
-      ctx.fillStyle = '#ec4899'; // pink-500
-      ctx.fillRect(padding + 42, y - 13, 62, 28);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 17px "Segoe UI", Arial, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(`${prod.cantidad}x`, padding + 73, y + 7);
-      ctx.textAlign = 'left';
-
-      // Item Name (EXTRA LARGE & BOLD)
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 17px "Segoe UI", Arial, sans-serif';
-      let title = prod.nombre;
-      if (title.length > 34) title = title.substring(0, 34) + '...';
-      ctx.fillText(title, padding + 116, y + 6);
-
-      // Variant (Clear pink/lavender tag)
-      if (prod.variante && prod.variante.trim()) {
-        const titleWidth = ctx.measureText(title).width;
-        ctx.fillStyle = '#c084fc'; // purple-300
-        ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
-        ctx.fillText(`(${prod.variante.trim()})`, padding + 124 + titleWidth, y + 6);
-      }
+      // Article Formatted Item (Clear & prominent)
+      ctx.fillStyle = '#1A2B5C';
+      ctx.font = 'bold 16px "Segoe UI", Arial, sans-serif';
+      let title = formatArticleItem(prod);
+      if (title.length > 56) title = title.substring(0, 54) + '...';
+      ctx.fillText(title, padding + 44, y + 6);
 
       y += itemHeight;
     });
@@ -189,13 +171,13 @@ export const OrderPreparationCardModal: React.FC<OrderPreparationCardModalProps>
     // Payment Box at bottom (High contrast)
     y += 10;
     const isPaid = order.saldo <= 0;
-    ctx.fillStyle = isPaid ? '#064e3b' : '#7f1d1d'; // emerald-950 vs red-950
-    ctx.strokeStyle = isPaid ? '#10b981' : '#ef4444';
+    ctx.fillStyle = isPaid ? '#ECFDF5' : '#FFFBEB';
+    ctx.strokeStyle = isPaid ? '#10B981' : '#F59E0B';
     ctx.lineWidth = 1.5;
     ctx.fillRect(padding, y, width - padding * 2, 54);
     ctx.strokeRect(padding, y, width - padding * 2, 54);
 
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = isPaid ? '#065F46' : '#92400E';
     ctx.font = 'bold 16px "Segoe UI", Arial, sans-serif';
     const payStatus = isPaid
       ? '✅ PEDIDO PAGADO EN TOTALIDAD (Solo empacar)'
@@ -211,13 +193,13 @@ export const OrderPreparationCardModal: React.FC<OrderPreparationCardModalProps>
     // Observaciones / Notes if any
     if (order.observaciones && order.observaciones.trim()) {
       y += 68;
-      ctx.fillStyle = '#451a03'; // amber-950
-      ctx.strokeStyle = '#f59e0b';
+      ctx.fillStyle = '#FFF7ED';
+      ctx.strokeStyle = '#F97316';
       ctx.lineWidth = 1;
       ctx.fillRect(padding, y, width - padding * 2, 44);
       ctx.strokeRect(padding, y, width - padding * 2, 44);
 
-      ctx.fillStyle = '#fef3c7';
+      ctx.fillStyle = '#9A3412';
       ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
       let obs = `📝 NOTA DE EMPAQUE: ${order.observaciones.trim()}`;
       if (obs.length > 70) obs = obs.substring(0, 70) + '...';
@@ -481,30 +463,10 @@ export const OrderPreparationCardModal: React.FC<OrderPreparationCardModalProps>
                         </div>
                         <div className="min-w-0">
                           <span className={`font-extrabold text-sm sm:text-base block ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
-                            {item.nombre}
+                            {formatArticleItem(item)}
                           </span>
-                          {item.variante && item.variante.trim() && (
-                            <span
-                              className={`inline-block mt-0.5 text-xs font-bold px-2 py-0.5 rounded-lg border ${
-                                isDark
-                                  ? 'bg-[#FF6FA5]/20 text-[#FF6FA5] border-[#FF6FA5]/30'
-                                  : 'bg-[#1A2B5C]/10 text-[#1A2B5C] border-[#1A2B5C]/20'
-                              }`}
-                            >
-                              {item.variante.trim()}
-                            </span>
-                          )}
                         </div>
                       </div>
-                      <span
-                        className={`shrink-0 font-black text-sm sm:text-base px-3 py-1 rounded-xl shadow-sm ${
-                          isDark
-                            ? 'bg-[#FF6FA5] text-[#0F1B3C]'
-                            : 'bg-[#1A2B5C] text-white'
-                        }`}
-                      >
-                        {item.cantidad}x
-                      </span>
                     </div>
                   );
                 })}

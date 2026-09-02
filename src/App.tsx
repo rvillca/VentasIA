@@ -14,6 +14,8 @@ import {
   subscribeToOrders,
   saveOrderToFirestore,
   updateOrderInFirestore,
+  markOrderAsDeliveredInFirestore,
+  reopenOrderInFirestore,
   anularOrderInFirestore,
   deleteOrderFromFirestore,
   INITIAL_SAMPLE_ORDERS,
@@ -139,13 +141,20 @@ export default function App() {
     }
 
     const nextStatus = target.estado === 'Abierto' ? 'Entregado' : 'Abierto';
+    const dispatcherName = userProfile?.displayName || userProfile?.email || 'Usuario';
+    const dispatcherUid = userProfile?.uid || '';
+
     try {
-      await updateOrderInFirestore(orderId, {
-        estado: nextStatus as 'Abierto' | 'Entregado',
-      });
-      showToast(`Pedido #${target.orderNumber} marcado como ${nextStatus}`);
+      if (nextStatus === 'Entregado') {
+        await markOrderAsDeliveredInFirestore(orderId, dispatcherName, dispatcherUid);
+        showToast(`Pedido #${target.orderNumber} marcado como Entregado por ${dispatcherName}`);
+      } else {
+        await reopenOrderInFirestore(orderId);
+        showToast(`Pedido #${target.orderNumber} reabierto como Pendiente de Envío`);
+      }
     } catch (err) {
       console.error('Error toggling status:', err);
+      showToast('Error al cambiar estado del pedido.');
     }
   };
 

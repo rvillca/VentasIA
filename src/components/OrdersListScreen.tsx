@@ -17,12 +17,14 @@ import {
   User,
   DollarSign,
   Share2,
+  Truck,
 } from 'lucide-react';
 import { Order, OrderStatus } from '../types';
 import {
   formatCurrency,
   getWhatsAppUrl,
   completeOrderBalanceInFirestore,
+  formatArticleItem,
 } from '../lib/storage';
 import { ThermalPrintModal } from './ThermalPrintModal';
 import { OrderPreparationCardModal } from './OrderPreparationCardModal';
@@ -445,14 +447,28 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
                           </h3>
                           {order.vendedorNombre && (
                             <span
-                              className={`text-[10px] px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1 border ${
+                              className={`text-[10px] px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1 border shrink-0 ${
                                 isDark
                                   ? 'text-[#9AA6C9] bg-[#0F1B3C] border-[#223368]'
                                   : 'text-[#78716C] bg-[#F5EFE0] border-[#E8DFC8]'
                               }`}
+                              title="Vendedora que registró la venta"
                             >
                               <User className={`w-3 h-3 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
-                              {order.vendedorNombre}
+                              <span>{order.vendedorNombre}</span>
+                            </span>
+                          )}
+                          {isDelivered && (order.enviadoPorNombre || order.despachadoPorNombre) && (
+                            <span
+                              className={`text-[10px] px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1 border shrink-0 ${
+                                isDark
+                                  ? 'text-emerald-300 bg-emerald-950/60 border-emerald-800/40'
+                                  : 'text-emerald-800 bg-emerald-50 border-emerald-200'
+                              }`}
+                              title={`Despachado / Enviado por ${order.enviadoPorNombre || order.despachadoPorNombre}`}
+                            >
+                              <Truck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                              <span>Enviado: {order.enviadoPorNombre || order.despachadoPorNombre}</span>
                             </span>
                           )}
                         </div>
@@ -537,7 +553,7 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
                       }`}
                     >
                       {order.productos
-                        .map((p) => `${p.cantidad}x ${p.nombre}${p.variante ? ` (${p.variante})` : ''}`)
+                        .map((p) => formatArticleItem(p))
                         .join(', ')}
                     </p>
                     {order.lugarEntrega && (

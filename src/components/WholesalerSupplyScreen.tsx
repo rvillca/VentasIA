@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ShoppingCart, Package, Check, RefreshCw, Layers, CheckCircle2, Phone, MapPin, Printer } from 'lucide-react';
 import { Order } from '../types';
-import { formatCurrency } from '../lib/storage';
+import { formatCurrency, formatArticleItem } from '../lib/storage';
 import { useTheme } from '../contexts/ThemeContext';
 
 interface WholesalerSupplyScreenProps {
@@ -282,22 +282,9 @@ export const WholesalerSupplyScreen: React.FC<WholesalerSupplyScreenProps> = ({
                     <Check className="w-4 h-4" />
                   </div>
 
-                  {/* Quantity & Name */}
+                  {/* Quantity & Name in new format */}
                   <div>
                     <div className="flex items-center gap-2">
-                      <span
-                        className={`text-sm font-black px-2.5 py-0.5 rounded-lg ${
-                          isChecked
-                            ? isDark
-                              ? 'bg-[#0F1B3C] text-[#9AA6C9]'
-                              : 'bg-[#FBF7EF] text-[#78716C]'
-                            : isDark
-                            ? 'bg-[#FF6FA5]/20 text-[#FF6FA5] border border-[#FF6FA5]/40'
-                            : 'bg-[#1A2B5C] text-white'
-                        }`}
-                      >
-                        {item.cantidadTotal}x
-                      </span>
                       <h3
                         className={`text-base font-bold font-['Outfit',sans-serif] ${
                           isChecked
@@ -305,15 +292,9 @@ export const WholesalerSupplyScreen: React.FC<WholesalerSupplyScreenProps> = ({
                             : isDark ? 'text-white' : 'text-[#1A2B5C]'
                         }`}
                       >
-                        {item.nombre}
+                        {formatArticleItem({ cantidad: item.cantidadTotal, nombre: item.nombre, variante: item.variante })}
                       </h3>
                     </div>
-
-                    {item.variante && (
-                      <p className={`text-xs mt-1 pl-1 font-medium ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`}>
-                        Presentación: {item.variante}
-                      </p>
-                    )}
 
                     {/* Breakdown of clients */}
                     <div className="flex flex-wrap items-center gap-1.5 mt-2">

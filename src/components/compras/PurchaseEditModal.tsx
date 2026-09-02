@@ -8,10 +8,11 @@ import {
   Check,
   Package,
   XCircle,
+  Box,
 } from 'lucide-react';
 import { Purchase, PurchaseItem, PurchaseStatus } from '../../types';
 import { formatCurrency, updatePurchaseInFirestore } from '../../lib/storage';
-import { PackagingQuickSelector } from '../PackagingQuickSelector';
+import { PackagingSelectionModal } from '../PackagingSelectionModal';
 import { useTheme } from '../../contexts/ThemeContext';
 
 interface PurchaseEditModalProps {
@@ -89,6 +90,7 @@ export const PurchaseEditModal: React.FC<PurchaseEditModalProps> = ({
   const [observaciones, setObservaciones] = useState(purchase.observaciones || '');
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [packagingModalIndex, setPackagingModalIndex] = useState<number | null>(null);
 
   const calculatedTotal = useMemo(() => {
     return items.reduce(
@@ -192,29 +194,19 @@ export const PurchaseEditModal: React.FC<PurchaseEditModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
       <div
-        className={`w-full max-w-2xl border rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 my-auto animate-in fade-in zoom-in-95 max-h-[92vh] overflow-y-auto ${
-          isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
-        }`}
+        className="w-full max-w-2xl border rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 my-auto animate-in fade-in zoom-in-95 max-h-[92vh] overflow-y-auto bg-white border-[#E8DFC8]"
       >
         {/* Header */}
-        <div className={`flex items-center justify-between border-b pb-3 ${
-          isDark ? 'border-[#223368]' : 'border-[#E8DFC8]'
-        }`}>
+        <div className="flex items-center justify-between border-b pb-3 border-[#E8DFC8]">
           <div className="flex items-center gap-2.5">
-            <div className={`w-9 h-9 rounded-xl border flex items-center justify-center ${
-              isDark
-                ? 'bg-[#0F1B3C] border-[#223368] text-amber-300'
-                : 'bg-amber-50 border-amber-200 text-amber-800'
-            }`}>
+            <div className="w-9 h-9 rounded-xl border flex items-center justify-center bg-amber-50 border-amber-200 text-amber-800">
               <ShoppingBag className="w-5 h-5" />
             </div>
             <div>
-              <h3 className={`text-base font-black font-['Outfit',sans-serif] ${
-                isDark ? 'text-white' : 'text-[#1A2B5C]'
-              }`}>
+              <h3 className="text-base font-black font-['Outfit',sans-serif] text-[#1A2B5C]">
                 Modificar Compra #C-{String(purchase.purchaseNumber).padStart(3, '0')}
               </h3>
-              <p className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+              <p className="text-xs text-[#78716C]">
                 Edición de artículos, costos y pagos
               </p>
             </div>
@@ -222,20 +214,14 @@ export const PurchaseEditModal: React.FC<PurchaseEditModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className={`p-1.5 rounded-lg transition cursor-pointer ${
-              isDark ? 'text-[#9AA6C9] hover:text-white hover:bg-[#0F1B3C]' : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
-            }`}
+            className="p-1.5 rounded-lg transition cursor-pointer text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {formError && (
-          <div className={`p-3 border rounded-xl text-xs flex items-center gap-2 ${
-            isDark
-              ? 'bg-rose-950/80 border-rose-500/50 text-rose-200'
-              : 'bg-rose-50 border-rose-200 text-rose-800'
-          }`}>
+          <div className="p-3 border rounded-xl text-xs flex items-center gap-2 bg-rose-50 border-rose-200 text-rose-800">
             <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
             <span>{formError}</span>
           </div>
@@ -243,13 +229,9 @@ export const PurchaseEditModal: React.FC<PurchaseEditModalProps> = ({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Supplier Info */}
-          <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-2xl border ${
-            isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
-          }`}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-2xl border bg-[#FBF7EF] border-[#E8DFC8]">
             <div className="sm:col-span-2">
-              <label className={`block text-[11px] font-bold uppercase tracking-wider mb-1 ${
-                isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-              }`}>
+              <label className="block text-[11px] font-bold uppercase tracking-wider mb-1 text-[#78716C]">
                 Proveedor o Mayorista *
               </label>
               <input
@@ -258,11 +240,7 @@ export const PurchaseEditModal: React.FC<PurchaseEditModalProps> = ({
                 value={proveedor}
                 onChange={(e) => setProveedor(e.target.value)}
                 placeholder="Nombre de la empresa, fábrica o vendedor..."
-                className={`w-full border rounded-xl py-2 px-3 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#1A2B5C] ${
-                  isDark
-                    ? 'bg-[#16234F] border-[#223368] text-white placeholder-[#9AA6C9]/50'
-                    : 'bg-white border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/50'
-                }`}
+                className="w-full border rounded-xl py-2 px-3 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#1A2B5C] bg-white border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/50"
               />
 
               {/* Frequent supplier pills */}
@@ -274,11 +252,7 @@ export const PurchaseEditModal: React.FC<PurchaseEditModalProps> = ({
                     onClick={() => setProveedor(sup)}
                     className={`text-[10px] px-2 py-0.5 rounded-lg border transition cursor-pointer ${
                       proveedor === sup
-                        ? isDark
-                          ? 'bg-amber-400 text-slate-950 font-bold border-amber-400'
-                          : 'bg-amber-500 text-white font-bold border-amber-500'
-                        : isDark
-                        ? 'bg-[#16234F] hover:bg-[#1E2D5A] border-[#223368] text-slate-300'
+                        ? 'bg-[#1A2B5C] text-white font-bold border-[#1A2B5C]'
                         : 'bg-white hover:bg-[#F5EFE0] border-[#E8DFC8] text-[#1A2B5C]'
                     }`}
                   >
@@ -289,9 +263,7 @@ export const PurchaseEditModal: React.FC<PurchaseEditModalProps> = ({
             </div>
 
             <div>
-              <label className={`block text-[11px] font-bold uppercase tracking-wider mb-1 ${
-                isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-              }`}>
+              <label className="block text-[11px] font-bold uppercase tracking-wider mb-1 text-[#78716C]">
                 Teléfono / WhatsApp Proveedor
               </label>
               <input
@@ -299,18 +271,12 @@ export const PurchaseEditModal: React.FC<PurchaseEditModalProps> = ({
                 value={telefonoProveedor}
                 onChange={(e) => setTelefonoProveedor(e.target.value)}
                 placeholder="ej: 71234567"
-                className={`w-full border rounded-xl py-2 px-3 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#1A2B5C] ${
-                  isDark
-                    ? 'bg-[#16234F] border-[#223368] text-white placeholder-[#9AA6C9]/50'
-                    : 'bg-white border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/50'
-                }`}
+                className="w-full border rounded-xl py-2 px-3 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#1A2B5C] bg-white border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/50"
               />
             </div>
 
             <div>
-              <label className={`block text-[11px] font-bold uppercase tracking-wider mb-1 ${
-                isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-              }`}>
+              <label className="block text-[11px] font-bold uppercase tracking-wider mb-1 text-[#78716C]">
                 N° Factura / Nota / Recibo
               </label>
               <input
@@ -318,46 +284,30 @@ export const PurchaseEditModal: React.FC<PurchaseEditModalProps> = ({
                 value={numeroFacturaRecibo}
                 onChange={(e) => setNumeroFacturaRecibo(e.target.value)}
                 placeholder="ej: FAC-00912 o RECIBO-24"
-                className={`w-full border rounded-xl py-2 px-3 text-xs sm:text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#1A2B5C] ${
-                  isDark
-                    ? 'bg-[#16234F] border-[#223368] text-white placeholder-[#9AA6C9]/50'
-                    : 'bg-white border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/50'
-                }`}
+                className="w-full border rounded-xl py-2 px-3 text-xs sm:text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#1A2B5C] bg-white border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/50"
               />
             </div>
 
             <div>
-              <label className={`block text-[11px] font-bold uppercase tracking-wider mb-1 ${
-                isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-              }`}>
+              <label className="block text-[11px] font-bold uppercase tracking-wider mb-1 text-[#78716C]">
                 Fecha de Compra
               </label>
               <input
                 type="date"
                 value={fechaCompra}
                 onChange={(e) => setFechaCompra(e.target.value)}
-                className={`w-full border rounded-xl py-2 px-3 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#1A2B5C] ${
-                  isDark
-                    ? 'bg-[#16234F] border-[#223368] text-white'
-                    : 'bg-white border-[#E8DFC8] text-[#1A2B5C]'
-                }`}
+                className="w-full border rounded-xl py-2 px-3 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#1A2B5C] bg-white border-[#E8DFC8] text-[#1A2B5C]"
               />
             </div>
 
             <div>
-              <label className={`block text-[11px] font-bold uppercase tracking-wider mb-1 ${
-                isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-              }`}>
+              <label className="block text-[11px] font-bold uppercase tracking-wider mb-1 text-[#78716C]">
                 Método de Pago
               </label>
               <select
                 value={metodoPago}
                 onChange={(e) => setMetodoPago(e.target.value as any)}
-                className={`w-full border rounded-xl py-2 px-3 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#1A2B5C] ${
-                  isDark
-                    ? 'bg-[#16234F] border-[#223368] text-white'
-                    : 'bg-white border-[#E8DFC8] text-[#1A2B5C]'
-                }`}
+                className="w-full border rounded-xl py-2 px-3 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#1A2B5C] bg-white border-[#E8DFC8] text-[#1A2B5C]"
               >
                 <option value="Efectivo">Efectivo</option>
                 <option value="Transferencia">Transferencia Bancaria</option>
@@ -370,59 +320,50 @@ export const PurchaseEditModal: React.FC<PurchaseEditModalProps> = ({
           {/* Items Table */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
-                isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-              }`}>
+              <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-[#78716C]">
                 <Package className="w-4 h-4 text-amber-500" />
                 <span>Lotes y Artículos Comprados</span>
               </span>
               <button
                 type="button"
                 onClick={handleAddItem}
-                className={`px-2.5 py-1 rounded-xl text-xs font-bold flex items-center gap-1 transition cursor-pointer ${
-                  isDark
-                    ? 'bg-amber-400 text-slate-950 hover:bg-amber-300'
-                    : 'bg-amber-500 text-white hover:bg-amber-600'
-                }`}
+                className="px-2.5 py-1 rounded-xl text-xs font-bold flex items-center gap-1 transition cursor-pointer bg-amber-500 text-white hover:bg-amber-600"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Añadir Producto</span>
               </button>
             </div>
 
-            <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+            <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
               {items.map((item, index) => (
                 <div
                   key={item.id || index}
-                  className={`p-3 rounded-2xl border space-y-2 relative transition ${
-                    isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
-                  }`}
+                  className="p-3.5 rounded-2xl border space-y-3 relative transition bg-[#FBF7EF] border-[#E8DFC8]"
                 >
+                  {/* Name & Category */}
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
-                    <div className="sm:col-span-5">
+                    <div className="sm:col-span-7">
+                      <label className="block text-[10px] font-bold uppercase tracking-wider mb-1 text-[#78716C]">
+                        Nombre del Artículo / Material *
+                      </label>
                       <input
                         type="text"
                         required
                         value={item.nombre}
                         onChange={(e) => handleItemChange(index, 'nombre', e.target.value)}
-                        placeholder="Nombre del artículo *"
-                        className={`w-full border rounded-xl py-1.5 px-2.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#1A2B5C] ${
-                          isDark
-                            ? 'bg-[#16234F] border-[#223368] text-white placeholder-[#9AA6C9]/50'
-                            : 'bg-white border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/50'
-                        }`}
+                        placeholder="ej: Gomas Kawaii, Mochilas 3D, Cintas..."
+                        className="w-full border rounded-xl py-2 px-3 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#1A2B5C] bg-white border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/50"
                       />
                     </div>
 
-                    <div className="sm:col-span-4">
+                    <div className="sm:col-span-5">
+                      <label className="block text-[10px] font-bold uppercase tracking-wider mb-1 text-[#78716C]">
+                        Categoría
+                      </label>
                       <select
                         value={item.categoria || 'Mochilas & Bolsos'}
                         onChange={(e) => handleItemChange(index, 'categoria', e.target.value)}
-                        className={`w-full border rounded-xl py-1.5 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[#1A2B5C] ${
-                          isDark
-                            ? 'bg-[#16234F] border-[#223368] text-slate-300'
-                            : 'bg-white border-[#E8DFC8] text-[#1A2B5C]'
-                        }`}
+                        className="w-full border rounded-xl py-2 px-2.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#1A2B5C] bg-white border-[#E8DFC8] text-[#1A2B5C]"
                       >
                         {CATEGORIES.map((cat, idx) => (
                           <option key={idx} value={cat}>
@@ -431,60 +372,107 @@ export const PurchaseEditModal: React.FC<PurchaseEditModalProps> = ({
                         ))}
                       </select>
                     </div>
+                  </div>
 
-                    <div className="sm:col-span-3">
+                  {/* Variant / Packaging / Box with Popup Window like Ventas */}
+                  <div>
+                    <label className="block text-[11px] font-bold mb-1 flex items-center justify-between text-[#78716C]">
+                      <span>Presentación / Empaque / Variante</span>
+                      <span className="text-[10px] font-bold text-[#1A2B5C]">
+                        Toca para abrir ventana:
+                      </span>
+                    </label>
+                    <div className="flex gap-2">
                       <input
                         type="text"
                         value={item.variante || ''}
+                        onClick={() => setPackagingModalIndex(index)}
                         onChange={(e) => handleItemChange(index, 'variante', e.target.value)}
-                        placeholder="Presentación (ej. Box de 24 u., ½ Box...)"
-                        className={`w-full border rounded-xl py-1.5 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[#1A2B5C] ${
-                          isDark
-                            ? 'bg-[#16234F] border-[#223368] text-white placeholder-[#9AA6C9]/50'
-                            : 'bg-white border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/50'
-                        }`}
+                        placeholder="Ej. Box de 48 u., Docena (12 u.), Medio Box..."
+                        className="flex-1 bg-white border border-[#E8DFC8] rounded-xl px-3 py-2 text-xs font-medium text-[#1A2B5C] placeholder-[#78716C]/60 focus:outline-none focus:ring-2 focus:ring-[#1A2B5C]"
                       />
+                      <button
+                        type="button"
+                        onClick={() => setPackagingModalIndex(index)}
+                        className="px-3.5 py-2 rounded-xl font-black text-xs flex items-center gap-1.5 transition active:scale-95 shrink-0 cursor-pointer bg-[#1A2B5C] hover:bg-[#253B7A] text-white shadow-sm"
+                        title="Abrir ventana emergente de selección de cajas y docenas"
+                      >
+                        <Box className="w-3.5 h-3.5 text-amber-300" />
+                        <span>Elegir Box</span>
+                      </button>
                     </div>
+
+                    {/* Selected badge */}
+                    {item.variante && (
+                      <div className="mt-1.5 flex items-center gap-1.5">
+                        <span className="text-[10px] font-semibold text-[#78716C]">
+                          Seleccionado:
+                        </span>
+                        <span className="text-xs font-black px-2.5 py-0.5 rounded-lg flex items-center gap-1 border bg-white text-[#1A2B5C] border-[#E8DFC8]">
+                          ✨ {item.variante}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Quick presentation selector */}
-                  <div className="pt-0.5">
-                    <PackagingQuickSelector
-                      value={item.variante || ''}
-                      onChange={(preset) => handleItemChange(index, 'variante', preset)}
-                      theme="amber"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-12 gap-2 items-center">
-                    <div className="col-span-4">
-                      <div className={`flex items-center gap-1 border rounded-xl px-2 py-1 ${
-                        isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
-                      }`}>
-                        <span className={`text-[10px] uppercase font-bold ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>Cant:</span>
+                  <div className="grid grid-cols-12 gap-2 pt-1 border-t border-[#E8DFC8] items-center">
+                    {/* Quantity with NewOrderScreen style counter */}
+                    <div className="col-span-5 sm:col-span-5">
+                      <label className="block text-[10px] uppercase font-bold mb-1 text-[#78716C]">
+                        Cantidad
+                      </label>
+                      <div className="flex items-center border rounded-xl overflow-hidden bg-white border-[#E8DFC8]">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleItemChange(
+                              index,
+                              'cantidad',
+                              Math.max(0, (Number(item.cantidad) || 0) - 1)
+                            )
+                          }
+                          className="w-8 h-8 flex items-center justify-center text-sm font-bold text-[#1A2B5C] hover:bg-[#F5EFE0] transition cursor-pointer shrink-0"
+                        >
+                          -
+                        </button>
                         <input
                           type="number"
                           min="0"
-                          step="any"
                           value={item.cantidad === 0 ? '' : item.cantidad}
                           onFocus={(e) => e.target.select()}
                           onChange={(e) => {
                             const val = e.target.value;
-                            handleItemChange(index, 'cantidad', val === '' ? 0 : Math.max(0, parseFloat(val) || 0));
+                            handleItemChange(
+                              index,
+                              'cantidad',
+                              val === '' ? 0 : Math.max(0, parseInt(val, 10) || 0)
+                            );
                           }}
                           placeholder="0"
-                          className={`w-full bg-transparent text-xs font-mono focus:outline-none text-right ${
-                            isDark ? 'text-white' : 'text-[#1A2B5C]'
-                          }`}
+                          className="w-full bg-transparent text-center text-xs font-black focus:outline-none text-[#1A2B5C]"
                         />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleItemChange(
+                              index,
+                              'cantidad',
+                              (Number(item.cantidad) || 0) + 1
+                            )
+                          }
+                          className="w-8 h-8 flex items-center justify-center text-sm font-bold text-[#1A2B5C] hover:bg-[#F5EFE0] transition cursor-pointer shrink-0"
+                        >
+                          +
+                        </button>
                       </div>
                     </div>
 
-                    <div className="col-span-4">
-                      <div className={`flex items-center gap-1 border rounded-xl px-2 py-1 ${
-                        isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
-                      }`}>
-                        <span className={`text-[10px] uppercase font-bold ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>Bs c/u:</span>
+                    <div className="col-span-4 sm:col-span-4">
+                      <label className="block text-[10px] uppercase font-bold mb-1 text-[#78716C]">
+                        Costo Unitario
+                      </label>
+                      <div className="flex items-center gap-1 border rounded-xl px-2.5 py-1.5 bg-white border-[#E8DFC8]">
+                        <span className="text-[10px] uppercase font-bold text-[#78716C]">Bs:</span>
                         <input
                           type="number"
                           min="0"
@@ -496,24 +484,23 @@ export const PurchaseEditModal: React.FC<PurchaseEditModalProps> = ({
                             handleItemChange(index, 'costoUnitario', val === '' ? 0 : Math.max(0, parseFloat(val) || 0));
                           }}
                           placeholder="0.00"
-                          className={`w-full bg-transparent text-xs font-mono focus:outline-none text-right ${
-                            isDark ? 'text-white' : 'text-[#1A2B5C]'
-                          }`}
+                          className="w-full bg-transparent text-xs font-mono font-bold focus:outline-none text-right text-[#1A2B5C]"
                         />
                       </div>
                     </div>
 
-                    <div className="col-span-4 flex items-center justify-end gap-2">
-                      <span className={`text-xs font-mono font-bold ${isDark ? 'text-amber-300' : 'text-amber-800'}`}>
+                    <div className="col-span-3 sm:col-span-3 flex items-center justify-end gap-1.5 pt-4">
+                      <span className="text-xs font-mono font-bold text-[#1A2B5C]">
                         {formatCurrency(item.subtotal || 0)}
                       </span>
                       {items.length > 1 && (
                         <button
                           type="button"
                           onClick={() => handleRemoveItem(index)}
-                          className="p-1 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 cursor-pointer"
+                          className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 cursor-pointer transition"
+                          title="Eliminar artículo"
                         >
-                          <X className="w-3.5 h-3.5" />
+                          <X className="w-4 h-4" />
                         </button>
                       )}
                     </div>
@@ -524,25 +511,19 @@ export const PurchaseEditModal: React.FC<PurchaseEditModalProps> = ({
           </div>
 
           {/* Payment Settlement Breakdown */}
-          <div className={`border rounded-2xl p-4 space-y-3 ${
-            isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
-          }`}>
+          <div className="border rounded-2xl p-4 space-y-3 bg-[#FBF7EF] border-[#E8DFC8]">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
               <div>
-                <label className={`block text-[11px] font-bold uppercase tracking-wider mb-1 ${
-                  isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-                }`}>
+                <label className="block text-[11px] font-bold uppercase tracking-wider mb-1 text-[#78716C]">
                   Total Compra (Bs.)
                 </label>
-                <div className={`text-xl font-black font-mono ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                <div className="text-xl font-black font-mono text-[#1A2B5C]">
                   {formatCurrency(calculatedTotal)}
                 </div>
               </div>
 
               <div>
-                <label className={`block text-[11px] font-bold uppercase tracking-wider mb-1 ${
-                  isDark ? 'text-emerald-400' : 'text-emerald-700'
-                }`}>
+                <label className="block text-[11px] font-bold uppercase tracking-wider mb-1 text-emerald-700">
                   Monto Pagado / Anticipo (Bs.)
                 </label>
                 <div className="relative">
@@ -558,20 +539,12 @@ export const PurchaseEditModal: React.FC<PurchaseEditModalProps> = ({
                       setPagadoMonto(val === '' ? 0 : Math.max(0, parseFloat(val) || 0));
                     }}
                     placeholder="0.00"
-                    className={`w-full border rounded-xl py-2 px-3 text-sm font-bold font-mono focus:outline-none focus:ring-2 ${
-                      isDark
-                        ? 'bg-[#16234F] border-emerald-500/40 text-emerald-300 focus:ring-emerald-400'
-                        : 'bg-white border-emerald-300 text-emerald-800 focus:ring-emerald-500'
-                    }`}
+                    className="w-full border rounded-xl py-2 px-3 text-sm font-bold font-mono focus:outline-none focus:ring-2 bg-white border-emerald-300 text-emerald-800 focus:ring-emerald-500"
                   />
                   <button
                     type="button"
                     onClick={() => setPagadoMonto(calculatedTotal)}
-                    className={`absolute right-2 top-1/2 -translate-y-1/2 text-[10px] px-1.5 py-0.5 rounded font-bold border cursor-pointer ${
-                      isDark
-                        ? 'bg-emerald-950 text-emerald-300 border-emerald-500/40 hover:bg-emerald-900'
-                        : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
-                    }`}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] px-1.5 py-0.5 rounded font-bold border cursor-pointer bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
                   >
                     Total
                   </button>
@@ -579,16 +552,12 @@ export const PurchaseEditModal: React.FC<PurchaseEditModalProps> = ({
               </div>
 
               <div>
-                <label className={`block text-[11px] font-bold uppercase tracking-wider mb-1 ${
-                  isDark ? 'text-rose-400' : 'text-rose-700'
-                }`}>
+                <label className="block text-[11px] font-bold uppercase tracking-wider mb-1 text-rose-700">
                   Saldo Pendiente
                 </label>
                 <div
                   className={`text-xl font-black font-mono ${
-                    calculatedSaldo > 0
-                      ? isDark ? 'text-rose-300' : 'text-rose-700'
-                      : isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                    calculatedSaldo > 0 ? 'text-rose-700' : 'text-[#78716C]'
                   }`}
                 >
                   {formatCurrency(calculatedSaldo)}
@@ -597,9 +566,7 @@ export const PurchaseEditModal: React.FC<PurchaseEditModalProps> = ({
             </div>
 
             <div>
-              <label className={`block text-[11px] font-bold uppercase tracking-wider mb-1 ${
-                isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-              }`}>
+              <label className="block text-[11px] font-bold uppercase tracking-wider mb-1 text-[#78716C]">
                 Observaciones / Notas de Entrega
               </label>
               <input
@@ -607,11 +574,7 @@ export const PurchaseEditModal: React.FC<PurchaseEditModalProps> = ({
                 value={observaciones}
                 onChange={(e) => setObservaciones(e.target.value)}
                 placeholder="ej: Mercadería entregada en caja sellada, calidad revisada."
-                className={`w-full border rounded-xl py-2 px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[#1A2B5C] ${
-                  isDark
-                    ? 'bg-[#16234F] border-[#223368] text-white placeholder-[#9AA6C9]/50'
-                    : 'bg-white border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/50'
-                }`}
+                className="w-full border rounded-xl py-2 px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[#1A2B5C] bg-white border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/50"
               />
             </div>
           </div>
@@ -622,11 +585,7 @@ export const PurchaseEditModal: React.FC<PurchaseEditModalProps> = ({
               <button
                 type="button"
                 onClick={() => onAnular(purchase)}
-                className={`py-3 px-3.5 rounded-xl border font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer ${
-                  isDark
-                    ? 'border-rose-800/80 bg-rose-950/40 hover:bg-rose-900 text-rose-300'
-                    : 'border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-800'
-                }`}
+                className="py-3 px-3.5 rounded-xl border font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-800"
                 title="Anular esta compra"
               >
                 <XCircle className="w-4 h-4" />
@@ -636,22 +595,14 @@ export const PurchaseEditModal: React.FC<PurchaseEditModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className={`flex-1 py-3 px-4 rounded-xl border font-bold text-xs sm:text-sm transition cursor-pointer ${
-                isDark
-                  ? 'border-[#223368] text-white hover:bg-[#0F1B3C]'
-                  : 'border-[#E8DFC8] text-[#1A2B5C] hover:bg-[#FBF7EF]'
-              }`}
+              className="flex-1 py-3 px-4 rounded-xl border font-bold text-xs sm:text-sm transition cursor-pointer border-[#E8DFC8] text-[#1A2B5C] hover:bg-[#FBF7EF]"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isSaving}
-              className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs sm:text-sm active:scale-95 shadow-sm flex items-center justify-center gap-2 transition disabled:opacity-50 cursor-pointer ${
-                isDark
-                  ? 'bg-amber-400 hover:bg-amber-300 text-slate-950'
-                  : 'bg-amber-500 hover:bg-amber-600 text-white'
-              }`}
+              className="flex-1 py-3 px-4 rounded-xl font-bold text-xs sm:text-sm active:scale-95 shadow-sm flex items-center justify-center gap-2 transition disabled:opacity-50 cursor-pointer bg-amber-500 hover:bg-amber-600 text-white"
             >
               {isSaving ? (
                 <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
@@ -665,6 +616,27 @@ export const PurchaseEditModal: React.FC<PurchaseEditModalProps> = ({
           </div>
         </form>
       </div>
+
+      {/* Modal: Selección de Presentación / Box Emergente (igual a Ventas) */}
+      <PackagingSelectionModal
+        isOpen={packagingModalIndex !== null}
+        onClose={() => setPackagingModalIndex(null)}
+        productName={
+          packagingModalIndex !== null && items[packagingModalIndex]
+            ? items[packagingModalIndex].nombre || `Artículo #${packagingModalIndex + 1}`
+            : 'Material / Producto'
+        }
+        currentValue={
+          packagingModalIndex !== null && items[packagingModalIndex]
+            ? items[packagingModalIndex].variante || ''
+            : ''
+        }
+        onSelect={(presetLabel) => {
+          if (packagingModalIndex !== null) {
+            handleItemChange(packagingModalIndex, 'variante', presetLabel);
+          }
+        }}
+      />
     </div>
   );
 };

@@ -124,7 +124,7 @@ export const VikaAssistantModal: React.FC<VikaAssistantModalProps> = ({
     transcript,
     startListening,
     stopListening,
-    hasSupport,
+    isSupported: hasSupport,
     resetTranscript,
   } = useSpeechRecognition();
 

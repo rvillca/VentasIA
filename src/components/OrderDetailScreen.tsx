@@ -21,6 +21,8 @@ import {
   Shield,
   Sparkles,
   Share2,
+  Truck,
+  UserCheck,
 } from 'lucide-react';
 import { Order } from '../types';
 import {
@@ -28,6 +30,7 @@ import {
   generateWhatsAppReceiptText,
   getWhatsAppUrl,
   completeOrderBalanceInFirestore,
+  formatArticleItem,
 } from '../lib/storage';
 import { ThermalPrintModal } from './ThermalPrintModal';
 import { OrderPreparationCardModal } from './OrderPreparationCardModal';
@@ -407,6 +410,85 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
             )}
           </div>
 
+          {/* Responsables: Venta vs Despacho / Envío */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
+            {/* Venta Registrada Por */}
+            <div className={`border rounded-2xl p-3.5 flex items-center gap-3 ${
+              isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+            }`}>
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                isDark ? 'bg-[#16234F] text-[#FF6FA5]' : 'bg-[#E8DFC8]/60 text-[#1A2B5C]'
+              }`}>
+                <User className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <span className={`block text-[10px] font-bold uppercase tracking-wider ${
+                  isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                }`}>
+                  Venta Registrada Por
+                </span>
+                <span className={`text-sm font-bold truncate block ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                  {order.vendedorNombre || 'Sin asignar'}
+                </span>
+              </div>
+            </div>
+
+            {/* Envío / Despacho Realizado Por */}
+            <div className={`border rounded-2xl p-3.5 flex items-center gap-3 ${
+              isDelivered
+                ? isDark
+                  ? 'bg-emerald-950/40 border-emerald-800/50'
+                  : 'bg-emerald-50/60 border-emerald-200'
+                : isDark
+                ? 'bg-[#0F1B3C] border-[#223368]'
+                : 'bg-[#FBF7EF] border-[#E8DFC8]'
+            }`}>
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                isDelivered
+                  ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                  : isDark
+                  ? 'bg-[#16234F] text-amber-400'
+                  : 'bg-amber-100 text-amber-700'
+              }`}>
+                <Truck className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <span className={`block text-[10px] font-bold uppercase tracking-wider ${
+                  isDelivered
+                    ? 'text-emerald-700 dark:text-emerald-400'
+                    : isDark
+                    ? 'text-[#9AA6C9]'
+                    : 'text-[#78716C]'
+                }`}>
+                  {isDelivered ? 'Envío / Despacho Realizado Por' : 'Estado de Despacho'}
+                </span>
+                <span className={`text-sm font-bold truncate block ${
+                  isDelivered
+                    ? isDark
+                      ? 'text-emerald-300'
+                      : 'text-emerald-900'
+                    : isDark
+                    ? 'text-amber-300'
+                    : 'text-amber-800'
+                }`}>
+                  {isDelivered
+                    ? order.enviadoPorNombre || order.despachadoPorNombre || order.vendedorNombre || 'Despachado'
+                    : '⏳ Pendiente de despacho'}
+                </span>
+                {isDelivered && (order.fechaEnvio || order.despachadoAt) && (
+                  <span className="text-[10px] text-emerald-700/80 dark:text-emerald-400/80 block">
+                    {new Date(order.fechaEnvio || order.despachadoAt!).toLocaleString('es-BO', {
+                      day: '2-digit',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Customer contact & Delivery details */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
             {/* Phone */}
@@ -506,26 +588,10 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className={`w-6 h-6 rounded-lg font-bold text-xs flex items-center justify-center shrink-0 ${
-                        isDark
-                          ? 'bg-[#0F1B3C] text-[#FF6FA5] border border-[#223368]'
-                          : 'bg-[#F5EFE0] text-[#1A2B5C] border border-[#E8DFC8]'
-                      }`}>
-                        {item.cantidad}x
-                      </span>
                       <span className={`text-sm sm:text-base font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
-                        {item.nombre}
+                        {formatArticleItem(item)}
                       </span>
                     </div>
-                    {item.variante && (
-                      <span className={`inline-block text-xs px-2.5 py-0.5 rounded-lg font-semibold border ${
-                        isDark
-                          ? 'bg-[#0F1B3C] border-[#223368] text-[#9AA6C9]'
-                          : 'bg-[#F5EFE0] border-[#E8DFC8] text-[#78716C]'
-                      }`}>
-                        {item.variante}
-                      </span>
-                    )}
                     <p className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
                       Precio unitario: {formatCurrency(item.precioUnitario)}
                     </p>

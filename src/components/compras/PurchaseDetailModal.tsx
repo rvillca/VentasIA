@@ -17,6 +17,7 @@ import {
   formatBoliviaWhatsAppDigits,
   reactivarPurchaseInFirestore,
   completePurchaseBalanceInFirestore,
+  formatArticleItem,
 } from '../../lib/storage';
 import { useTheme } from '../../contexts/ThemeContext';
 
@@ -262,14 +263,9 @@ export const PurchaseDetailModal: React.FC<PurchaseDetailModalProps> = ({
                 >
                   <div>
                     <span className={`font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
-                      {item.cantidad}x {item.nombre}
+                      {formatArticleItem(item)}
                     </span>
-                    {item.variante && (
-                      <span className={`block text-[11px] ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
-                        {item.variante}
-                      </span>
-                    )}
-                    <span className={`text-[10px] ${isDark ? 'text-[#9AA6C9]/70' : 'text-[#78716C]/70'}`}>
+                    <span className={`text-[10px] block ${isDark ? 'text-[#9AA6C9]/70' : 'text-[#78716C]/70'}`}>
                       ({formatCurrency(item.costoUnitario)} c/u)
                     </span>
                   </div>

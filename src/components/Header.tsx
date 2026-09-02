@@ -9,8 +9,6 @@ import {
   LogOut,
   KeyRound,
   PackagePlus,
-  Sun,
-  Moon,
 } from 'lucide-react';
 import { ActiveTab, Order } from '../types';
 import { formatCurrency } from '../lib/storage';
@@ -114,26 +112,6 @@ export const Header: React.FC<HeaderProps> = ({
                   <span className="font-extrabold">{formatCurrency(pendingBalance)}</span>
                 </div>
               )}
-
-              {/* Theme Mode Toggle (Modo Claro / Modo Oscuro) */}
-              <button
-                id="theme-toggle-btn"
-                onClick={toggleTheme}
-                type="button"
-                className={`p-2 rounded-2xl border transition-all active:scale-95 flex items-center justify-center ${
-                  isDark
-                    ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-amber-300 border-[#223368]'
-                    : 'bg-[#F5EFE0] hover:bg-[#EBE2CF] text-[#1A2B5C] border-[#E8DFC8]'
-                }`}
-                title={isDark ? 'Cambiar a Modo Claro ☀️' : 'Cambiar a Modo Oscuro 🌙'}
-                aria-label="Cambiar tema"
-              >
-                {isDark ? (
-                  <Sun className="w-4 h-4 text-amber-400" />
-                ) : (
-                  <Moon className="w-4 h-4 text-[#1A2B5C]" />
-                )}
-              </button>
 
               {/* Current user role badge + Change password trigger */}
               <button

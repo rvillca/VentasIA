@@ -29,6 +29,7 @@ import {
   Sparkles,
   Check,
   Tag,
+  Box,
 } from 'lucide-react';
 import { Purchase, PurchaseItem, PurchaseStatus } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -42,12 +43,13 @@ import {
   deletePurchaseFromFirestore,
   getNextPurchaseNumber,
   completePurchaseBalanceInFirestore,
+  formatArticleItem,
 } from '../lib/storage';
 import { PurchaseEditModal } from './compras/PurchaseEditModal';
 import { PurchaseAnularModal } from './compras/PurchaseAnularModal';
 import { PurchaseDeleteModal } from './compras/PurchaseDeleteModal';
 import { PurchaseDetailModal } from './compras/PurchaseDetailModal';
-import { PackagingQuickSelector } from './PackagingQuickSelector';
+import { PackagingSelectionModal } from './PackagingSelectionModal';
 
 interface ComprasScreenProps {
   purchases?: Purchase[];
@@ -95,6 +97,7 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
   const [showPayModal, setShowPayModal] = useState<Purchase | null>(null);
   const [abonoMonto, setAbonoMonto] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [packagingModalIndex, setPackagingModalIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (toastMessage) {
@@ -381,13 +384,13 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
     <div id="compras-screen-container" className="max-w-6xl mx-auto px-4 py-4 sm:py-6 space-y-6 relative">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 bg-slate-900 border border-amber-500/60 text-white text-xs sm:text-sm font-bold py-3 px-4 rounded-2xl shadow-2xl flex items-center gap-2.5 animate-in fade-in slide-in-from-top-4">
-          <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+        <div className="fixed top-5 right-5 z-50 bg-[#1A2B5C] border border-[#223368] text-white text-xs sm:text-sm font-bold py-3 px-4 rounded-2xl shadow-2xl flex items-center gap-2.5 animate-in fade-in slide-in-from-top-4">
+          <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
           <span>{toastMessage}</span>
           <button
             type="button"
             onClick={() => setToastMessage(null)}
-            className="text-slate-400 hover:text-white ml-2"
+            className="text-white/70 hover:text-white ml-2 cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -398,18 +401,18 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-[11px] font-extrabold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
+            <span className="text-[11px] font-extrabold uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
               <ShoppingBag className="w-3.5 h-3.5" />
               Módulo de Compras de Mercadería & Insumos
             </span>
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-[#78716C]">
               {isJefe ? '👑 Acceso Total' : isSupervisor ? '📊 Supervisor' : '🛒 Comprador'}
             </span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-black text-white font-['Outfit',sans-serif] tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-black text-[#1A2B5C] font-['Outfit',sans-serif] tracking-tight">
             Control de Compras & Proveedores Mayoristas
           </h1>
-          <p className="text-xs sm:text-sm text-slate-400">
+          <p className="text-xs sm:text-sm text-[#78716C]">
             Registro independiente de adquisición de mochilas, papelería, materiales de embalaje y cuentas por pagar.
           </p>
         </div>
@@ -418,7 +421,7 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
           <button
             type="button"
             onClick={openNewPurchaseModal}
-            className="py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm text-white bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-500 active:scale-95 shadow-lg shadow-amber-950/60 flex items-center justify-center gap-2 transition"
+            className="py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm text-white bg-amber-500 hover:bg-amber-600 active:scale-95 shadow-md flex items-center justify-center gap-2 transition cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>+ Registrar Compra</span>
@@ -428,76 +431,76 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-md">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+        <div className="bg-white border border-[#E8DFC8] rounded-2xl p-4 shadow-sm">
+          <span className="text-[11px] font-bold text-[#78716C] uppercase tracking-wider block mb-1">
             Inversión ({periodFilter === 'all' ? 'Histórico' : 'Periodo'})
           </span>
-          <span className="text-xl sm:text-2xl font-black text-white font-['Outfit',sans-serif]">
+          <span className="text-xl sm:text-2xl font-black text-[#1A2B5C] font-['Outfit',sans-serif]">
             {formatCurrency(totalInvertidoPeriodo)}
           </span>
-          <span className="text-[11px] text-slate-500 block mt-0.5">
+          <span className="text-[11px] text-[#78716C] block mt-0.5">
             {filteredValid.length} compra(s) registradas
           </span>
         </div>
 
-        <div className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-4 shadow-md bg-gradient-to-br from-slate-900 to-emerald-950/30">
-          <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider block mb-1">
+        <div className="bg-white border border-emerald-200 rounded-2xl p-4 shadow-sm bg-gradient-to-br from-white to-emerald-50/50">
+          <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block mb-1">
             Total Pagado a Proveedores
           </span>
-          <span className="text-xl sm:text-2xl font-black text-emerald-300 font-['Outfit',sans-serif]">
+          <span className="text-xl sm:text-2xl font-black text-emerald-700 font-['Outfit',sans-serif]">
             {formatCurrency(totalPagadoPeriodo)}
           </span>
-          <span className="text-[11px] text-emerald-500/80 block mt-0.5">
+          <span className="text-[11px] text-emerald-600 block mt-0.5">
             Desembolsado en efectivo/QR
           </span>
         </div>
 
-        <div className={`bg-slate-900 rounded-2xl p-4 shadow-md border ${
+        <div className={`bg-white rounded-2xl p-4 shadow-sm border ${
           totalSaldoPendiente > 0
-            ? 'border-rose-500/40 bg-gradient-to-br from-slate-900 to-rose-950/30'
-            : 'border-slate-800'
+            ? 'border-rose-200 bg-gradient-to-br from-white to-rose-50/50'
+            : 'border-[#E8DFC8]'
         }`}>
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-rose-400 uppercase tracking-wider block mb-1">
+            <span className="text-[11px] font-bold text-rose-800 uppercase tracking-wider block mb-1">
               Deuda Total a Proveedores
             </span>
             {totalSaldoPendiente > 0 && (
-              <span className="text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/40 px-1.5 py-0.5 rounded font-bold">
+              <span className="text-[10px] bg-rose-100 text-rose-800 border border-rose-200 px-1.5 py-0.5 rounded font-bold">
                 {comprasConSaldo.length} pendientes
               </span>
             )}
           </div>
-          <span className="text-xl sm:text-2xl font-black text-rose-300 font-['Outfit',sans-serif]">
+          <span className="text-xl sm:text-2xl font-black text-rose-700 font-['Outfit',sans-serif]">
             {formatCurrency(totalSaldoPendiente)}
           </span>
-          <span className="text-[11px] text-rose-400/80 block mt-0.5">
+          <span className="text-[11px] text-rose-600 block mt-0.5">
             Cuentas por pagar acumuladas
           </span>
         </div>
 
-        <div className="bg-slate-900 border border-amber-500/30 rounded-2xl p-4 shadow-md bg-gradient-to-br from-slate-900 to-amber-950/30">
-          <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider block mb-1">
+        <div className="bg-white border border-amber-200 rounded-2xl p-4 shadow-sm bg-gradient-to-br from-white to-amber-50/50">
+          <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider block mb-1">
             Total Compras Registradas
           </span>
-          <span className="text-xl sm:text-2xl font-black text-amber-300 font-['Outfit',sans-serif]">
+          <span className="text-xl sm:text-2xl font-black text-amber-800 font-['Outfit',sans-serif]">
             {purchases.length}
           </span>
-          <span className="text-[11px] text-amber-500/80 block mt-0.5">
+          <span className="text-[11px] text-amber-700 block mt-0.5">
             Lotes y compras de material
           </span>
         </div>
       </div>
 
       {/* Sub Tab Selector & Action Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900 border border-slate-800 rounded-2xl p-2.5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-[#E8DFC8] rounded-2xl p-2.5 shadow-sm">
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setActiveSubTab('list')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
               activeSubTab === 'list'
-                ? 'bg-amber-500 text-slate-950 shadow-md font-extrabold'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-[#1A2B5C] text-white shadow-sm font-extrabold'
+                : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
             }`}
           >
             <FileText className="w-4 h-4" />
@@ -507,10 +510,10 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
           <button
             type="button"
             onClick={() => setActiveSubTab('reports')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
               activeSubTab === 'reports'
-                ? 'bg-amber-500 text-slate-950 shadow-md font-extrabold'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-[#1A2B5C] text-white shadow-sm font-extrabold'
+                : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
             }`}
           >
             <TrendingDown className="w-4 h-4" />
@@ -522,9 +525,9 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
           <button
             type="button"
             onClick={handleExportCSV}
-            className="py-1.5 px-3 rounded-xl font-bold text-xs text-slate-300 bg-slate-950 hover:bg-slate-800 border border-slate-800 flex items-center gap-1.5 transition"
+            className="py-1.5 px-3 rounded-xl font-bold text-xs text-[#1A2B5C] bg-[#FBF7EF] hover:bg-[#F5EFE0] border border-[#E8DFC8] flex items-center gap-1.5 transition cursor-pointer"
           >
-            <Download className="w-3.5 h-3.5 text-amber-400" />
+            <Download className="w-3.5 h-3.5 text-amber-600" />
             <span>Exportar CSV</span>
           </button>
         </div>
@@ -536,18 +539,18 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
             {/* Search Input */}
             <div className="sm:col-span-6 relative">
-              <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-[#78716C] absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Buscar por proveedor, recibo o producto..."
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2.5 pl-10 pr-4 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                className="w-full bg-white border border-[#E8DFC8] rounded-xl py-2.5 pl-10 pr-4 text-xs sm:text-sm text-[#1A2B5C] placeholder-[#78716C]/50 focus:outline-none focus:ring-2 focus:ring-[#1A2B5C]"
               />
               {searchTerm && (
                 <button
                   onClick={() => setSearchTerm('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#78716C] hover:text-[#1A2B5C] cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -559,7 +562,7 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2.5 px-3 text-xs sm:text-sm font-bold text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                className="w-full bg-white border border-[#E8DFC8] rounded-xl py-2.5 px-3 text-xs sm:text-sm font-bold text-[#1A2B5C] focus:outline-none focus:ring-2 focus:ring-[#1A2B5C]"
               >
                 <option value="all">Todos los estados</option>
                 <option value="Pagado">✅ Pagados</option>
@@ -573,7 +576,7 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
               <select
                 value={periodFilter}
                 onChange={(e) => setPeriodFilter(e.target.value as PeriodFilter)}
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2.5 px-3 text-xs sm:text-sm font-bold text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                className="w-full bg-white border border-[#E8DFC8] rounded-xl py-2.5 px-3 text-xs sm:text-sm font-bold text-[#1A2B5C] focus:outline-none focus:ring-2 focus:ring-[#1A2B5C]"
               >
                 <option value="today">Hoy</option>
                 <option value="7days">Últimos 7 días</option>
@@ -585,12 +588,12 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
 
           {/* Purchases List */}
           {filteredPurchases.length === 0 ? (
-            <div className="p-12 text-center bg-slate-900 border border-slate-800 rounded-3xl space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-amber-950/60 border border-amber-500/30 flex items-center justify-center text-amber-400 mx-auto">
+            <div className="p-12 text-center bg-white border border-[#E8DFC8] rounded-3xl space-y-3 shadow-sm">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-800 mx-auto">
                 <ShoppingBag className="w-6 h-6" />
               </div>
-              <h3 className="text-base font-bold text-white">No se encontraron compras</h3>
-              <p className="text-xs text-slate-400 max-w-md mx-auto">
+              <h3 className="text-base font-bold text-[#1A2B5C]">No se encontraron compras</h3>
+              <p className="text-xs text-[#78716C] max-w-md mx-auto">
                 {searchTerm || statusFilter !== 'all'
                   ? 'No hay registros que coincidan con los filtros aplicados.'
                   : 'Aún no hay compras registradas en este periodo. Haz clic en el botón de abajo para registrar la primera compra de mercadería.'}
@@ -598,7 +601,7 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
               <button
                 type="button"
                 onClick={openNewPurchaseModal}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 text-slate-950 font-bold text-xs rounded-xl shadow-lg hover:bg-amber-400 transition"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 text-white font-bold text-xs rounded-xl shadow-md hover:bg-amber-600 transition cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 <span>Registrar Nueva Compra</span>
@@ -619,30 +622,30 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                 return (
                   <div
                     key={purchase.id}
-                    className={`bg-slate-900 border rounded-3xl p-5 shadow-lg transition space-y-4 hover:border-slate-700 ${
+                    className={`bg-white border rounded-3xl p-5 shadow-sm transition space-y-4 hover:border-[#1A2B5C]/40 ${
                       isAnulado
-                        ? 'border-rose-950/60 opacity-60'
+                        ? 'border-rose-200 opacity-60'
                         : isPending
-                        ? 'border-amber-500/40 bg-gradient-to-br from-slate-900 via-slate-900 to-amber-950/20'
-                        : 'border-slate-800'
+                        ? 'border-amber-300 bg-gradient-to-br from-white via-white to-amber-50/30'
+                        : 'border-[#E8DFC8]'
                     }`}
                   >
                     {/* Card Top: Number, Date, Status */}
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-10 h-10 rounded-2xl bg-amber-950 border border-amber-500/40 flex items-center justify-center text-amber-300 font-mono font-bold text-xs">
+                        <div className="w-10 h-10 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-800 font-mono font-bold text-xs">
                           #C-{String(purchase.purchaseNumber).padStart(3, '0')}
                         </div>
                         <div>
-                          <h3 className="text-sm sm:text-base font-bold text-white leading-tight">
+                          <h3 className="text-sm sm:text-base font-bold text-[#1A2B5C] leading-tight">
                             {purchase.proveedor}
                           </h3>
-                          <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
+                          <div className="flex items-center gap-2 text-[11px] text-[#78716C] mt-0.5">
                             <span>{new Date(purchase.fechaCompra || purchase.createdAt).toLocaleDateString('es-BO', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
                             {purchase.numeroFacturaRecibo && (
                               <>
                                 <span>•</span>
-                                <span className="text-cyan-300 font-mono">Doc: {purchase.numeroFacturaRecibo}</span>
+                                <span className="text-[#1A2B5C] font-mono">Doc: {purchase.numeroFacturaRecibo}</span>
                               </>
                             )}
                           </div>
@@ -653,10 +656,10 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                       <span
                         className={`text-[11px] font-bold px-2.5 py-1 rounded-xl border shrink-0 ${
                           isPaid
-                            ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40'
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                             : isPending
-                            ? 'bg-amber-950/80 text-amber-300 border-amber-500/40'
-                            : 'bg-rose-950/80 text-rose-300 border-rose-500/40'
+                            ? 'bg-amber-50 text-amber-800 border-amber-200'
+                            : 'bg-rose-50 text-rose-800 border-rose-200'
                         }`}
                       >
                         {isPaid && '✅ Pagado'}
@@ -666,19 +669,18 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                     </div>
 
                     {/* Products Preview (Top items) */}
-                    <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-3 space-y-1.5">
-                      <div className="flex items-center justify-between text-[11px] text-slate-400 font-bold border-b border-slate-800 pb-1">
+                    <div className="bg-[#FBF7EF] border border-[#E8DFC8] rounded-2xl p-3 space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px] text-[#78716C] font-bold border-b border-[#E8DFC8] pb-1">
                         <span>{totalItemsCount} artículo(s) en lote</span>
                         <span>{purchase.metodoPago}</span>
                       </div>
                       <div className="space-y-1 max-h-24 overflow-y-auto pr-1">
                         {purchase.productos.map((item, idx) => (
-                          <div key={idx} className="flex items-center justify-between text-xs text-slate-300">
+                          <div key={idx} className="flex items-center justify-between text-xs text-[#1A2B5C]">
                             <span className="truncate pr-2">
-                              <strong className="text-amber-300">{item.cantidad}x</strong> {item.nombre}
-                              {item.variante ? ` (${item.variante})` : ''}
+                              {formatArticleItem(item)}
                             </span>
-                            <span className="font-mono text-slate-400 shrink-0">
+                            <span className="font-mono text-[#78716C] shrink-0">
                               {formatCurrency(item.subtotal)}
                             </span>
                           </div>
@@ -687,31 +689,31 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                     </div>
 
                     {/* Financial Breakdown */}
-                    <div className="grid grid-cols-3 gap-2 text-center p-2.5 bg-slate-950/50 rounded-2xl border border-slate-800/60">
+                    <div className="grid grid-cols-3 gap-2 text-center p-2.5 bg-[#FBF7EF] rounded-2xl border border-[#E8DFC8]">
                       <div>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Total Compra</span>
-                        <span className="text-xs sm:text-sm font-black text-white font-mono">
+                        <span className="text-[10px] font-bold text-[#78716C] uppercase block">Total Compra</span>
+                        <span className="text-xs sm:text-sm font-black text-[#1A2B5C] font-mono">
                           {formatCurrency(purchase.total)}
                         </span>
                       </div>
                       <div>
-                        <span className="text-[10px] font-bold text-emerald-400 uppercase block">Pagado</span>
-                        <span className="text-xs sm:text-sm font-black text-emerald-300 font-mono">
+                        <span className="text-[10px] font-bold text-emerald-800 uppercase block">Pagado</span>
+                        <span className="text-xs sm:text-sm font-black text-emerald-700 font-mono">
                           {formatCurrency(purchase.pagado)}
                         </span>
                       </div>
                       <div>
-                        <span className="text-[10px] font-bold text-rose-400 uppercase block">Saldo Pendiente</span>
-                        <span className={`text-xs sm:text-sm font-black font-mono ${purchase.saldo > 0 ? 'text-rose-300' : 'text-slate-500'}`}>
+                        <span className="text-[10px] font-bold text-rose-800 uppercase block">Saldo Pendiente</span>
+                        <span className={`text-xs sm:text-sm font-black font-mono ${purchase.saldo > 0 ? 'text-rose-700' : 'text-[#78716C]'}`}>
                           {formatCurrency(purchase.saldo)}
                         </span>
                       </div>
                     </div>
 
                     {/* Footer Actions */}
-                    <div className="flex items-center justify-between pt-1 gap-2 border-t border-slate-800/80">
-                      <div className="text-[11px] text-slate-400 truncate">
-                        Por: <strong className="text-slate-300">{purchase.compradorNombre || 'Supervisor'}</strong>
+                    <div className="flex items-center justify-between pt-1 gap-2 border-t border-[#E8DFC8]">
+                      <div className="text-[11px] text-[#78716C] truncate">
+                        Por: <strong className="text-[#1A2B5C]">{purchase.compradorNombre || 'Supervisor'}</strong>
                       </div>
 
                       <div className="flex flex-wrap items-center gap-1.5">
@@ -727,10 +729,10 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                                   console.error('Error completando saldo de compra:', err);
                                 }
                               }}
-                              className="px-2.5 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold rounded-xl flex items-center gap-1 transition active:scale-95 shadow-sm"
+                              className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-bold rounded-xl flex items-center gap-1 transition active:scale-95 shadow-sm cursor-pointer"
                               title="Completar saldo de compra inmediatamente en 1 clic"
                             >
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
                               <span>Liquidar Saldo</span>
                             </button>
 
@@ -740,7 +742,7 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                                 setShowPayModal(purchase);
                                 setAbonoMonto(String(purchase.saldo));
                               }}
-                              className="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold rounded-xl flex items-center gap-1 transition"
+                              className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-xs font-bold rounded-xl flex items-center gap-1 transition cursor-pointer"
                               title="Registrar Abono parcial a Proveedor"
                             >
                               <DollarSign className="w-3.5 h-3.5" />
@@ -752,7 +754,7 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                         <button
                           type="button"
                           onClick={() => setEditingPurchase(purchase)}
-                          className="p-1.5 text-slate-400 hover:text-amber-300 bg-slate-800 hover:bg-slate-700 rounded-xl transition"
+                          className="p-1.5 text-[#78716C] hover:text-[#1A2B5C] bg-[#FBF7EF] hover:bg-[#F5EFE0] border border-[#E8DFC8] rounded-xl transition cursor-pointer"
                           title="Editar compra (corregir proveedor, artículos o montos)"
                         >
                           <Edit3 className="w-4 h-4" />
@@ -761,7 +763,7 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                         <button
                           type="button"
                           onClick={() => setShowPrintModal(purchase)}
-                          className="p-1.5 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition"
+                          className="p-1.5 text-[#78716C] hover:text-[#1A2B5C] bg-[#FBF7EF] hover:bg-[#F5EFE0] border border-[#E8DFC8] rounded-xl transition cursor-pointer"
                           title="Imprimir Comprobante Térmico"
                         >
                           <Printer className="w-4 h-4" />
@@ -770,9 +772,9 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                         <button
                           type="button"
                           onClick={() => setSelectedPurchase(purchase)}
-                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl flex items-center gap-1 transition"
+                          className="px-3 py-1.5 bg-[#1A2B5C] hover:bg-[#253B7A] text-white text-xs font-bold rounded-xl flex items-center gap-1 transition cursor-pointer shadow-sm"
                         >
-                          <Eye className="w-3.5 h-3.5 text-cyan-400" />
+                          <Eye className="w-3.5 h-3.5 text-amber-300" />
                           <span>Detalle</span>
                         </button>
                       </div>
@@ -783,17 +785,13 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
             </div>
           )}
 
-          {/* Floating Action Button (FAB) for New Purchase on mobile and desktop */}
+          {/* Floating Action Button (FAB) for New Purchase */}
           <div className="fixed bottom-6 right-6 z-40">
             <button
               id="fab-new-purchase-btn"
               type="button"
               onClick={openNewPurchaseModal}
-              className={`py-3.5 px-5 rounded-full font-black text-sm active:scale-95 shadow-2xl flex items-center gap-2 transition-all cursor-pointer ${
-                isDark
-                  ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C] shadow-[#FF6FA5]/40 border border-[#FF6FA5]'
-                  : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white shadow-[#1A2B5C]/40'
-              }`}
+              className="py-3.5 px-5 rounded-full font-black text-sm active:scale-95 shadow-xl flex items-center gap-2 transition-all cursor-pointer bg-[#1A2B5C] hover:bg-[#253B7A] text-white shadow-[#1A2B5C]/30"
               title="Registrar nueva compra"
             >
               <Plus className="w-5 h-5 stroke-[3]" />
@@ -809,19 +807,19 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
 
       {/* Modal: Registrar Nueva Compra */}
       {showNewModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 my-auto animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="w-full max-w-2xl bg-white border border-[#E8DFC8] rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 my-auto animate-in fade-in zoom-in-95 max-h-[92vh] overflow-y-auto">
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="flex items-center justify-between border-b border-[#E8DFC8] pb-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-amber-950 border border-amber-500/40 flex items-center justify-center text-amber-300">
+                <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-800">
                   <ShoppingBag className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-base sm:text-lg font-black text-white font-['Outfit',sans-serif]">
+                  <h2 className="text-base sm:text-lg font-black text-[#1A2B5C] font-['Outfit',sans-serif]">
                     Registrar Compra de Mercadería / Insumos
                   </h2>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-[#78716C]">
                     Compra #{String(getNextPurchaseNumber(purchases)).padStart(3, '0')} • Importadora Chiquiminisos
                   </p>
                 </div>
@@ -829,24 +827,24 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
               <button
                 type="button"
                 onClick={() => setShowNewModal(false)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+                className="p-1.5 text-[#78716C] hover:text-[#1A2B5C] rounded-lg hover:bg-[#FBF7EF] cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {formError && (
-              <div className="p-3 bg-rose-950/80 border border-rose-500/50 rounded-xl text-rose-200 text-xs flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
                 <span>{formError}</span>
               </div>
             )}
 
             <form onSubmit={handleSavePurchase} className="space-y-4">
               {/* Row 1: Proveedor & Teléfono */}
-              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 p-3.5 rounded-2xl border bg-[#FBF7EF] border-[#E8DFC8]">
                 <div className="sm:col-span-7">
-                  <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                  <label className="block text-[11px] font-bold text-[#78716C] uppercase tracking-wider mb-1">
                     Proveedor o Mayorista *
                   </label>
                   <input
@@ -856,17 +854,35 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                     onChange={(e) => setProveedor(e.target.value)}
                     placeholder="ej: Importadora Sakura Kawaii"
                     list="frequent-suppliers-list"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-3 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    className="w-full bg-white border border-[#E8DFC8] rounded-xl py-2 px-3 text-xs sm:text-sm text-[#1A2B5C] placeholder-[#78716C]/50 focus:outline-none focus:ring-2 focus:ring-[#1A2B5C]"
                   />
                   <datalist id="frequent-suppliers-list">
                     {FREQUENT_SUPPLIERS.map((s, idx) => (
                       <option key={idx} value={s} />
                     ))}
                   </datalist>
+
+                  {/* Frequent supplier pills */}
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {FREQUENT_SUPPLIERS.map((sup, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setProveedor(sup)}
+                        className={`text-[10px] px-2 py-0.5 rounded-lg border transition cursor-pointer ${
+                          proveedor === sup
+                            ? 'bg-[#1A2B5C] text-white font-bold border-[#1A2B5C]'
+                            : 'bg-white hover:bg-[#F5EFE0] border-[#E8DFC8] text-[#1A2B5C]'
+                        }`}
+                      >
+                        {sup}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="sm:col-span-5">
-                  <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                  <label className="block text-[11px] font-bold text-[#78716C] uppercase tracking-wider mb-1">
                     Teléfono Proveedor
                   </label>
                   <input
@@ -874,15 +890,13 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                     value={telefonoProveedor}
                     onChange={(e) => setTelefonoProveedor(e.target.value)}
                     placeholder="ej: 76543210"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-3 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    className="w-full bg-white border border-[#E8DFC8] rounded-xl py-2 px-3 text-xs sm:text-sm text-[#1A2B5C] placeholder-[#78716C]/50 focus:outline-none focus:ring-2 focus:ring-[#1A2B5C]"
                   />
                 </div>
-              </div>
 
-              {/* Row 2: Fecha, N° Recibo/Factura, Método de Pago */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                {/* Row 2: Fecha, N° Recibo/Factura, Método de Pago */}
+                <div className="sm:col-span-4">
+                  <label className="block text-[11px] font-bold text-[#78716C] uppercase tracking-wider mb-1">
                     Fecha de Compra
                   </label>
                   <input
@@ -890,31 +904,31 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                     required
                     value={fechaCompra}
                     onChange={(e) => setFechaCompra(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-3 text-xs sm:text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    className="w-full bg-white border border-[#E8DFC8] rounded-xl py-2 px-3 text-xs sm:text-sm text-[#1A2B5C] focus:outline-none focus:ring-2 focus:ring-[#1A2B5C]"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
-                    N° Factura / Recibo / Remisión
+                <div className="sm:col-span-4">
+                  <label className="block text-[11px] font-bold text-[#78716C] uppercase tracking-wider mb-1">
+                    N° Factura / Recibo
                   </label>
                   <input
                     type="text"
                     value={numeroFacturaRecibo}
                     onChange={(e) => setNumeroFacturaRecibo(e.target.value)}
                     placeholder="ej: REC-1024"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-3 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    className="w-full bg-white border border-[#E8DFC8] rounded-xl py-2 px-3 text-xs sm:text-sm font-mono text-[#1A2B5C] placeholder-[#78716C]/50 focus:outline-none focus:ring-2 focus:ring-[#1A2B5C]"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                <div className="sm:col-span-4">
+                  <label className="block text-[11px] font-bold text-[#78716C] uppercase tracking-wider mb-1">
                     Método de Pago
                   </label>
                   <select
                     value={metodoPago}
                     onChange={(e) => setMetodoPago(e.target.value as any)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-3 text-xs sm:text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    className="w-full bg-white border border-[#E8DFC8] rounded-xl py-2 px-3 text-xs sm:text-sm font-bold text-[#1A2B5C] focus:outline-none focus:ring-2 focus:ring-[#1A2B5C]"
                   >
                     <option value="Efectivo">💵 Efectivo</option>
                     <option value="QR">📱 QR / Transferencia Rápida</option>
@@ -925,145 +939,211 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
               </div>
 
               {/* Dynamic Items Table */}
-              <div className="space-y-2 border-t border-slate-800 pt-3">
+              <div className="space-y-2 pt-1">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                    Materiales / Artículos Comprados ({items.length})
+                  <label className="text-xs font-bold text-[#78716C] uppercase tracking-wider flex items-center gap-1.5">
+                    <Package className="w-4 h-4 text-amber-500" />
+                    <span>Materiales / Artículos Comprados ({items.length})</span>
                   </label>
                   <button
                     type="button"
                     onClick={handleAddItem}
-                    className="text-xs font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1"
+                    className="px-2.5 py-1 rounded-xl text-xs font-bold flex items-center gap-1 transition cursor-pointer bg-amber-500 text-white hover:bg-amber-600"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>+ Agregar Artículo</span>
+                    <span>+ Añadir Producto</span>
                   </button>
                 </div>
 
-                <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
-                  {items.map((item, index) => (
-                    <div
-                      key={item.id}
-                      className="p-3 bg-slate-950 border border-slate-800 rounded-2xl space-y-2"
-                    >
-                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
-                        <div className="sm:col-span-7">
-                          <input
-                            type="text"
-                            required
-                            placeholder="Nombre del producto / material *"
-                            value={item.nombre}
-                            onChange={(e) => handleItemChange(index, 'nombre', e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                          />
-                        </div>
-                        <div className="sm:col-span-5">
-                          <input
-                            type="text"
-                            placeholder="Presentación (ej. Box de 24 u., ½ Box...)"
-                            value={item.variante || ''}
-                            onChange={(e) => handleItemChange(index, 'variante', e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Quick presentation selector */}
-                      <div className="pt-0.5">
-                        <PackagingQuickSelector
-                          value={item.variante || ''}
-                          onChange={(preset) => handleItemChange(index, 'variante', preset)}
-                          theme="amber"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-12 gap-2 items-center">
-                        <div className="col-span-4">
-                          <select
-                            value={item.categoria || 'Papelería Kawaii'}
-                            onChange={(e) => handleItemChange(index, 'categoria', e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-700 rounded-xl py-1.5 px-2 text-[11px] font-bold text-slate-300 focus:outline-none"
-                          >
-                            {CATEGORIES.map((cat, idx) => (
-                              <option key={idx} value={cat}>
-                                {cat}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div className="col-span-3">
-                          <div className="flex items-center gap-1 bg-slate-900 border border-slate-700 rounded-xl px-2 py-1">
-                            <span className="text-[10px] text-slate-500 uppercase font-bold">Cant:</span>
+                  <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                    {items.map((item, index) => (
+                      <div
+                        key={item.id}
+                        className="p-3.5 bg-[#FBF7EF] border border-[#E8DFC8] rounded-2xl space-y-3"
+                      >
+                        {/* Name & Category */}
+                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                          <div className="sm:col-span-7">
+                            <label className="block text-[10px] font-bold text-[#78716C] uppercase tracking-wider mb-1">
+                              Nombre del Producto / Material *
+                            </label>
                             <input
-                              type="number"
-                              min="0"
-                              step="any"
-                              value={item.cantidad === 0 ? '' : item.cantidad}
-                              onFocus={(e) => e.target.select()}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                handleItemChange(index, 'cantidad', val === '' ? 0 : Math.max(0, parseFloat(val) || 0));
-                              }}
-                              placeholder="0"
-                              className="w-full bg-transparent text-xs text-white font-mono focus:outline-none text-right"
+                              type="text"
+                              required
+                              placeholder="ej: Gomas Kawaii Sanrio, Mochilas 3D, Cintas..."
+                              value={item.nombre}
+                              onChange={(e) => handleItemChange(index, 'nombre', e.target.value)}
+                              className="w-full bg-white border border-[#E8DFC8] rounded-xl py-2 px-3 text-xs font-bold text-[#1A2B5C] placeholder-[#78716C]/50 focus:outline-none focus:ring-2 focus:ring-[#1A2B5C]"
                             />
+                          </div>
+                          <div className="sm:col-span-5">
+                            <label className="block text-[10px] font-bold text-[#78716C] uppercase tracking-wider mb-1">
+                              Categoría
+                            </label>
+                            <select
+                              value={item.categoria || 'Papelería Kawaii'}
+                              onChange={(e) => handleItemChange(index, 'categoria', e.target.value)}
+                              className="w-full bg-white border border-[#E8DFC8] rounded-xl py-2 px-2.5 text-xs font-bold text-[#1A2B5C] focus:outline-none focus:ring-2 focus:ring-[#1A2B5C]"
+                            >
+                              {CATEGORIES.map((cat, idx) => (
+                                <option key={idx} value={cat}>
+                                  {cat}
+                                </option>
+                              ))}
+                            </select>
                           </div>
                         </div>
 
-                        <div className="col-span-3">
-                          <div className="flex items-center gap-1 bg-slate-900 border border-slate-700 rounded-xl px-2 py-1">
-                            <span className="text-[10px] text-slate-500 uppercase font-bold">Bs c/u:</span>
+                        {/* Presentation / Packaging / Box Selector with Popup Window like Ventas */}
+                        <div>
+                          <label className="block text-[11px] font-bold mb-1 flex items-center justify-between text-[#78716C]">
+                            <span>Presentación / Empaque / Variante</span>
+                            <span className="text-[10px] font-bold text-[#1A2B5C]">
+                              Toca para abrir ventana:
+                            </span>
+                          </label>
+                          <div className="flex gap-2">
                             <input
-                              type="number"
-                              min="0"
-                              step="any"
-                              value={item.costoUnitario === 0 ? '' : item.costoUnitario}
-                              onFocus={(e) => e.target.select()}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                handleItemChange(index, 'costoUnitario', val === '' ? 0 : Math.max(0, parseFloat(val) || 0));
-                              }}
-                              placeholder="0.00"
-                              className="w-full bg-transparent text-xs text-white font-mono focus:outline-none text-right"
+                              type="text"
+                              value={item.variante || ''}
+                              onClick={() => setPackagingModalIndex(index)}
+                              onChange={(e) => handleItemChange(index, 'variante', e.target.value)}
+                              placeholder="Ej. Box de 48 u., Docena (12 u.), Medio Box..."
+                              className="flex-1 bg-white border border-[#E8DFC8] rounded-xl px-3 py-2 text-xs font-medium text-[#1A2B5C] placeholder-[#78716C]/60 focus:outline-none focus:ring-2 focus:ring-[#1A2B5C]"
                             />
-                          </div>
-                        </div>
-
-                        <div className="col-span-2 flex items-center justify-end gap-1">
-                          <span className="text-xs font-mono font-bold text-amber-300">
-                            {formatCurrency(item.subtotal || 0)}
-                          </span>
-                          {items.length > 1 && (
                             <button
                               type="button"
-                              onClick={() => handleRemoveItem(index)}
-                              className="p-1 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-slate-900"
+                              onClick={() => setPackagingModalIndex(index)}
+                              className="px-3.5 py-2 rounded-xl font-black text-xs flex items-center gap-1.5 transition active:scale-95 shrink-0 cursor-pointer bg-[#1A2B5C] hover:bg-[#253B7A] text-white shadow-sm"
+                              title="Abrir ventana emergente de selección de cajas y docenas"
                             >
-                              <X className="w-3.5 h-3.5" />
+                              <Box className="w-3.5 h-3.5 text-amber-300" />
+                              <span>Elegir Box</span>
                             </button>
+                          </div>
+
+                          {/* Selected variant badge */}
+                          {item.variante && (
+                            <div className="mt-1.5 flex items-center gap-1.5">
+                              <span className="text-[10px] font-semibold text-[#78716C]">
+                                Seleccionado:
+                              </span>
+                              <span className="text-xs font-black px-2.5 py-0.5 rounded-lg flex items-center gap-1 border bg-white text-[#1A2B5C] border-[#E8DFC8]">
+                                ✨ {item.variante}
+                              </span>
+                            </div>
                           )}
                         </div>
+
+                        <div className="grid grid-cols-12 gap-2 pt-1 border-t border-[#E8DFC8] items-center">
+                          {/* Quantity Counter aligned with Ventas */}
+                          <div className="col-span-5 sm:col-span-5">
+                            <label className="block text-[10px] uppercase font-bold mb-1 text-[#78716C]">
+                              Cantidad
+                            </label>
+                            <div className="flex items-center border rounded-xl overflow-hidden bg-white border-[#E8DFC8]">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleItemChange(
+                                    index,
+                                    'cantidad',
+                                    Math.max(0, (Number(item.cantidad) || 0) - 1)
+                                  )
+                                }
+                                className="w-8 h-8 flex items-center justify-center text-sm font-bold text-[#1A2B5C] hover:bg-[#F5EFE0] transition cursor-pointer shrink-0"
+                              >
+                                -
+                              </button>
+                              <input
+                                type="number"
+                                min="0"
+                                value={item.cantidad === 0 ? '' : item.cantidad}
+                                onFocus={(e) => e.target.select()}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  handleItemChange(
+                                    index,
+                                    'cantidad',
+                                    val === '' ? 0 : Math.max(0, parseInt(val, 10) || 0)
+                                  );
+                                }}
+                                placeholder="0"
+                                className="w-full bg-transparent text-center text-xs font-black focus:outline-none text-[#1A2B5C]"
+                              />
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleItemChange(
+                                    index,
+                                    'cantidad',
+                                    (Number(item.cantidad) || 0) + 1
+                                  )
+                                }
+                                className="w-8 h-8 flex items-center justify-center text-sm font-bold text-[#1A2B5C] hover:bg-[#F5EFE0] transition cursor-pointer shrink-0"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="col-span-4 sm:col-span-4">
+                            <label className="block text-[10px] uppercase font-bold mb-1 text-[#78716C]">
+                              Costo Unitario
+                            </label>
+                            <div className="flex items-center gap-1 bg-white border border-[#E8DFC8] rounded-xl px-2.5 py-1.5">
+                              <span className="text-[10px] text-[#78716C] uppercase font-bold">Bs:</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="any"
+                                value={item.costoUnitario === 0 ? '' : item.costoUnitario}
+                                onFocus={(e) => e.target.select()}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  handleItemChange(index, 'costoUnitario', val === '' ? 0 : Math.max(0, parseFloat(val) || 0));
+                                }}
+                                placeholder="0.00"
+                                className="w-full bg-transparent text-xs text-[#1A2B5C] font-mono font-bold focus:outline-none text-right"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="col-span-3 sm:col-span-3 flex items-center justify-end gap-1.5 pt-4">
+                            <span className="text-xs font-mono font-bold text-[#1A2B5C]">
+                              {formatCurrency((Number(item.cantidad) || 0) * (Number(item.costoUnitario) || 0))}
+                            </span>
+                            {items.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveItem(index)}
+                                className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 cursor-pointer transition"
+                                title="Eliminar artículo"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
               </div>
 
               {/* Payment Settlement Breakdown */}
-              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
+              <div className="bg-[#FBF7EF] border border-[#E8DFC8] rounded-2xl p-4 space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    <label className="block text-[11px] font-bold text-[#78716C] uppercase tracking-wider mb-1">
                       Total Inversión (Bs.)
                     </label>
-                    <div className="text-xl font-black text-white font-mono">
+                    <div className="text-xl font-black text-[#1A2B5C] font-mono">
                       {formatCurrency(calculatedTotal)}
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-emerald-400 uppercase tracking-wider mb-1">
+                    <label className="block text-[11px] font-bold text-emerald-800 uppercase tracking-wider mb-1">
                       Monto Pagado / Anticipo (Bs.)
                     </label>
                     <div className="relative">
@@ -1079,12 +1159,12 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                           setPagadoMonto(val === '' ? 0 : Math.max(0, parseFloat(val) || 0));
                         }}
                         placeholder="0.00"
-                        className="w-full bg-slate-900 border border-emerald-500/40 rounded-xl py-2 px-3 text-sm font-bold text-emerald-300 font-mono focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                        className="w-full bg-white border border-emerald-300 rounded-xl py-2 px-3 text-sm font-bold text-emerald-800 font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       />
                       <button
                         type="button"
                         onClick={() => setPagadoMonto(calculatedTotal)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.5 rounded font-bold hover:bg-emerald-900"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded font-bold hover:bg-emerald-100 cursor-pointer"
                       >
                         Total
                       </button>
@@ -1092,17 +1172,17 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-rose-400 uppercase tracking-wider mb-1">
+                    <label className="block text-[11px] font-bold text-rose-800 uppercase tracking-wider mb-1">
                       Saldo a Pagar al Proveedor
                     </label>
-                    <div className={`text-xl font-black font-mono ${calculatedSaldo > 0 ? 'text-rose-300' : 'text-slate-500'}`}>
+                    <div className={`text-xl font-black font-mono ${calculatedSaldo > 0 ? 'text-rose-700' : 'text-[#78716C]'}`}>
                       {formatCurrency(calculatedSaldo)}
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  <label className="block text-[11px] font-bold text-[#78716C] uppercase tracking-wider mb-1">
                     Observaciones / Notas de Entrega
                   </label>
                   <input
@@ -1110,7 +1190,7 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                     value={observaciones}
                     onChange={(e) => setObservaciones(e.target.value)}
                     placeholder="ej: Mercadería entregada en caja sellada, calidad revisada."
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    className="w-full bg-white border border-[#E8DFC8] rounded-xl py-2 px-3 text-xs text-[#1A2B5C] placeholder-[#78716C]/50 focus:outline-none focus:ring-1 focus:ring-[#1A2B5C]"
                   />
                 </div>
               </div>
@@ -1120,17 +1200,17 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                 <button
                   type="button"
                   onClick={() => setShowNewModal(false)}
-                  className="flex-1 py-3 px-4 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 font-bold text-xs sm:text-sm transition"
+                  className="flex-1 py-3 px-4 rounded-xl border border-[#E8DFC8] text-[#1A2B5C] hover:bg-[#FBF7EF] font-bold text-xs sm:text-sm transition cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="flex-1 py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 active:scale-95 shadow-lg shadow-amber-950/60 flex items-center justify-center gap-2 transition disabled:opacity-50"
+                  className="flex-1 py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-white bg-amber-500 hover:bg-amber-600 active:scale-95 shadow-md flex items-center justify-center gap-2 transition disabled:opacity-50 cursor-pointer"
                 >
                   {isSaving ? (
-                    <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   ) : (
                     <>
                       <Check className="w-4 h-4" />
@@ -1228,36 +1308,36 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
 
       {/* Modal: Registrar Abono de Saldo Pendiente */}
       {showPayModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-sm bg-white border border-[#E8DFC8] rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-[#E8DFC8] pb-3">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-emerald-950 border border-emerald-500/40 flex items-center justify-center text-emerald-300">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-800">
                   <DollarSign className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white">Pagar Saldo a Proveedor</h3>
-                  <p className="text-xs text-slate-400">{showPayModal.proveedor}</p>
+                  <h3 className="text-sm font-bold text-[#1A2B5C]">Pagar Saldo a Proveedor</h3>
+                  <p className="text-xs text-[#78716C]">{showPayModal.proveedor}</p>
                 </div>
               </div>
               <button
                 onClick={() => setShowPayModal(null)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+                className="p-1.5 text-[#78716C] hover:text-[#1A2B5C] rounded-lg hover:bg-[#FBF7EF] cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs space-y-1">
-              <div className="flex justify-between text-slate-400">
+            <div className="p-3 bg-[#FBF7EF] rounded-xl border border-[#E8DFC8] text-xs space-y-1">
+              <div className="flex justify-between text-[#78716C]">
                 <span>Total Compra:</span>
-                <span className="font-mono text-white">{formatCurrency(showPayModal.total)}</span>
+                <span className="font-mono text-[#1A2B5C]">{formatCurrency(showPayModal.total)}</span>
               </div>
-              <div className="flex justify-between text-emerald-400">
+              <div className="flex justify-between text-emerald-800">
                 <span>Pagado actualmente:</span>
                 <span className="font-mono">{formatCurrency(showPayModal.pagado)}</span>
               </div>
-              <div className="flex justify-between text-rose-400 font-bold border-t border-slate-800 pt-1">
+              <div className="flex justify-between text-rose-800 font-bold border-t border-[#E8DFC8] pt-1">
                 <span>Saldo por liquidar:</span>
                 <span className="font-mono">{formatCurrency(showPayModal.saldo)}</span>
               </div>
@@ -1265,7 +1345,7 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
 
             <form onSubmit={handleRegisterPayment} className="space-y-3">
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                <label className="block text-[11px] font-bold text-[#78716C] uppercase tracking-wider mb-1">
                   Monto a Abonar (Bs.)
                 </label>
                 <input
@@ -1273,11 +1353,11 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                   required
                   min="0.1"
                   max={showPayModal.saldo}
-                  step="0.5"
+                  step="any"
                   value={abonoMonto}
                   onFocus={(e) => e.target.select()}
                   onChange={(e) => setAbonoMonto(e.target.value)}
-                  className="w-full bg-slate-950 border border-emerald-500/50 rounded-xl py-2.5 px-3 text-sm font-black text-emerald-300 font-mono focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                  className="w-full bg-white border border-emerald-300 rounded-xl py-2.5 px-3 text-sm font-black text-emerald-800 font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
@@ -1285,13 +1365,13 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                 <button
                   type="button"
                   onClick={() => setShowPayModal(null)}
-                  className="flex-1 py-2 px-3 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 font-bold text-xs transition"
+                  className="flex-1 py-2 px-3 rounded-xl border border-[#E8DFC8] text-[#1A2B5C] hover:bg-[#FBF7EF] font-bold text-xs transition cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg transition flex items-center justify-center gap-1"
+                  className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1 cursor-pointer"
                 >
                   <Check className="w-4 h-4" />
                   <span>Confirmar Pago</span>
@@ -1310,25 +1390,26 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
         />
       )}
 
-      {/* Floating Action Button (FAB) for Nueva Compra - Always visible while scrolling */}
-      {activeSubTab === 'list' && (
-        <div className="fixed bottom-6 right-6 z-30 sm:bottom-8 sm:right-8 pointer-events-none">
-          <button
-            id="fab-new-purchase-btn"
-            type="button"
-            onClick={() => setShowNewModal(true)}
-            className="pointer-events-auto group flex items-center gap-2.5 px-4 sm:px-5 py-3 sm:py-3.5 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-extrabold text-xs sm:text-sm rounded-full shadow-2xl shadow-amber-900/60 hover:shadow-amber-500/50 hover:scale-105 active:scale-95 transition-all duration-200 border border-amber-300/40 cursor-pointer"
-            title="Registrar Nueva Compra (Botón Rápido Flotante)"
-          >
-            <div className="w-6 h-6 rounded-full bg-slate-950/20 flex items-center justify-center group-hover:rotate-90 transition-transform duration-200">
-              <Plus className="w-4 h-4 text-slate-950 stroke-[3]" />
-            </div>
-            <span className="font-['Outfit',sans-serif] tracking-tight font-black">
-              + Nueva Compra
-            </span>
-          </button>
-        </div>
-      )}
+      {/* Modal: Selección de Presentación / Box Emergente (igual a Ventas) */}
+      <PackagingSelectionModal
+        isOpen={packagingModalIndex !== null}
+        onClose={() => setPackagingModalIndex(null)}
+        productName={
+          packagingModalIndex !== null && items[packagingModalIndex]
+            ? items[packagingModalIndex].nombre || `Artículo #${packagingModalIndex + 1}`
+            : 'Material / Producto'
+        }
+        currentValue={
+          packagingModalIndex !== null && items[packagingModalIndex]
+            ? items[packagingModalIndex].variante || ''
+            : ''
+        }
+        onSelect={(presetLabel) => {
+          if (packagingModalIndex !== null) {
+            handleItemChange(packagingModalIndex, 'variante', presetLabel);
+          }
+        }}
+      />
     </div>
   );
 };
@@ -1392,51 +1473,38 @@ const ComprasReportsTab: React.FC<{ purchases: Purchase[] }> = ({ purchases }) =
       .slice(0, 8);
   }, [filtered]);
 
-  // Purchases by day
-  const purchasesByDay = useMemo(() => {
-    const map: Record<string, number> = {};
-    filtered.forEach((p) => {
-      const dateKey = new Date(p.fechaCompra || p.createdAt).toLocaleDateString('es-BO', {
-        day: '2-digit',
-        month: '2-digit',
-      });
-      map[dateKey] = (map[dateKey] || 0) + (p.total || 0);
-    });
-    return Object.entries(map).map(([day, total]) => ({ day, total }));
-  }, [filtered]);
-
   return (
     <div className="space-y-6 animate-in fade-in">
       {/* Period Buttons */}
-      <div className="flex items-center gap-2 bg-slate-900 p-2 rounded-2xl border border-slate-800 overflow-x-auto">
+      <div className="flex items-center gap-2 bg-white p-2 rounded-2xl border border-[#E8DFC8] shadow-sm overflow-x-auto">
         <button
           onClick={() => setPeriod('today')}
-          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-            period === 'today' ? 'bg-amber-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-slate-200'
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+            period === 'today' ? 'bg-[#1A2B5C] text-white shadow-sm' : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
           }`}
         >
           Hoy (Diario)
         </button>
         <button
           onClick={() => setPeriod('7days')}
-          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-            period === '7days' ? 'bg-amber-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-slate-200'
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+            period === '7days' ? 'bg-[#1A2B5C] text-white shadow-sm' : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
           }`}
         >
           Últimos 7 Días (Semanal)
         </button>
         <button
           onClick={() => setPeriod('this_month')}
-          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-            period === 'this_month' ? 'bg-amber-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-slate-200'
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+            period === 'this_month' ? 'bg-[#1A2B5C] text-white shadow-sm' : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
           }`}
         >
           Este Mes (Mensual)
         </button>
         <button
           onClick={() => setPeriod('all')}
-          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-            period === 'all' ? 'bg-amber-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-slate-200'
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+            period === 'all' ? 'bg-[#1A2B5C] text-white shadow-sm' : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
           }`}
         >
           Histórico Total
@@ -1446,33 +1514,33 @@ const ComprasReportsTab: React.FC<{ purchases: Purchase[] }> = ({ purchases }) =
       {/* Analytics Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Top Suppliers */}
-        <div className="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="lg:col-span-6 bg-white border border-[#E8DFC8] rounded-3xl p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-[#E8DFC8] pb-3">
             <div className="flex items-center gap-2">
-              <Building2 className="w-5 h-5 text-amber-400" />
-              <h3 className="text-base font-bold text-white font-['Outfit',sans-serif]">
+              <Building2 className="w-5 h-5 text-amber-500" />
+              <h3 className="text-base font-bold text-[#1A2B5C] font-['Outfit',sans-serif]">
                 Inversión por Proveedor
               </h3>
             </div>
-            <span className="text-xs text-slate-400">Mayor volumen</span>
+            <span className="text-xs text-[#78716C]">Mayor volumen</span>
           </div>
 
           <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
             {topSuppliers.length === 0 ? (
-              <p className="text-xs text-slate-500 py-8 text-center">Sin compras en este periodo.</p>
+              <p className="text-xs text-[#78716C] py-8 text-center">Sin compras en este periodo.</p>
             ) : (
               topSuppliers.map((sup, idx) => (
-                <div key={idx} className="p-3 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-between gap-3">
+                <div key={idx} className="p-3 bg-[#FBF7EF] rounded-2xl border border-[#E8DFC8] flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-lg bg-amber-950 text-amber-300 font-bold text-xs flex items-center justify-center">
+                    <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-800 font-bold text-xs flex items-center justify-center border border-amber-200">
                       #{idx + 1}
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-white">{sup.name}</h4>
-                      <span className="text-[11px] text-slate-400">{sup.count} compra(s)</span>
+                      <h4 className="text-sm font-bold text-[#1A2B5C]">{sup.name}</h4>
+                      <span className="text-[11px] text-[#78716C]">{sup.count} compra(s)</span>
                     </div>
                   </div>
-                  <span className="text-sm font-mono font-bold text-amber-300">{formatCurrency(sup.total)}</span>
+                  <span className="text-sm font-mono font-bold text-amber-800">{formatCurrency(sup.total)}</span>
                 </div>
               ))
             )}
@@ -1480,30 +1548,30 @@ const ComprasReportsTab: React.FC<{ purchases: Purchase[] }> = ({ purchases }) =
         </div>
 
         {/* Top Materials / Products */}
-        <div className="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="lg:col-span-6 bg-white border border-[#E8DFC8] rounded-3xl p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-[#E8DFC8] pb-3">
             <div className="flex items-center gap-2">
-              <Package className="w-5 h-5 text-amber-400" />
-              <h3 className="text-base font-bold text-white font-['Outfit',sans-serif]">
+              <Package className="w-5 h-5 text-amber-500" />
+              <h3 className="text-base font-bold text-[#1A2B5C] font-['Outfit',sans-serif]">
                 Materiales / Artículos Adquiridos
               </h3>
             </div>
-            <span className="text-xs text-slate-400">Mayor inversión</span>
+            <span className="text-xs text-[#78716C]">Mayor inversión</span>
           </div>
 
           <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
             {topMaterials.length === 0 ? (
-              <p className="text-xs text-slate-500 py-8 text-center">Sin artículos en este periodo.</p>
+              <p className="text-xs text-[#78716C] py-8 text-center">Sin artículos en este periodo.</p>
             ) : (
               topMaterials.map((mat, idx) => (
-                <div key={idx} className="p-3 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-between gap-3">
+                <div key={idx} className="p-3 bg-[#FBF7EF] rounded-2xl border border-[#E8DFC8] flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="w-6 h-6 rounded-md bg-amber-950 text-amber-300 text-xs font-bold flex items-center justify-center shrink-0">
+                    <span className="w-6 h-6 rounded-md bg-amber-50 text-amber-800 text-xs font-bold flex items-center justify-center shrink-0 border border-amber-200">
                       {mat.cantidad}u
                     </span>
-                    <span className="text-xs font-bold text-white truncate">{mat.name}</span>
+                    <span className="text-xs font-bold text-[#1A2B5C] truncate">{mat.name}</span>
                   </div>
-                  <span className="text-xs sm:text-sm font-mono font-bold text-white shrink-0">
+                  <span className="text-xs sm:text-sm font-mono font-bold text-[#1A2B5C] shrink-0">
                     {formatCurrency(mat.totalBs)}
                   </span>
                 </div>
@@ -1536,32 +1604,32 @@ const PurchaseThermalPrintModal: React.FC<{
   });
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 my-auto">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+      <div className="w-full max-w-lg bg-white border border-[#E8DFC8] rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 my-auto">
+        <div className="flex items-center justify-between border-b border-[#E8DFC8] pb-3">
           <div className="flex items-center gap-2">
-            <Printer className="w-5 h-5 text-amber-400" />
-            <h3 className="text-base font-bold text-white">Comprobante Térmico de Compra</h3>
+            <Printer className="w-5 h-5 text-amber-500" />
+            <h3 className="text-base font-bold text-[#1A2B5C]">Comprobante Térmico de Compra</h3>
           </div>
-          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800">
+          <button onClick={onClose} className="p-1.5 text-[#78716C] hover:text-[#1A2B5C] rounded-lg hover:bg-[#FBF7EF] cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Width selection */}
-        <div className="flex items-center justify-center gap-2 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
+        <div className="flex items-center justify-center gap-2 bg-[#FBF7EF] p-1.5 rounded-xl border border-[#E8DFC8]">
           <button
             onClick={() => setPaperWidth('58mm')}
-            className={`px-3 py-1 text-xs font-bold rounded-lg transition ${
-              paperWidth === '58mm' ? 'bg-amber-500 text-slate-950' : 'text-slate-400'
+            className={`px-3 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
+              paperWidth === '58mm' ? 'bg-[#1A2B5C] text-white' : 'text-[#78716C] hover:text-[#1A2B5C]'
             }`}
           >
             Formato 58mm (Estrecho)
           </button>
           <button
             onClick={() => setPaperWidth('80mm')}
-            className={`px-3 py-1 text-xs font-bold rounded-lg transition ${
-              paperWidth === '80mm' ? 'bg-amber-500 text-slate-950' : 'text-slate-400'
+            className={`px-3 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
+              paperWidth === '80mm' ? 'bg-[#1A2B5C] text-white' : 'text-[#78716C] hover:text-[#1A2B5C]'
             }`}
           >
             Formato 80mm (Estándar)
@@ -1569,10 +1637,10 @@ const PurchaseThermalPrintModal: React.FC<{
         </div>
 
         {/* Paper Preview */}
-        <div className="bg-slate-950 p-4 rounded-2xl flex justify-center">
+        <div className="bg-[#FBF7EF] p-4 rounded-2xl flex justify-center border border-[#E8DFC8]">
           <div
             id="printable-purchase-receipt"
-            className="bg-white text-black p-4 font-mono text-xs rounded-lg shadow-xl"
+            className="bg-white text-black p-4 font-mono text-xs rounded-lg shadow-md border border-neutral-300"
             style={{ width: paperWidth === '58mm' ? '240px' : '300px' }}
           >
             <div className="text-center space-y-0.5 border-b border-dashed border-black pb-2 mb-2">
@@ -1597,7 +1665,7 @@ const PurchaseThermalPrintModal: React.FC<{
               </div>
               {purchase.productos.map((it, idx) => (
                 <div key={idx} className="flex justify-between">
-                  <span>{it.cantidad}x {it.nombre}</span>
+                  <span>{formatArticleItem(it)}</span>
                   <span>Bs. {it.subtotal}</span>
                 </div>
               ))}
@@ -1627,13 +1695,13 @@ const PurchaseThermalPrintModal: React.FC<{
         <div className="flex gap-2">
           <button
             onClick={onClose}
-            className="flex-1 py-2.5 px-3 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 font-bold text-xs transition"
+            className="flex-1 py-2.5 px-3 rounded-xl border border-[#E8DFC8] text-[#1A2B5C] hover:bg-[#FBF7EF] font-bold text-xs transition cursor-pointer"
           >
             Cerrar
           </button>
           <button
             onClick={handlePrint}
-            className="flex-1 py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-lg transition flex items-center justify-center gap-1.5"
+            className="flex-1 py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <Printer className="w-4 h-4" />
             <span>Mandar a Imprimir</span>

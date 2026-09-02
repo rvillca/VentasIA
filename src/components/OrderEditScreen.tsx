@@ -15,6 +15,7 @@ import {
 import { Order, OrderItem, OrderStatus } from '../types';
 import { formatCurrency, formatBoliviaPhone } from '../lib/storage';
 import { PackagingSelectionModal } from './PackagingSelectionModal';
+import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 
 interface OrderEditScreenProps {
@@ -28,6 +29,7 @@ export const OrderEditScreen: React.FC<OrderEditScreenProps> = ({
   onSave,
   onCancel,
 }) => {
+  const { userProfile } = useAuth();
   const { isDark } = useTheme();
   const [cliente, setCliente] = useState(order.cliente);
   const [telefono, setTelefono] = useState(order.telefono);
@@ -95,6 +97,31 @@ export const OrderEditScreen: React.FC<OrderEditScreenProps> = ({
       return;
     }
 
+    const currentUserName = userProfile?.displayName || userProfile?.email || 'Usuario';
+    const currentUserUid = userProfile?.uid || '';
+    const nowIso = new Date().toISOString();
+
+    let shippingData = {};
+    if (estado === 'Entregado') {
+      shippingData = {
+        enviadoPorNombre: order.enviadoPorNombre || order.despachadoPorNombre || currentUserName,
+        enviadoPorUid: order.enviadoPorUid || order.despachadoPorUid || currentUserUid,
+        despachadoPorNombre: order.despachadoPorNombre || order.enviadoPorNombre || currentUserName,
+        despachadoPorUid: order.despachadoPorUid || order.enviadoPorUid || currentUserUid,
+        fechaEnvio: order.fechaEnvio || order.despachadoAt || nowIso,
+        despachadoAt: order.despachadoAt || order.fechaEnvio || nowIso,
+      };
+    } else if (estado === 'Abierto') {
+      shippingData = {
+        enviadoPorNombre: undefined,
+        enviadoPorUid: undefined,
+        despachadoPorNombre: undefined,
+        despachadoPorUid: undefined,
+        fechaEnvio: undefined,
+        despachadoAt: undefined,
+      };
+    }
+
     const updated: Order = {
       ...order,
       cliente: cliente.trim(),
@@ -102,6 +129,7 @@ export const OrderEditScreen: React.FC<OrderEditScreenProps> = ({
       lugarEntrega: lugarEntrega.trim(),
       observaciones: observaciones.trim(),
       estado,
+      ...shippingData,
       productos: productos.map((p) => ({
         ...p,
         nombre: p.nombre.trim() || 'Artículo',
@@ -112,7 +140,7 @@ export const OrderEditScreen: React.FC<OrderEditScreenProps> = ({
       total: calculatedTotal,
       pagado: Math.max(0, pagado),
       saldo: calculatedSaldo,
-      updatedAt: new Date().toISOString(),
+      updatedAt: nowIso,
     };
 
     onSave(updated);

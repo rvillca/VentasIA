@@ -35,6 +35,12 @@ export interface Order {
   estado: OrderStatus;
   vendedorUid?: string;
   vendedorNombre?: string;
+  enviadoPorUid?: string;
+  enviadoPorNombre?: string;
+  despachadoPorUid?: string;
+  despachadoPorNombre?: string;
+  fechaEnvio?: string;
+  despachadoAt?: string;
   anuladoPor?: string;
   motivoAnulacion?: string;
   anuladoAt?: string;

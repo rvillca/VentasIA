@@ -11,7 +11,6 @@ import {
   Edit3,
 } from 'lucide-react';
 import { ALL_PACKAGING_PRESETS, PackagingPreset } from '../lib/packaging';
-import { useTheme } from '../contexts/ThemeContext';
 
 interface PackagingSelectionModalProps {
   isOpen: boolean;
@@ -28,7 +27,6 @@ export const PackagingSelectionModal: React.FC<PackagingSelectionModalProps> = (
   currentValue,
   onSelect,
 }) => {
-  const { isDark } = useTheme();
   const [customText, setCustomText] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'boxes' | 'docenas' | 'packs'>('all');
 
@@ -62,20 +60,12 @@ export const PackagingSelectionModal: React.FC<PackagingSelectionModalProps> = (
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div
-        className={`border w-full sm:max-w-xl rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh] sm:max-h-[85vh] animate-slideUp ${
-          isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
-        }`}
-      >
+      <div className="bg-white border border-[#E8DFC8] w-full sm:max-w-xl rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh] sm:max-h-[85vh] animate-slideUp">
         {/* Header */}
-        <div
-          className={`px-5 py-4 flex items-center justify-between shadow-sm ${
-            isDark ? 'bg-[#0F1B3C] text-white' : 'bg-[#1A2B5C] text-white'
-          }`}
-        >
+        <div className="px-5 py-4 flex items-center justify-between shadow-sm bg-[#1A2B5C] text-white">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center shadow-inner">
-              <Package className="w-5 h-5 text-pink-300" />
+              <Package className="w-5 h-5 text-amber-300" />
             </div>
             <div>
               <h3 className="text-base sm:text-lg font-black font-['Outfit',sans-serif] tracking-tight leading-tight">
@@ -97,21 +87,13 @@ export const PackagingSelectionModal: React.FC<PackagingSelectionModalProps> = (
         </div>
 
         {/* Categories Tab Selector */}
-        <div
-          className={`px-4 py-2.5 border-b flex gap-1.5 overflow-x-auto ${
-            isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
-          }`}
-        >
+        <div className="px-4 py-2.5 border-b flex gap-1.5 overflow-x-auto bg-[#FBF7EF] border-[#E8DFC8]">
           <button
             type="button"
             onClick={() => setActiveTab('all')}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap active:scale-95 cursor-pointer ${
               activeTab === 'all'
-                ? isDark
-                  ? 'bg-[#FF6FA5] text-[#0F1B3C]'
-                  : 'bg-[#1A2B5C] text-white shadow-sm'
-                : isDark
-                ? 'bg-[#16234F] text-[#9AA6C9] hover:text-white'
+                ? 'bg-[#1A2B5C] text-white shadow-sm'
                 : 'bg-white text-[#78716C] hover:text-[#1A2B5C] border border-[#E8DFC8]'
             }`}
           >
@@ -122,11 +104,7 @@ export const PackagingSelectionModal: React.FC<PackagingSelectionModalProps> = (
             onClick={() => setActiveTab('boxes')}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap active:scale-95 cursor-pointer ${
               activeTab === 'boxes'
-                ? isDark
-                  ? 'bg-[#FF6FA5] text-[#0F1B3C]'
-                  : 'bg-[#1A2B5C] text-white shadow-sm'
-                : isDark
-                ? 'bg-[#16234F] text-[#9AA6C9] hover:text-white'
+                ? 'bg-[#1A2B5C] text-white shadow-sm'
                 : 'bg-white text-[#78716C] hover:text-[#1A2B5C] border border-[#E8DFC8]'
             }`}
           >
@@ -137,11 +115,7 @@ export const PackagingSelectionModal: React.FC<PackagingSelectionModalProps> = (
             onClick={() => setActiveTab('docenas')}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap active:scale-95 cursor-pointer ${
               activeTab === 'docenas'
-                ? isDark
-                  ? 'bg-[#FF6FA5] text-[#0F1B3C]'
-                  : 'bg-[#1A2B5C] text-white shadow-sm'
-                : isDark
-                ? 'bg-[#16234F] text-[#9AA6C9] hover:text-white'
+                ? 'bg-[#1A2B5C] text-white shadow-sm'
                 : 'bg-white text-[#78716C] hover:text-[#1A2B5C] border border-[#E8DFC8]'
             }`}
           >
@@ -152,11 +126,7 @@ export const PackagingSelectionModal: React.FC<PackagingSelectionModalProps> = (
             onClick={() => setActiveTab('packs')}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap active:scale-95 cursor-pointer ${
               activeTab === 'packs'
-                ? isDark
-                  ? 'bg-[#FF6FA5] text-[#0F1B3C]'
-                  : 'bg-[#1A2B5C] text-white shadow-sm'
-                : isDark
-                ? 'bg-[#16234F] text-[#9AA6C9] hover:text-white'
+                ? 'bg-[#1A2B5C] text-white shadow-sm'
                 : 'bg-white text-[#78716C] hover:text-[#1A2B5C] border border-[#E8DFC8]'
             }`}
           >
@@ -166,7 +136,7 @@ export const PackagingSelectionModal: React.FC<PackagingSelectionModalProps> = (
 
         {/* Presets Grid with BIG Touch Targets */}
         <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
-          <p className={`text-xs font-medium ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+          <p className="text-xs font-medium text-[#78716C]">
             Toca el empaque o tamaño deseado para asignarlo cómodamente:
           </p>
 
@@ -183,11 +153,7 @@ export const PackagingSelectionModal: React.FC<PackagingSelectionModalProps> = (
                   onClick={() => handleSelectPreset(preset)}
                   className={`p-3.5 rounded-2xl border text-left transition-all duration-150 flex items-center justify-between gap-3 active:scale-[0.98] cursor-pointer ${
                     isSelected
-                      ? isDark
-                        ? 'bg-[#0F1B3C] border-[#FF6FA5] text-white ring-2 ring-[#FF6FA5]/60 shadow-md'
-                        : 'bg-[#FBF7EF] border-[#1A2B5C] text-[#1A2B5C] ring-2 ring-[#1A2B5C]/30 shadow-md'
-                      : isDark
-                      ? 'bg-[#0F1B3C] hover:bg-[#1E2D5A] border-[#223368] text-white'
+                      ? 'bg-[#FBF7EF] border-[#1A2B5C] text-[#1A2B5C] ring-2 ring-[#1A2B5C]/30 shadow-md'
                       : 'bg-white hover:bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C]'
                   }`}
                 >
@@ -195,19 +161,11 @@ export const PackagingSelectionModal: React.FC<PackagingSelectionModalProps> = (
                     <div
                       className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 text-base font-bold shadow-inner ${
                         preset.type === 'box'
-                          ? isDark
-                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                            : 'bg-amber-100 text-amber-800 border border-amber-200'
+                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
                           : isHalf
-                          ? isDark
-                            ? 'bg-[#FF6FA5]/20 text-[#FF6FA5] border border-[#FF6FA5]/30'
-                            : 'bg-pink-100 text-pink-700 border border-pink-200'
+                          ? 'bg-pink-100 text-pink-700 border border-pink-200'
                           : preset.type === 'dozen'
-                          ? isDark
-                            ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                            : 'bg-purple-100 text-purple-800 border border-purple-200'
-                          : isDark
-                          ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30'
+                          ? 'bg-purple-100 text-purple-800 border border-purple-200'
                           : 'bg-teal-100 text-teal-800 border border-teal-200'
                       }`}
                     >
@@ -222,21 +180,13 @@ export const PackagingSelectionModal: React.FC<PackagingSelectionModalProps> = (
                       )}
                     </div>
                     <div className="min-w-0">
-                      <span className={`font-extrabold text-sm sm:text-base block truncate ${
-                        isDark ? 'text-white' : 'text-[#1A2B5C]'
-                      }`}>
+                      <span className="font-extrabold text-sm sm:text-base block truncate text-[#1A2B5C]">
                         {preset.label}
                       </span>
-                      <span className={`text-xs font-semibold flex items-center gap-1 ${
-                        isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'
-                      }`}>
+                      <span className="text-xs font-semibold flex items-center gap-1 text-[#1A2B5C]">
                         <span>{preset.units} {preset.units === 1 ? 'unidad' : 'unidades'}</span>
                         {isHalf && (
-                          <span className={`text-[10px] px-1.5 py-0.2 rounded border ${
-                            isDark
-                              ? 'bg-[#FF6FA5]/20 text-[#FF6FA5] border-[#FF6FA5]/30'
-                              : 'bg-[#1A2B5C]/10 text-[#1A2B5C] border-[#1A2B5C]/20'
-                          }`}>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded border bg-[#1A2B5C]/10 text-[#1A2B5C] border-[#1A2B5C]/20">
                             Medio
                           </span>
                         )}
@@ -246,17 +196,11 @@ export const PackagingSelectionModal: React.FC<PackagingSelectionModalProps> = (
 
                   <div className="shrink-0 flex items-center">
                     {isSelected ? (
-                      <div className={`w-7 h-7 rounded-full text-white flex items-center justify-center shadow-md ${
-                        isDark ? 'bg-[#FF6FA5] text-[#0F1B3C]' : 'bg-[#1A2B5C]'
-                      }`}>
+                      <div className="w-7 h-7 rounded-full text-white flex items-center justify-center shadow-md bg-[#1A2B5C]">
                         <Check className="w-4 h-4" />
                       </div>
                     ) : (
-                      <span className={`text-xs font-bold px-2.5 py-1 rounded-xl border ${
-                        isDark
-                          ? 'text-[#9AA6C9] bg-[#16234F] border-[#223368]'
-                          : 'text-[#78716C] bg-[#FBF7EF] border-[#E8DFC8]'
-                      }`}>
+                      <span className="text-xs font-bold px-2.5 py-1 rounded-xl border text-[#78716C] bg-[#FBF7EF] border-[#E8DFC8]">
                         Elegir
                       </span>
                     )}
@@ -268,9 +212,7 @@ export const PackagingSelectionModal: React.FC<PackagingSelectionModalProps> = (
 
           {/* Quick Packs extra buttons */}
           <div className="pt-2">
-            <span className={`text-[11px] font-bold uppercase tracking-wider block mb-2 ${
-              isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-            }`}>
+            <span className="text-[11px] font-bold uppercase tracking-wider block mb-2 text-[#78716C]">
               ✨ Packs Rápidos Kawaii:
             </span>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -287,11 +229,7 @@ export const PackagingSelectionModal: React.FC<PackagingSelectionModalProps> = (
                     onSelect(pack.label, pack.units);
                     onClose();
                   }}
-                  className={`py-2.5 px-3 rounded-xl text-xs font-bold text-center active:scale-95 transition border cursor-pointer ${
-                    isDark
-                      ? 'bg-[#0F1B3C] hover:bg-[#1E2D5A] border-[#223368] text-white'
-                      : 'bg-[#FBF7EF] hover:bg-[#E8DFC8] border-[#E8DFC8] text-[#1A2B5C]'
-                  }`}
+                  className="py-2.5 px-3 rounded-xl text-xs font-bold text-center active:scale-95 transition border cursor-pointer bg-[#FBF7EF] hover:bg-[#E8DFC8] border-[#E8DFC8] text-[#1A2B5C]"
                 >
                   {pack.label}
                 </button>
@@ -300,10 +238,8 @@ export const PackagingSelectionModal: React.FC<PackagingSelectionModalProps> = (
           </div>
 
           {/* Custom Text Form */}
-          <div className={`pt-3 border-t ${isDark ? 'border-[#223368]' : 'border-[#E8DFC8]'}`}>
-            <span className={`text-[11px] font-bold uppercase tracking-wider block mb-1.5 flex items-center gap-1.5 ${
-              isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-            }`}>
+          <div className="pt-3 border-t border-[#E8DFC8]">
+            <span className="text-[11px] font-bold uppercase tracking-wider block mb-1.5 flex items-center gap-1.5 text-[#78716C]">
               <Edit3 className="w-3.5 h-3.5" />
               ¿Otro empaque no listado? Escribe aquí:
             </span>
@@ -313,20 +249,12 @@ export const PackagingSelectionModal: React.FC<PackagingSelectionModalProps> = (
                 value={customText}
                 onChange={(e) => setCustomText(e.target.value)}
                 placeholder="Ej. Exhibidor de 30 u., Blister x 4, Caja Master..."
-                className={`flex-1 border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A2B5C] ${
-                  isDark
-                    ? 'bg-[#0F1B3C] border-[#223368] text-white placeholder-[#9AA6C9]/50'
-                    : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/50'
-                }`}
+                className="flex-1 border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A2B5C] bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/50"
               />
               <button
                 type="submit"
                 disabled={!customText.trim()}
-                className={`px-4 py-2.5 disabled:opacity-40 rounded-xl font-bold text-xs shadow-sm transition active:scale-95 whitespace-nowrap cursor-pointer ${
-                  isDark
-                    ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C]'
-                    : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white'
-                }`}
+                className="px-4 py-2.5 disabled:opacity-40 rounded-xl font-bold text-xs shadow-sm transition active:scale-95 whitespace-nowrap cursor-pointer bg-[#1A2B5C] hover:bg-[#253B7A] text-white"
               >
                 Aplicar
               </button>
@@ -335,20 +263,14 @@ export const PackagingSelectionModal: React.FC<PackagingSelectionModalProps> = (
         </div>
 
         {/* Footer */}
-        <div className={`px-4 py-3 border-t flex items-center justify-between ${
-          isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
-        }`}>
-          <p className={`text-[11px] ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+        <div className="px-4 py-3 border-t flex items-center justify-between bg-[#FBF7EF] border-[#E8DFC8]">
+          <p className="text-[11px] text-[#78716C]">
             Selecciona la presentación y se aplicará al artículo seleccionado.
           </p>
           <button
             type="button"
             onClick={onClose}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition active:scale-95 border cursor-pointer ${
-              isDark
-                ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-white border-[#223368]'
-                : 'bg-white hover:bg-[#E8DFC8] text-[#1A2B5C] border-[#E8DFC8]'
-            }`}
+            className="px-4 py-2 rounded-xl text-xs font-bold transition active:scale-95 border cursor-pointer bg-white hover:bg-[#E8DFC8] text-[#1A2B5C] border-[#E8DFC8]"
           >
             Cerrar
           </button>

@@ -13,6 +13,8 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Order, AppUser, Purchase, PurchaseStatus } from '../types';
+import { formatArticleItem, parseArticleFormat } from './packaging';
+export { formatArticleItem, parseArticleFormat };
 
 const ORDERS_COLLECTION = 'orders';
 const PURCHASES_COLLECTION = 'purchases';
@@ -358,6 +360,42 @@ export async function saveOrderToFirestore(order: Order): Promise<void> {
   await setDoc(docRef, cleanOrder, { merge: true });
 }
 
+// Mark order as delivered / shipped with dispatcher attribution
+export async function markOrderAsDeliveredInFirestore(
+  orderId: string,
+  enviadoPorNombre: string,
+  enviadoPorUid?: string
+): Promise<void> {
+  const docRef = doc(db, ORDERS_COLLECTION, orderId);
+  const nowIso = new Date().toISOString();
+  await updateDoc(docRef, {
+    estado: 'Entregado',
+    enviadoPorNombre,
+    enviadoPorUid: enviadoPorUid || '',
+    despachadoPorNombre: enviadoPorNombre,
+    despachadoPorUid: enviadoPorUid || '',
+    fechaEnvio: nowIso,
+    despachadoAt: nowIso,
+    updatedAt: nowIso,
+  });
+}
+
+// Reopen order back to open/pending shipping
+export async function reopenOrderInFirestore(orderId: string): Promise<void> {
+  const docRef = doc(db, ORDERS_COLLECTION, orderId);
+  const nowIso = new Date().toISOString();
+  await updateDoc(docRef, {
+    estado: 'Abierto',
+    enviadoPorNombre: deleteField(),
+    enviadoPorUid: deleteField(),
+    despachadoPorNombre: deleteField(),
+    despachadoPorUid: deleteField(),
+    fechaEnvio: deleteField(),
+    despachadoAt: deleteField(),
+    updatedAt: nowIso,
+  });
+}
+
 // Update order status or fields
 export async function updateOrderInFirestore(
   orderId: string,
@@ -474,9 +512,9 @@ export function generateWhatsAppReceiptText(order: Order): string {
 
   const itemsList = order.productos
     .map((item, idx) => {
-      const variantText = item.variante ? ` (${item.variante})` : '';
+      const formatted = formatArticleItem(item);
       const subtotal = item.cantidad * item.precioUnitario;
-      return `${idx + 1}. *${item.cantidad}x* ${item.nombre}${variantText}\n   ↳ Subtotal: ${formatCurrency(subtotal)} (${formatCurrency(item.precioUnitario)} c/u)`;
+      return `${idx + 1}. *${formatted}*\n   ↳ Subtotal: ${formatCurrency(subtotal)} (${formatCurrency(item.precioUnitario)} c/u)`;
     })
     .join('\n');
 
@@ -494,7 +532,10 @@ export function generateWhatsAppReceiptText(order: Order): string {
   msg += `👤 *Cliente:* ${order.cliente || 'Sin nombre'}\n`;
   if (order.telefono) msg += `📱 *WhatsApp / Cel:* ${order.telefono}\n`;
   if (order.lugarEntrega) msg += `📍 *Lugar de Entrega:* ${order.lugarEntrega}\n`;
-  if (order.vendedorNombre) msg += `🧑‍💼 *Atendido por:* ${order.vendedorNombre}\n`;
+  if (order.vendedorNombre) msg += `🧑‍💼 *Venta registrada por:* ${order.vendedorNombre}\n`;
+  if (order.enviadoPorNombre || order.despachadoPorNombre) {
+    msg += `🚚 *Despachado / Enviado por:* ${order.enviadoPorNombre || order.despachadoPorNombre}\n`;
+  }
   msg += `📅 *Fecha:* ${dateStr}\n`;
   msg += `📌 *Estado:* ${order.estado}\n`;
   msg += `─────────────────────────\n`;
@@ -538,9 +579,8 @@ export function generateWhatsAppPreparationText(order: Order): string {
   const totalPiezas = order.productos.reduce((sum, p) => sum + (p.cantidad || 0), 0);
 
   const itemsList = order.productos
-    .map((item, idx) => {
-      const variantText = item.variante && item.variante.trim() ? ` [${item.variante.trim()}]` : '';
-      return `  ▫️ *${item.cantidad}x* ${item.nombre}${variantText}`;
+    .map((item) => {
+      return `  ▫️ *${formatArticleItem(item)}*`;
     })
     .join('\n');
 
@@ -555,7 +595,10 @@ export function generateWhatsAppPreparationText(order: Order): string {
   msg += `👤 *Cliente:* ${order.cliente || 'Sin nombre'}\n`;
   if (order.telefono) msg += `📱 *Teléfono:* ${order.telefono}\n`;
   msg += `📍 *Destino / Envío:* ${order.lugarEntrega || 'Mostrador / Por coordinar'}\n`;
-  if (order.vendedorNombre) msg += `🧑‍💼 *Vendedor:* ${order.vendedorNombre}\n`;
+  if (order.vendedorNombre) msg += `🧑‍💼 *Venta registrada por:* ${order.vendedorNombre}\n`;
+  if (order.enviadoPorNombre || order.despachadoPorNombre) {
+    msg += `🚚 *Despachado por:* ${order.enviadoPorNombre || order.despachadoPorNombre}\n`;
+  }
   msg += `⏰ *Fecha:* ${dateStr}\n`;
   msg += `─────────────────────────\n`;
   msg += `📋 *ARTÍCULOS A PREPARAR (${totalPiezas} piezas en total):*\n`;
