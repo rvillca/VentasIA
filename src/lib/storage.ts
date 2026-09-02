@@ -431,6 +431,12 @@ export async function deleteOrderFromFirestore(orderId: string): Promise<void> {
   await deleteDoc(docRef);
 }
 
+// Delete user permanently (Jefe/Admin only)
+export async function deleteUserFromFirestore(uid: string): Promise<void> {
+  const docRef = doc(db, USERS_COLLECTION, uid);
+  await deleteDoc(docRef);
+}
+
 // Update user role or status (Jefe only)
 export async function updateUserInFirestore(
   uid: string,

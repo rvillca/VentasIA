@@ -3,6 +3,8 @@ import {
   doc,
   getDoc,
   setDoc,
+  updateDoc,
+  deleteDoc,
   collection,
   getDocs,
   query,
@@ -30,6 +32,8 @@ interface AuthContextType {
   registerNewUserByJefe: (email: string, pass: string, name: string, role: UserRole) => Promise<void>;
   changeMyPassword: (oldPass: string, newPass: string) => Promise<void>;
   adminResetUserPassword: (targetEmail: string, newPass: string) => Promise<void>;
+  updateUserAccount: (targetUid: string, updates: Partial<AppUser> & { newPassword?: string }) => Promise<void>;
+  deleteUserAccount: (targetUid: string, targetEmail: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -95,6 +99,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const snap = await getDoc(docRef);
             if (snap.exists()) {
               const liveData = snap.data() as AppUser;
+              if (liveData.disabled && !isBoss) {
+                // Account was disabled by admin
+                localStorage.removeItem(STORAGE_AUTH_KEY);
+                setUserProfile(null);
+                setCurrentUser(null);
+                setLoading(false);
+                return;
+              }
               setUserProfile({
                 ...liveData,
                 role: isBoss ? 'jefe' : liveData.role || 'vendedor',
@@ -172,6 +184,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (e) {
       console.warn('Firestore lookup note:', e);
+    }
+
+    // Block deactivated accounts
+    if (matchedUser && matchedUser.disabled) {
+      throw new Error('Esta cuenta ha sido desactivada por el administrador. Comunícate con gerencia.');
     }
 
     const effectiveProfile: AppUser = matchedUser || {
@@ -291,6 +308,98 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     saveStoredPassword(cleanEmail, newPass);
   };
 
+  // Admin / Jefe update user account details (name, email, role, disabled, permissions, optional password)
+  const updateUserAccount = async (
+    targetUid: string,
+    updates: Partial<AppUser> & { newPassword?: string }
+  ) => {
+    if (!isJefe) {
+      throw new Error('Solo el Jefe / Administrador tiene permiso para modificar cuentas de usuario.');
+    }
+
+    const { newPassword, ...firestoreUpdates } = updates;
+
+    const isTargetBoss =
+      targetUid === 'jefe_rvillca' ||
+      updates.email?.toLowerCase() === JEFE_EMAIL.toLowerCase() ||
+      (userProfile?.uid === targetUid && userProfile.email.toLowerCase() === JEFE_EMAIL.toLowerCase());
+
+    if (isTargetBoss) {
+      if (firestoreUpdates.role && firestoreUpdates.role !== 'jefe') {
+        throw new Error('La cuenta principal del Jefe no puede cambiar su rol.');
+      }
+      if (firestoreUpdates.disabled === true) {
+        throw new Error('No es posible desactivar la cuenta principal del Jefe.');
+      }
+    }
+
+    const cleanUpdates: Record<string, any> = {};
+    Object.entries(firestoreUpdates).forEach(([k, v]) => {
+      if (v !== undefined) cleanUpdates[k] = v;
+    });
+    cleanUpdates.updatedAt = new Date().toISOString();
+
+    await updateDoc(doc(db, 'users', targetUid), cleanUpdates);
+
+    // If newPassword provided, save in credentials
+    if (newPassword && newPassword.length >= 4) {
+      const emailToUpdate = updates.email || (userProfile?.email);
+      if (emailToUpdate) {
+        saveStoredPassword(emailToUpdate.toLowerCase().trim(), newPassword);
+      }
+    }
+
+    // If current logged-in user is being modified, update active session
+    if (currentUser?.uid === targetUid) {
+      const updatedProfile: AppUser = {
+        ...(userProfile || {
+          uid: targetUid,
+          email: updates.email || currentUser.email,
+          displayName: updates.displayName || currentUser.displayName,
+          role: 'jefe',
+          createdAt: new Date().toISOString(),
+        }),
+        ...cleanUpdates,
+      } as AppUser;
+
+      localStorage.setItem(STORAGE_AUTH_KEY, JSON.stringify(updatedProfile));
+      setUserProfile(updatedProfile);
+      setCurrentUser({
+        uid: targetUid,
+        email: updatedProfile.email,
+        displayName: updatedProfile.displayName,
+      });
+    }
+  };
+
+  // Admin / Jefe delete user account permanently
+  const deleteUserAccount = async (targetUid: string, targetEmail: string) => {
+    if (!isJefe) {
+      throw new Error('Solo el Jefe / Administrador tiene permiso para eliminar cuentas.');
+    }
+
+    const cleanTargetEmail = targetEmail.toLowerCase().trim();
+    if (cleanTargetEmail === JEFE_EMAIL.toLowerCase() || targetUid === 'jefe_rvillca') {
+      throw new Error('No es posible eliminar la cuenta principal del Jefe.');
+    }
+
+    if (currentUser?.uid === targetUid) {
+      throw new Error('No puedes eliminar tu propia cuenta mientras estés en sesión activa.');
+    }
+
+    // Delete from Firestore
+    await deleteDoc(doc(db, 'users', targetUid));
+
+    // Delete stored credentials
+    try {
+      const stored = getStoredPasswords();
+      delete stored[cleanTargetEmail];
+      localStorage.setItem(STORAGE_CREDENTIALS_KEY, JSON.stringify(stored));
+    } catch (e) {
+      console.warn('Could not clean stored passwords:', e);
+    }
+  };
+
   const logout = async () => {
     localStorage.removeItem(STORAGE_AUTH_KEY);
     setCurrentUser(null);
@@ -334,6 +443,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         registerNewUserByJefe,
         changeMyPassword,
         adminResetUserPassword,
+        updateUserAccount,
+        deleteUserAccount,
         logout,
       }}
     >
