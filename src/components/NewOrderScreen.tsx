@@ -14,6 +14,8 @@ import {
   HelpCircle,
   Layers,
   Box,
+  Pencil,
+  Check,
 } from 'lucide-react';
 import { Order, OrderItem } from '../types';
 import { formatCurrency, getNextOrderNumber, formatBoliviaPhone } from '../lib/storage';
@@ -60,9 +62,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
   const [observaciones, setObservaciones] = useState('');
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [packagingModalItem, setPackagingModalItem] = useState<OrderItem | null>(null);
+  const [editingItemId, setEditingItemId] = useState<string | null>(`item-init-0`);
   const [productos, setProductos] = useState<OrderItem[]>([
     {
-      id: `item-${Date.now()}-0`,
+      id: `item-init-0`,
       nombre: '',
       variante: '',
       cantidad: 1,
@@ -70,6 +73,30 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
     },
   ]);
   const [pagado, setPagado] = useState<number>(0);
+
+  // Check if an item has all core fields completed (nombre, variante, cantidad > 0, precio > 0)
+  const isItemComplete = (item: OrderItem): boolean => {
+    return Boolean(
+      item.nombre && item.nombre.trim() !== '' &&
+      item.variante && item.variante.trim() !== '' &&
+      (item.cantidad || 0) > 0 &&
+      (item.precioUnitario || 0) > 0
+    );
+  };
+
+  // Helper to scroll and focus directly on an item card and input
+  const focusAndCenterProduct = (id: string) => {
+    setTimeout(() => {
+      const cardEl = document.getElementById(`product-card-${id}`);
+      if (cardEl) {
+        cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      const inputEl = document.getElementById(`product-name-input-${id}`) as HTMLInputElement | null;
+      if (inputEl) {
+        inputEl.focus();
+      }
+    }, 120);
+  };
 
   // Auto-populate from initialDraft when VIKA prepares a list
   useEffect(() => {
@@ -83,6 +110,9 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
           precioUnitario: Math.max(0, item.precioUnitario || 0),
         }));
         setProductos(loadedItems);
+        // Find if any item is incomplete; if so, expand that one, otherwise keep all collapsed
+        const firstIncomplete = loadedItems.find((it) => !isItemComplete(it));
+        setEditingItemId(firstIncomplete ? firstIncomplete.id : null);
       }
       if (initialDraft.pagado !== undefined) setPagado(initialDraft.pagado);
       if (initialDraft.observaciones) setObservaciones(initialDraft.observaciones);
@@ -92,35 +122,49 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
     }
   }, [initialDraft]);
 
-  // Add a new empty product row
+  // Add a new empty product row, expand it, and center/focus view
   const handleAddProduct = () => {
+    const newId = `item-${Date.now()}-${productos.length}`;
     setProductos((prev) => [
       ...prev,
       {
-        id: `item-${Date.now()}-${prev.length}`,
+        id: newId,
         nombre: '',
         variante: '',
         cantidad: 1,
         precioUnitario: 0,
       },
     ]);
+    setEditingItemId(newId);
+    focusAndCenterProduct(newId);
+  };
+
+  // Start editing an item, expanding it and focusing input
+  const handleStartEditing = (id: string) => {
+    setEditingItemId(id);
+    focusAndCenterProduct(id);
   };
 
   // Remove a product row
   const handleRemoveProduct = (id: string) => {
     if (productos.length === 1) {
+      const resetId = `item-${Date.now()}-0`;
       setProductos([
         {
-          id: `item-${Date.now()}-0`,
+          id: resetId,
           nombre: '',
           variante: '',
           cantidad: 1,
           precioUnitario: 0,
         },
       ]);
+      setEditingItemId(resetId);
       return;
     }
     setProductos((prev) => prev.filter((p) => p.id !== id));
+    if (editingItemId === id) {
+      setEditingItemId(null);
+    }
   };
 
   // Update product fields
@@ -498,23 +542,138 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
           <div className="space-y-3">
             {productos.map((prod, index) => {
               const subtotal = (prod.cantidad || 0) * (prod.precioUnitario || 0);
+              const complete = isItemComplete(prod);
+              const isExpanded = editingItemId === prod.id || (editingItemId === null && !complete);
+
+              // Compact collapsed row for products that are completed or not currently being edited
+              if (!isExpanded) {
+                return (
+                  <div
+                    key={prod.id}
+                    id={`product-card-${prod.id}`}
+                    onClick={() => handleStartEditing(prod.id)}
+                    className={`p-3 sm:py-2.5 sm:px-3.5 border rounded-2xl transition-all cursor-pointer flex items-center justify-between gap-2.5 group ${
+                      isDark
+                        ? 'bg-[#0F1B3C]/75 border-[#223368] hover:bg-[#16234F] hover:border-[#FF6FA5]/40 text-white'
+                        : 'bg-[#FBF7EF] border-[#E8DFC8] hover:bg-[#F5EFE0] hover:border-[#1A2B5C]/30 text-[#1A2B5C]'
+                    }`}
+                    title="Toca para editar este artículo"
+                  >
+                    {/* Left: Product index and summary */}
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span
+                        className={`text-[10px] font-black px-2 py-0.5 rounded-lg shrink-0 ${
+                          isDark ? 'bg-[#16234F] text-[#FF6FA5]' : 'bg-[#EAE0D0] text-[#1A2B5C]'
+                        }`}
+                      >
+                        #{index + 1}
+                      </span>
+
+                      <div className="flex flex-wrap sm:flex-nowrap items-baseline sm:items-center gap-x-2 gap-y-0.5 min-w-0 flex-1 text-xs sm:text-sm">
+                        <span className="font-bold truncate max-w-[180px] sm:max-w-xs md:max-w-md">
+                          {prod.nombre || 'Artículo sin nombre'}
+                        </span>
+
+                        {complete ? (
+                          <>
+                            <span className={`hidden sm:inline ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>·</span>
+                            <span className={`text-[11px] sm:text-xs font-semibold shrink-0 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                              {prod.cantidad}x {prod.variante || 'Unidad'}
+                            </span>
+                            <span className={`hidden sm:inline ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>·</span>
+                            <span className={`font-black text-xs sm:text-sm shrink-0 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`}>
+                              {formatCurrency(subtotal)}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-[11px] font-bold text-amber-500 flex items-center gap-1">
+                            ⚠️ Faltan datos (toca para completar)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Right: Actions (Edit & Delete) */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleStartEditing(prod.id);
+                        }}
+                        className={`p-1.5 rounded-xl transition-colors cursor-pointer ${
+                          isDark
+                            ? 'text-[#9AA6C9] group-hover:text-[#FF6FA5] hover:bg-[#16234F]'
+                            : 'text-[#78716C] group-hover:text-[#1A2B5C] hover:bg-white'
+                        }`}
+                        title="Editar artículo"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveProduct(prod.id);
+                        }}
+                        className={`p-1.5 rounded-xl transition-colors cursor-pointer ${
+                          isDark
+                            ? 'text-[#9AA6C9] hover:text-rose-400 hover:bg-[#16234F]'
+                            : 'text-[#78716C] hover:text-rose-600 hover:bg-white'
+                        }`}
+                        title="Eliminar artículo"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
+              // Expanded full editing card
               return (
                 <div
                   key={prod.id}
-                  className={`p-3.5 border rounded-2xl space-y-3 ${
-                    isDark ? 'bg-[#0F1B3C]/70 border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+                  id={`product-card-${prod.id}`}
+                  className={`p-3.5 sm:p-4 border-2 rounded-2xl space-y-3 transition-all ${
+                    isDark
+                      ? 'bg-[#0F1B3C] border-[#FF6FA5]/60 shadow-lg shadow-[#FF6FA5]/5'
+                      : 'bg-[#FBF7EF] border-[#1A2B5C]/50 shadow-md shadow-[#1A2B5C]/5'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 space-y-2">
-                      {/* Product Name */}
+                      {/* Product Name & Header */}
                       <div>
-                        <label className={`block text-[11px] font-bold uppercase tracking-wider mb-1 ${
-                          isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-                        }`}>
-                          Producto #{index + 1}
-                        </label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label
+                            htmlFor={`product-name-input-${prod.id}`}
+                            className={`block text-[11px] font-bold uppercase tracking-wider ${
+                              isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'
+                            }`}
+                          >
+                            Producto #{index + 1} (En edición)
+                          </label>
+
+                          {complete && (
+                            <button
+                              type="button"
+                              onClick={() => setEditingItemId(null)}
+                              className={`px-2.5 py-0.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer border ${
+                                isDark
+                                  ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-[#4FD1B5] border-[#4FD1B5]/30'
+                                  : 'bg-white hover:bg-[#EAE0D0] text-[#0F766E] border-[#99F6E4]'
+                              }`}
+                              title="Listo / Colapsar este artículo"
+                            >
+                              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                              <span>Listo</span>
+                            </button>
+                          )}
+                        </div>
+
                         <input
+                          id={`product-name-input-${prod.id}`}
                           type="text"
                           value={prod.nombre}
                           onChange={(e) =>
@@ -642,7 +801,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
                               prod.id,
                               'cantidad',
                               val === '' ? 0 : Math.max(0, parseInt(val, 10) || 0)
-                            )
+                            );
                           }}
                           placeholder="0"
                           className={`w-full bg-transparent text-center text-xs font-black focus:outline-none ${
@@ -692,7 +851,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
                               prod.id,
                               'precioUnitario',
                               val === '' ? 0 : Math.max(0, parseFloat(val) || 0)
-                            )
+                            );
                           }}
                           placeholder="0.00"
                           className={`w-full border rounded-xl py-1.5 pl-9 pr-2 text-xs font-black focus:outline-none ${
@@ -721,6 +880,21 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
                 </div>
               );
             })}
+
+            {/* Bottom Add Product Button - Always visible at the end of the list */}
+            <button
+              id="add-product-btn-bottom"
+              type="button"
+              onClick={handleAddProduct}
+              className={`w-full py-3 px-4 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border-2 border-dashed transition-all active:scale-[0.99] cursor-pointer ${
+                isDark
+                  ? 'bg-[#0F1B3C]/50 hover:bg-[#16234F] text-[#FF6FA5] border-[#223368] hover:border-[#FF6FA5]/60'
+                  : 'bg-[#FBF7EF] hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8] hover:border-[#1A2B5C]/40'
+              }`}
+            >
+              <Plus className="w-4 h-4 stroke-[3]" />
+              <span>+ Agregar Otro Artículo</span>
+            </button>
           </div>
         </div>
 
@@ -902,6 +1076,31 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
           </button>
         </div>
       </form>
+
+      {/* Floating Action Button for Adding Products anywhere without scrolling */}
+      <div className="fixed bottom-6 right-6 z-40 print:hidden">
+        <button
+          id="fab-add-product-btn"
+          type="button"
+          onClick={handleAddProduct}
+          className={`py-3 px-4 sm:px-5 rounded-full font-black text-xs sm:text-sm active:scale-95 shadow-2xl flex items-center gap-2 transition-all cursor-pointer border ${
+            isDark
+              ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C] border-[#FF6FA5]/40 shadow-lg shadow-black/40'
+              : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white border-[#1A2B5C] shadow-lg shadow-black/25'
+          }`}
+          title="Agregar artículo rápidamente (+)"
+        >
+          <Plus className="w-4 h-4 stroke-[3]" />
+          <span>+ Agregar Artículo</span>
+          <span
+            className={`text-[10px] px-2 py-0.5 rounded-full font-bold ml-0.5 ${
+              isDark ? 'bg-[#0F1B3C]/20 text-[#0F1B3C]' : 'bg-white/20 text-white'
+            }`}
+          >
+            {productos.length}
+          </span>
+        </button>
+      </div>
 
       {/* Packaging Selection Modal for Mobile & Quick selection */}
       {packagingModalItem && (
