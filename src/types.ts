@@ -19,6 +19,7 @@ export interface AppUser {
   createdBy?: string;
   disabled?: boolean;
   comprasAccess?: boolean;
+  password?: string;
 }
 
 export interface Order {

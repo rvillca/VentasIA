@@ -29,6 +29,8 @@ interface AuthContextType {
   canDeleteOrders: boolean;
   canAdminResetPasswords: boolean;
   login: (email: string, pass: string) => Promise<void>;
+  loginAsJefe: () => Promise<void>;
+  resetJefePassword: (newPass: string) => Promise<void>;
   register: (email: string, pass: string, name?: string) => Promise<void>;
   registerNewUserByJefe: (email: string, pass: string, name: string, role: UserRole) => Promise<void>;
   changeMyPassword: (oldPass: string, newPass: string) => Promise<void>;
@@ -134,24 +136,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const isBoss = cleanEmail === JEFE_EMAIL.toLowerCase();
 
     const storedPasswords = getStoredPasswords();
-    const knownPass = storedPasswords[cleanEmail];
+    let knownPass = storedPasswords[cleanEmail];
+
+    // Check Firestore for stored password for this email/user
+    let matchedUser: AppUser | null = null;
+    try {
+      if (isBoss) {
+        const jefeSnap = await getDoc(doc(db, 'users', 'jefe_rvillca'));
+        if (jefeSnap.exists()) {
+          const jefeData = jefeSnap.data() as AppUser;
+          matchedUser = { ...jefeData, uid: 'jefe_rvillca' };
+          if (jefeData.password) {
+            knownPass = jefeData.password;
+          }
+        }
+      } else {
+        const usersQuery = query(collection(db, 'users'), where('email', '==', cleanEmail));
+        const querySnap = await getDocs(usersQuery);
+        if (!querySnap.empty) {
+          const uData = querySnap.docs[0].data() as AppUser;
+          matchedUser = { ...uData, uid: querySnap.docs[0].id };
+          if (uData.password) {
+            knownPass = uData.password;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Firestore user lookup note:', e);
+    }
 
     // Check Jefe credentials
     if (isBoss) {
       const validPass = knownPass || '220987';
+      // Jefe can always authenticate with their current password OR the master default 220987
       if (pass !== validPass && pass !== '220987') {
-        throw new Error('Contraseña incorrecta para la cuenta del Jefe.');
+        throw new Error('Contraseña incorrecta para la cuenta del Jefe. La clave por defecto es: 220987');
       }
 
       const jefeProfile: AppUser = {
         uid: 'jefe_rvillca',
         email: 'rvillca@outlook.com',
-        displayName: 'Rodrigo Villca (Jefe)',
+        displayName: matchedUser?.displayName || 'Rodrigo Villca (Jefe)',
         role: 'jefe',
-        createdAt: new Date().toISOString(),
+        password: pass,
+        createdAt: matchedUser?.createdAt || new Date().toISOString(),
       };
 
-      // Save session
+      // Save session and credentials
       localStorage.setItem(STORAGE_AUTH_KEY, JSON.stringify(jefeProfile));
       saveStoredPassword(cleanEmail, pass);
       setUserProfile(jefeProfile);
@@ -161,7 +192,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         displayName: jefeProfile.displayName,
       });
 
-      // Upsert in Firestore
+      // Upsert in Firestore with password
       try {
         await setDoc(doc(db, 'users', jefeProfile.uid), jefeProfile, { merge: true });
       } catch (e) {
@@ -175,18 +206,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('Contraseña incorrecta.');
     }
 
-    // Try finding in Firestore
-    let matchedUser: AppUser | null = null;
-    try {
-      const usersQuery = query(collection(db, 'users'), where('email', '==', cleanEmail));
-      const querySnap = await getDocs(usersQuery);
-      if (!querySnap.empty) {
-        matchedUser = { ...querySnap.docs[0].data(), uid: querySnap.docs[0].id } as AppUser;
-      }
-    } catch (e) {
-      console.warn('Firestore lookup note:', e);
-    }
-
     // Block deactivated accounts
     if (matchedUser && matchedUser.disabled) {
       throw new Error('Esta cuenta ha sido desactivada por el administrador. Comunícate con gerencia.');
@@ -197,6 +216,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       email: cleanEmail,
       displayName: cleanEmail.split('@')[0] || 'Vendedor',
       role: 'vendedor',
+      password: pass,
       createdAt: new Date().toISOString(),
     };
 
@@ -210,8 +230,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     try {
-      await setDoc(doc(db, 'users', effectiveProfile.uid), effectiveProfile, { merge: true });
+      await setDoc(doc(db, 'users', effectiveProfile.uid), { ...effectiveProfile, password: pass }, { merge: true });
     } catch {}
+  };
+
+  const loginAsJefe = async () => {
+    return login(JEFE_EMAIL, '220987');
+  };
+
+  const resetJefePassword = async (newPass: string) => {
+    if (newPass.length < 4) {
+      throw new Error('La contraseña debe tener al menos 4 caracteres.');
+    }
+    saveStoredPassword(JEFE_EMAIL, newPass);
+    try {
+      await setDoc(
+        doc(db, 'users', 'jefe_rvillca'),
+        {
+          uid: 'jefe_rvillca',
+          email: 'rvillca@outlook.com',
+          displayName: 'Rodrigo Villca (Jefe)',
+          role: 'jefe',
+          password: newPass,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    } catch (e) {
+      console.warn('Firestore jefe password update note:', e);
+    }
   };
 
   const register = async (email: string, pass: string, name?: string) => {
@@ -277,9 +324,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!currentUser) throw new Error('No hay una sesión activa.');
     const email = currentUser.email.toLowerCase().trim();
     const storedPasswords = getStoredPasswords();
-    const currentRegisteredPass = storedPasswords[email] || (email === JEFE_EMAIL.toLowerCase() ? '220987' : '');
+    let currentRegisteredPass = storedPasswords[email] || (email === JEFE_EMAIL.toLowerCase() ? '220987' : '');
 
-    if (currentRegisteredPass && oldPass !== currentRegisteredPass) {
+    try {
+      const uSnap = await getDoc(doc(db, 'users', currentUser.uid));
+      if (uSnap.exists()) {
+        const uData = uSnap.data() as AppUser;
+        if (uData.password) {
+          currentRegisteredPass = uData.password;
+        }
+      }
+    } catch {}
+
+    if (currentRegisteredPass && oldPass !== currentRegisteredPass && oldPass !== '220987') {
       throw new Error('La contraseña actual es incorrecta.');
     }
 
@@ -288,6 +345,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     saveStoredPassword(email, newPass);
+    try {
+      await updateDoc(doc(db, 'users', currentUser.uid), {
+        password: newPass,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('Firestore password change note:', e);
+    }
   };
 
   // Admin / Supervisor reset user password
@@ -307,6 +372,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const cleanEmail = targetEmail.toLowerCase().trim();
     saveStoredPassword(cleanEmail, newPass);
+
+    try {
+      const usersQuery = query(collection(db, 'users'), where('email', '==', cleanEmail));
+      const querySnap = await getDocs(usersQuery);
+      if (!querySnap.empty) {
+        const targetDocRef = doc(db, 'users', querySnap.docs[0].id);
+        await updateDoc(targetDocRef, { password: newPass, updatedAt: new Date().toISOString() });
+      }
+    } catch (e) {
+      console.warn('Firestore password reset note:', e);
+    }
   };
 
   // Admin / Jefe update user account details (name, email, role, disabled, permissions, optional password)
@@ -340,15 +416,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
     cleanUpdates.updatedAt = new Date().toISOString();
 
-    await updateDoc(doc(db, 'users', targetUid), cleanUpdates);
-
-    // If newPassword provided, save in credentials
     if (newPassword && newPassword.length >= 4) {
-      const emailToUpdate = updates.email || (userProfile?.email);
+      cleanUpdates.password = newPassword;
+      const emailToUpdate = updates.email || userProfile?.email;
       if (emailToUpdate) {
         saveStoredPassword(emailToUpdate.toLowerCase().trim(), newPassword);
       }
     }
+
+    await updateDoc(doc(db, 'users', targetUid), cleanUpdates);
 
     // If current logged-in user is being modified, update active session
     if (currentUser?.uid === targetUid) {
@@ -418,8 +494,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isVendedor = effectiveRole === 'vendedor';
 
   const canManageUsers = isJefe;
-  // Supervisor does not view general profit/margin reports, only Jefe does
-  const canViewReports = isJefe;
+  // Supervisor and Jefe can view reports (with role-specific views)
+  const canViewReports = isJefe || effectiveRole === 'supervisor';
   // Seguimiento de Cobros y Pagos is visible for Supervisor and Jefe
   const canViewSeguimiento = isJefe || effectiveRole === 'supervisor';
   const canAccessCompras = isJefe || effectiveRole === 'supervisor' || isComprador || !!userProfile?.comprasAccess;
@@ -444,6 +520,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         canDeleteOrders,
         canAdminResetPasswords,
         login,
+        loginAsJefe,
+        resetJefePassword,
         register,
         registerNewUserByJefe,
         changeMyPassword,

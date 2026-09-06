@@ -18,6 +18,7 @@ import {
   DollarSign,
   Share2,
   Truck,
+  Calendar,
 } from 'lucide-react';
 import { Order, OrderStatus } from '../types';
 import {
@@ -42,6 +43,7 @@ interface OrdersListScreenProps {
 }
 
 type FilterType = 'all' | 'Abierto' | 'Entregado' | 'with_balance' | 'Anulado';
+type SalesDateFilter = 'today' | 'this_week' | 'this_month' | 'all';
 
 export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
   orders = [],
@@ -56,6 +58,8 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
+  // Default: Mostrar solo los pedidos registrados EL DÍA DE HOY
+  const [dateFilter, setDateFilter] = useState<SalesDateFilter>('today');
   const [printOrder, setPrintOrder] = useState<Order | null>(null);
   const [prepOrder, setPrepOrder] = useState<Order | null>(null);
   const [completingId, setCompletingId] = useState<string | null>(null);
@@ -63,12 +67,62 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
   // Monthly stats and comparison for Vendedora & counts
   const monthlySalesStats = useMemo(() => computeMonthlySalesStats(orders), [orders]);
 
-  // Financial summary counters (excluding Anulados)
-  const validOrders = orders.filter((o) => o.estado !== 'Anulado');
-  const totalOrders = orders.length;
-  const openOrders = orders.filter((o) => o.estado === 'Abierto').length;
-  const deliveredOrders = orders.filter((o) => o.estado === 'Entregado').length;
-  const canceledOrders = orders.filter((o) => o.estado === 'Anulado').length;
+  // Total orders today count
+  const todayOrdersCount = useMemo(() => {
+    const now = new Date();
+    return orders.filter((o) => {
+      const d = new Date(o.createdAt);
+      return (
+        !isNaN(d.getTime()) &&
+        d.getDate() === now.getDate() &&
+        d.getMonth() === now.getMonth() &&
+        d.getFullYear() === now.getFullYear()
+      );
+    }).length;
+  }, [orders]);
+
+  // Date Filter matching
+  const isDateInSelectedRange = (dateStr: string) => {
+    if (dateFilter === 'all') return true;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return true;
+    const now = new Date();
+
+    if (dateFilter === 'today') {
+      return (
+        d.getDate() === now.getDate() &&
+        d.getMonth() === now.getMonth() &&
+        d.getFullYear() === now.getFullYear()
+      );
+    }
+
+    if (dateFilter === 'this_week') {
+      const day = now.getDay();
+      const diffToMonday = day === 0 ? -6 : 1 - day;
+      const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMonday, 0, 0, 0, 0);
+      const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6, 23, 59, 59, 999);
+      return d >= monday && d <= sunday;
+    }
+
+    if (dateFilter === 'this_month') {
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }
+
+    return true;
+  };
+
+  // Orders scoped to the chosen date period
+  const dateScopedOrders = useMemo(() => {
+    return orders.filter((o) => isDateInSelectedRange(o.createdAt));
+  }, [orders, dateFilter]);
+
+  // Financial summary counters for the selected period (excluding Anulados)
+  const validOrders = dateScopedOrders.filter((o) => o.estado !== 'Anulado');
+  const totalOrders = dateScopedOrders.length;
+  const openOrders = dateScopedOrders.filter((o) => o.estado === 'Abierto').length;
+  const deliveredOrders = dateScopedOrders.filter((o) => o.estado === 'Entregado').length;
+  const canceledOrders = dateScopedOrders.filter((o) => o.estado === 'Anulado').length;
+  const withBalanceOrders = dateScopedOrders.filter((o) => o.saldo > 0 && o.estado !== 'Anulado').length;
 
   const totalVendido = validOrders.reduce((sum, o) => sum + (o.total || 0), 0);
   const totalCobrado = validOrders.reduce((sum, o) => sum + (o.pagado || 0), 0);
@@ -89,7 +143,7 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
 
   // Filtered orders calculation
   const filteredOrders = useMemo(() => {
-    return orders.filter((order) => {
+    return dateScopedOrders.filter((order) => {
       // Text search match
       const term = searchTerm.toLowerCase().trim();
       const matchSearch =
@@ -111,7 +165,7 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
 
       return matchSearch && matchFilter;
     });
-  }, [orders, searchTerm, filter]);
+  }, [dateScopedOrders, searchTerm, filter]);
 
   return (
     <>
@@ -359,6 +413,141 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
             isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
           }`}
         >
+          {/* Date Period Filter Bar - Default is 'today' as requested */}
+          <div
+            className={`flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b ${
+              isDark ? 'border-[#223368]' : 'border-[#E8DFC8]'
+            }`}
+          >
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+              <span
+                className={`text-[11px] font-black uppercase tracking-wider pl-1 pr-1.5 flex items-center gap-1 shrink-0 ${
+                  isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5 text-[#FF6FA5]" />
+                <span>Fecha:</span>
+              </span>
+
+              {/* Botón: Solo Hoy (Default) */}
+              <button
+                type="button"
+                id="filter-date-today"
+                onClick={() => setDateFilter('today')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                  dateFilter === 'today'
+                    ? isDark
+                      ? 'bg-[#FF6FA5] text-[#0F1B3C] font-black shadow-sm'
+                      : 'bg-[#1A2B5C] text-white font-black shadow-sm'
+                    : isDark
+                    ? 'bg-[#0F1B3C] text-[#9AA6C9] hover:text-white border border-[#223368]'
+                    : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C] border border-[#E8DFC8]'
+                }`}
+              >
+                <span>⚡ Solo Hoy</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                    dateFilter === 'today'
+                      ? isDark
+                        ? 'bg-[#0F1B3C]/30 text-[#0F1B3C]'
+                        : 'bg-white/25 text-white'
+                      : isDark
+                      ? 'bg-[#16234F] text-[#FF6FA5]'
+                      : 'bg-[#E8DFC8] text-[#1A2B5C]'
+                  }`}
+                >
+                  {todayOrdersCount}
+                </span>
+              </button>
+
+              {/* Botón: Esta Semana */}
+              <button
+                type="button"
+                id="filter-date-this-week"
+                onClick={() => setDateFilter('this_week')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                  dateFilter === 'this_week'
+                    ? isDark
+                      ? 'bg-[#FF6FA5] text-[#0F1B3C] font-black shadow-sm'
+                      : 'bg-[#1A2B5C] text-white font-black shadow-sm'
+                    : isDark
+                    ? 'bg-[#0F1B3C] text-[#9AA6C9] hover:text-white border border-[#223368]'
+                    : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C] border border-[#E8DFC8]'
+                }`}
+              >
+                Esta Semana
+              </button>
+
+              {/* Botón: Este Mes */}
+              <button
+                type="button"
+                id="filter-date-this-month"
+                onClick={() => setDateFilter('this_month')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                  dateFilter === 'this_month'
+                    ? isDark
+                      ? 'bg-[#FF6FA5] text-[#0F1B3C] font-black shadow-sm'
+                      : 'bg-[#1A2B5C] text-white font-black shadow-sm'
+                    : isDark
+                    ? 'bg-[#0F1B3C] text-[#9AA6C9] hover:text-white border border-[#223368]'
+                    : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C] border border-[#E8DFC8]'
+                }`}
+              >
+                Este Mes
+              </button>
+
+              {/* Botón: Todo el Histórico */}
+              <button
+                type="button"
+                id="filter-date-all"
+                onClick={() => setDateFilter('all')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                  dateFilter === 'all'
+                    ? isDark
+                      ? 'bg-[#FF6FA5] text-[#0F1B3C] font-black shadow-sm'
+                      : 'bg-[#1A2B5C] text-white font-black shadow-sm'
+                    : isDark
+                    ? 'bg-[#0F1B3C] text-[#9AA6C9] hover:text-white border border-[#223368]'
+                    : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C] border border-[#E8DFC8]'
+                }`}
+              >
+                <span>Todo el Histórico</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                    dateFilter === 'all'
+                      ? isDark
+                        ? 'bg-[#0F1B3C]/30 text-[#0F1B3C]'
+                        : 'bg-white/25 text-white'
+                      : isDark
+                      ? 'bg-[#16234F] text-[#9AA6C9]'
+                      : 'bg-[#E8DFC8] text-[#78716C]'
+                  }`}
+                >
+                  {orders.length}
+                </span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs">
+              {dateFilter === 'today' ? (
+                <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Mostrando pedidos de hoy
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setDateFilter('today')}
+                  className={`text-[11px] font-bold underline transition cursor-pointer ${
+                    isDark ? 'text-[#FF6FA5] hover:text-white' : 'text-[#1A2B5C] hover:text-[#253B7A]'
+                  }`}
+                >
+                  Volver a ver solo hoy
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Search bar */}
           <div className="relative">
             <Search
@@ -390,11 +579,11 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
             )}
           </div>
 
-          {/* Filter Chips Bar */}
+          {/* Filter Chips Bar (Todos, Abiertos, Entregados, Con Saldo, Anulados) */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
             <button
               onClick={() => setFilter('all')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap border ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap border cursor-pointer ${
                 filter === 'all'
                   ? isDark
                     ? 'bg-[#FF6FA5] text-[#0F1B3C] font-black border-[#FF6FA5] shadow-sm'
@@ -409,7 +598,7 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
 
             <button
               onClick={() => setFilter('Abierto')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap border ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap border cursor-pointer ${
                 filter === 'Abierto'
                   ? isDark
                     ? 'bg-[#B39DDB] text-[#2E1065] font-black border-[#B39DDB] shadow-sm'
@@ -424,7 +613,7 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
 
             <button
               onClick={() => setFilter('Entregado')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap border ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap border cursor-pointer ${
                 filter === 'Entregado'
                   ? isDark
                     ? 'bg-[#4FD1B5] text-[#064E3B] font-black border-[#4FD1B5] shadow-sm'
@@ -439,7 +628,7 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
 
             <button
               onClick={() => setFilter('with_balance')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap border ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap border cursor-pointer ${
                 filter === 'with_balance'
                   ? isDark
                     ? 'bg-[#FFA26B] text-[#7C2D12] font-black border-[#FFA26B] shadow-sm'
@@ -449,13 +638,13 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
                   : 'bg-[#FFF7ED] text-[#C2410C] hover:bg-[#FFEDD5] border-[#FED7AA]'
               }`}
             >
-              Con Saldo ({orders.filter((o) => o.saldo > 0 && o.estado !== 'Anulado').length})
+              Con Saldo ({withBalanceOrders})
             </button>
 
             {canceledOrders > 0 && (
               <button
                 onClick={() => setFilter('Anulado')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap border ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap border cursor-pointer ${
                   filter === 'Anulado'
                     ? isDark
                       ? 'bg-[#FCA5A5] text-[#881337] font-black border-[#FCA5A5] shadow-sm'
@@ -492,32 +681,51 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
               >
                 <Package className="w-7 h-7" />
               </div>
-              <div className="max-w-sm mx-auto">
+              <div className="max-w-sm mx-auto space-y-1">
                 <h3
                   className={`text-base font-bold font-['Outfit',sans-serif] ${
                     isDark ? 'text-white' : 'text-[#1A2B5C]'
                   }`}
                 >
-                  No se encontraron ventas
+                  {dateFilter === 'today'
+                    ? 'No hay pedidos registrados el día de hoy'
+                    : 'No se encontraron ventas'}
                 </h3>
-                <p className="text-xs mt-1">
+                <p className="text-xs">
                   {searchTerm || filter !== 'all'
                     ? 'Prueba modificando la búsqueda o el filtro seleccionado.'
+                    : dateFilter === 'today'
+                    ? 'Aún no se han registrado pedidos hoy. Puedes registrar uno nuevo o consultar las ventas anteriores.'
                     : 'Registra tu primera venta con los artículos y cotización en Bs.'}
                 </p>
               </div>
-              <button
-                id="empty-new-order-btn"
-                onClick={onNewOrder}
-                className={`py-2.5 px-6 rounded-2xl font-black text-sm shadow-md inline-flex items-center gap-2 transition-all active:scale-95 cursor-pointer ${
-                  isDark
-                    ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C] shadow-[#FF6FA5]/30'
-                    : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white shadow-[#1A2B5C]/30'
-                }`}
-              >
-                <Plus className="w-4 h-4 stroke-[3]" />
-                <span>Registrar Nueva Venta</span>
-              </button>
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                {dateFilter === 'today' && orders.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setDateFilter('all')}
+                    className={`py-2 px-4 rounded-xl font-bold text-xs border transition cursor-pointer ${
+                      isDark
+                        ? 'bg-[#0F1B3C] border-[#223368] text-white hover:bg-[#1A2B5C]'
+                        : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C] hover:bg-[#EBE2CF]'
+                    }`}
+                  >
+                    Ver Todo el Histórico ({orders.length} pedidos)
+                  </button>
+                )}
+                <button
+                  id="empty-new-order-btn"
+                  onClick={onNewOrder}
+                  className={`py-2 px-5 rounded-xl font-black text-xs shadow-md inline-flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer ${
+                    isDark
+                      ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C] shadow-[#FF6FA5]/30'
+                      : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white shadow-[#1A2B5C]/30'
+                  }`}
+                >
+                  <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                  <span>+ Nueva Venta</span>
+                </button>
+              </div>
             </div>
           ) : (
             filteredOrders.map((order) => {

@@ -63,7 +63,7 @@ html.light ::-webkit-scrollbar-thumb:hover {
     padding: 0 !important;
   }
   /* Hide any non-print interactive chrome */
-  #root > *:not(#thermal-print-modal):not(.ticket-print-root) {
+  #root > *:not(#thermal-print-modal):not(.ticket-print-root):not(#executive-summary-modal):not(.executive-summary-print-root) {
     display: none !important;
   }
 }

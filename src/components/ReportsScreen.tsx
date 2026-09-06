@@ -28,6 +28,7 @@ import {
   UserCheck,
   Crown,
   Gift,
+  ArrowUpDown,
 } from 'lucide-react';
 import { Order, Purchase } from '../types';
 import { formatCurrency, formatBoliviaPhone, formatArticleItem } from '../lib/storage';
@@ -36,23 +37,47 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useFinancialPrivacy } from '../contexts/FinancialPrivacyContext';
 import { BalanceToggleBtn } from './BalanceToggleBtn';
 import { TopClientsReport } from './reports/TopClientsReport';
+import { DailySalesReport } from './reports/DailySalesReport';
+import { ComparativeSalesReport } from './reports/ComparativeSalesReport';
+import { SalesByUserAndProductReport } from './reports/SalesByUserAndProductReport';
+import { SalesHistoryAuditReport } from './reports/SalesHistoryAuditReport';
+import { SupervisorSalesReport } from './reports/SupervisorSalesReport';
 
 interface ReportsScreenProps {
   orders: Order[];
   purchases?: Purchase[];
 }
 
-type DateRangeFilter = 'today' | '7days' | '30days' | 'this_month' | 'all';
-type ReportViewType = 'ventas' | 'clientes' | 'envios' | 'compras' | 'balance';
+type DateRangeFilter = 'today' | 'this_week' | '7days' | '30days' | 'this_month' | 'custom' | 'all';
+type ReportViewType =
+  | 'ventas'
+  | 'comparativa'
+  | 'usuarios_productos'
+  | 'supervisor_ventas'
+  | 'clientes'
+  | 'historial'
+  | 'envios'
+  | 'compras'
+  | 'balance';
 
 export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases = [] }) => {
   const { isComprador, isJefe, isSupervisor } = useAuth();
   const { isDark } = useTheme();
   const { showBalances, formatBalance, toggleShowBalances } = useFinancialPrivacy();
-  const [activeReportView, setActiveReportView] = useState<ReportViewType>(
-    isComprador ? 'compras' : 'ventas'
-  );
-  const [range, setRange] = useState<DateRangeFilter>('7days');
+  const [activeReportView, setActiveReportView] = useState<ReportViewType>(() => {
+    if (isComprador) return 'compras';
+    if (isSupervisor && !isJefe) return 'supervisor_ventas';
+    return 'comparativa';
+  });
+  const [range, setRange] = useState<DateRangeFilter>('this_week');
+  const [customStartDate, setCustomStartDate] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 14);
+    return d.toISOString().split('T')[0];
+  });
+  const [customEndDate, setCustomEndDate] = useState<string>(() => {
+    return new Date().toISOString().split('T')[0];
+  });
   const [selectedSeller, setSelectedSeller] = useState<string>('all');
   const [selectedSupplier, setSelectedSupplier] = useState<string>('all');
   const [shippingShipperFilter, setShippingShipperFilter] = useState<string>('all');
@@ -60,26 +85,59 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
   const [shippingStatusFilter, setShippingStatusFilter] = useState<string>('all');
   const [shippingSearch, setShippingSearch] = useState<string>('');
 
+  // Helper to test if a date matches the chosen range
+  const isDateInSelectedRange = (dateToCheck: Date): boolean => {
+    const now = new Date();
+    if (range === 'today') {
+      return dateToCheck.toDateString() === now.toDateString();
+    }
+    if (range === 'this_week') {
+      // Current week: Monday 00:00 to Sunday 23:59:59.999
+      const day = now.getDay();
+      const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+      const mon = new Date(now);
+      mon.setDate(diff);
+      mon.setHours(0, 0, 0, 0);
+
+      const sun = new Date(mon);
+      sun.setDate(mon.getDate() + 6);
+      sun.setHours(23, 59, 59, 999);
+
+      return dateToCheck >= mon && dateToCheck <= sun;
+    }
+    if (range === '7days') {
+      const past7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      return dateToCheck >= past7;
+    }
+    if (range === '30days') {
+      const past30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      return dateToCheck >= past30;
+    }
+    if (range === 'this_month') {
+      return (
+        dateToCheck.getMonth() === now.getMonth() &&
+        dateToCheck.getFullYear() === now.getFullYear()
+      );
+    }
+    if (range === 'custom') {
+      if (customStartDate) {
+        const s = new Date(customStartDate + 'T00:00:00');
+        if (dateToCheck < s) return false;
+      }
+      if (customEndDate) {
+        const e = new Date(customEndDate + 'T23:59:59.999');
+        if (dateToCheck > e) return false;
+      }
+      return true;
+    }
+    return true; // 'all'
+  };
+
   // Filter orders by date range and seller
   const filteredOrders = useMemo(() => {
-    const now = new Date();
     return orders.filter((order) => {
       const orderDate = new Date(order.createdAt);
-      let matchDate = true;
-
-      if (range === 'today') {
-        matchDate = orderDate.toDateString() === now.toDateString();
-      } else if (range === '7days') {
-        const past7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        matchDate = orderDate >= past7;
-      } else if (range === '30days') {
-        const past30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        matchDate = orderDate >= past30;
-      } else if (range === 'this_month') {
-        matchDate =
-          orderDate.getMonth() === now.getMonth() &&
-          orderDate.getFullYear() === now.getFullYear();
-      }
+      const matchDate = isDateInSelectedRange(orderDate);
 
       const matchSeller =
         selectedSeller === 'all' ||
@@ -87,28 +145,13 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
 
       return matchDate && matchSeller;
     });
-  }, [orders, range, selectedSeller]);
+  }, [orders, range, customStartDate, customEndDate, selectedSeller]);
 
   // Shipping specific filtered orders
   const filteredShippingOrders = useMemo(() => {
-    const now = new Date();
     return orders.filter((order) => {
       const orderDate = new Date(order.createdAt);
-      let matchDate = true;
-
-      if (range === 'today') {
-        matchDate = orderDate.toDateString() === now.toDateString();
-      } else if (range === '7days') {
-        const past7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        matchDate = orderDate >= past7;
-      } else if (range === '30days') {
-        const past30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        matchDate = orderDate >= past30;
-      } else if (range === 'this_month') {
-        matchDate =
-          orderDate.getMonth() === now.getMonth() &&
-          orderDate.getFullYear() === now.getFullYear();
-      }
+      const matchDate = isDateInSelectedRange(orderDate);
 
       const actualShipper =
         order.enviadoPorNombre || order.despachadoPorNombre || (order.estado === 'Entregado' ? order.vendedorNombre : '');
@@ -139,28 +182,13 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
 
       return matchDate && matchShipper && matchSeller && matchStatus && matchSearch;
     });
-  }, [orders, range, shippingShipperFilter, shippingSellerFilter, shippingStatusFilter, shippingSearch]);
+  }, [orders, range, customStartDate, customEndDate, shippingShipperFilter, shippingSellerFilter, shippingStatusFilter, shippingSearch]);
 
   // Filter purchases by date range
   const filteredPurchases = useMemo(() => {
-    const now = new Date();
     return purchases.filter((p) => {
       const pDate = new Date(p.fechaCompra || p.createdAt);
-      let matchDate = true;
-
-      if (range === 'today') {
-        matchDate = pDate.toDateString() === now.toDateString();
-      } else if (range === '7days') {
-        const past7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        matchDate = pDate >= past7;
-      } else if (range === '30days') {
-        const past30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        matchDate = pDate >= past30;
-      } else if (range === 'this_month') {
-        matchDate =
-          pDate.getMonth() === now.getMonth() &&
-          pDate.getFullYear() === now.getFullYear();
-      }
+      const matchDate = isDateInSelectedRange(pDate);
 
       const matchSupplier =
         selectedSupplier === 'all' ||
@@ -168,7 +196,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
 
       return matchDate && matchSupplier;
     });
-  }, [purchases, range, selectedSupplier]);
+  }, [purchases, range, customStartDate, customEndDate, selectedSupplier]);
 
   // Unique list of sellers
   const allSellers = useMemo(() => {
@@ -519,396 +547,414 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleExportCSV}
-          className="py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm active:scale-95 shadow-sm flex items-center justify-center gap-2 transition cursor-pointer bg-white hover:bg-[#F5EFE0] border border-[#E8DFC8] text-[#1A2B5C]"
-        >
-          <Download className="w-4 h-4 text-emerald-600" />
-          <span>Exportar Excel (CSV)</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <BalanceToggleBtn size="sm" />
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            className="py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm active:scale-95 shadow-sm flex items-center justify-center gap-2 transition cursor-pointer bg-white hover:bg-[#F5EFE0] border border-[#E8DFC8] text-[#1A2B5C]"
+          >
+            <Download className="w-4 h-4 text-emerald-600" />
+            <span>Exportar Excel (CSV)</span>
+          </button>
+        </div>
       </div>
 
-      {/* Main View Switcher: Ventas vs Envíos vs Compras vs Balance */}
+      {/* Main View Switcher: Role-Based Tabs (Supervisor vs Jefe) */}
       {!isComprador && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 border p-1.5 rounded-2xl bg-white border-[#E8DFC8]">
-          <button
-            type="button"
-            onClick={() => setActiveReportView('ventas')}
-            className={`py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer ${
-              activeReportView === 'ventas'
-                ? 'bg-[#1A2B5C] text-white shadow-md font-black'
-                : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
-            }`}
-          >
-            <ShoppingBag className="w-4 h-4" />
-            <span>1. Ventas</span>
-          </button>
+        <div className="space-y-2">
+          {/* Role indication banner */}
+          <div className="flex items-center justify-between px-1 text-xs">
+            <span className="font-extrabold text-[#1A2B5C] dark:text-[#FF6FA5] flex items-center gap-1.5">
+              {isSupervisor && !isJefe ? (
+                <>
+                  <Users className="w-3.5 h-3.5 text-blue-500" />
+                  Panel de Supervisión: Listados Operativos y Filtros Rápidos
+                </>
+              ) : (
+                <>
+                  <Crown className="w-3.5 h-3.5 text-amber-500" />
+                  Panel Gerencial y Toma de Decisiones Estratégicas
+                </>
+              )}
+            </span>
+            <span className="text-[11px] text-[#78716C]">
+              {isSupervisor && !isJefe
+                ? 'Supervisión en listado: Ventas, Usuarios y Productos (Semana, Mes y Rango de Fechas)'
+                : 'Acceso total: Métricas de Decisión, Flujo de Ventas, Compras y Balances'}
+            </span>
+          </div>
 
-          <button
-            type="button"
-            onClick={() => setActiveReportView('envios')}
-            className={`py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer ${
-              activeReportView === 'envios'
-                ? 'bg-[#1A2B5C] text-white shadow-md font-black'
-                : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
-            }`}
-          >
-            <Truck className="w-4 h-4 text-amber-500" />
-            <span>2. Envíos</span>
-          </button>
+          {/* Supervisor Tabs: Un solo reporte de Ventas con Usuario y Productos en listado rápido, sin dashboards de análisis */}
+          {isSupervisor && !isJefe ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 border p-1.5 rounded-2xl bg-white border-[#E8DFC8]">
+              <button
+                type="button"
+                onClick={() => setActiveReportView('supervisor_ventas')}
+                className={`py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer ${
+                  activeReportView === 'supervisor_ventas' || activeReportView === 'usuarios_productos' || activeReportView === 'ventas' || activeReportView === 'comparativa'
+                    ? 'bg-[#1A2B5C] text-white shadow-md font-black'
+                    : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
+                }`}
+              >
+                <ShoppingBag className="w-4 h-4 text-blue-400" />
+                <span>1. Ventas, Usuarios y Productos</span>
+              </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveReportView('compras')}
-            className={`py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer ${
-              activeReportView === 'compras'
-                ? 'bg-amber-500 text-white shadow-md font-black'
-                : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
-            }`}
-          >
-            <TrendingDown className="w-4 h-4" />
-            <span>3. Compras</span>
-          </button>
+              <button
+                type="button"
+                onClick={() => setActiveReportView('clientes')}
+                className={`py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer ${
+                  activeReportView === 'clientes'
+                    ? 'bg-[#1A2B5C] text-white shadow-md font-black'
+                    : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
+                }`}
+              >
+                <Crown className="w-4 h-4 text-amber-400" />
+                <span>2. Ranking Clientes</span>
+              </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveReportView('balance')}
-            className={`py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer ${
-              activeReportView === 'balance'
-                ? 'bg-emerald-600 text-white shadow-md font-black'
-                : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
-            }`}
-          >
-            <Scale className="w-4 h-4" />
-            <span>4. Balance</span>
-          </button>
+              <button
+                type="button"
+                onClick={() => setActiveReportView('historial')}
+                className={`py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer ${
+                  activeReportView === 'historial'
+                    ? 'bg-[#1A2B5C] text-white shadow-md font-black'
+                    : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
+                }`}
+              >
+                <Search className="w-4 h-4 text-emerald-400" />
+                <span>3. Historial de Ventas</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveReportView('envios')}
+                className={`py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer ${
+                  activeReportView === 'envios'
+                    ? 'bg-[#1A2B5C] text-white shadow-md font-black'
+                    : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
+                }`}
+              >
+                <Truck className="w-4 h-4 text-blue-400" />
+                <span>4. Control Envíos</span>
+              </button>
+            </div>
+          ) : (
+            /* Jefe / Admin Tabs - All Decision Making Reports */
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 border p-1.5 rounded-2xl bg-white border-[#E8DFC8]">
+              <button
+                type="button"
+                onClick={() => setActiveReportView('comparativa')}
+                className={`py-2.5 px-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                  activeReportView === 'comparativa'
+                    ? 'bg-[#1A2B5C] text-white shadow-md font-black'
+                    : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
+                }`}
+              >
+                <ArrowUpDown className="w-3.5 h-3.5 text-amber-400" />
+                <span>1. Decisiones</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveReportView('ventas')}
+                className={`py-2.5 px-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                  activeReportView === 'ventas'
+                    ? 'bg-[#1A2B5C] text-white shadow-md font-black'
+                    : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
+                }`}
+              >
+                <ShoppingBag className="w-3.5 h-3.5" />
+                <span>2. Ventas Diarias</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveReportView('usuarios_productos')}
+                className={`py-2.5 px-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                  activeReportView === 'usuarios_productos'
+                    ? 'bg-[#1A2B5C] text-white shadow-md font-black'
+                    : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5 text-blue-400" />
+                <span>3. Vendedores</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveReportView('clientes')}
+                className={`py-2.5 px-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                  activeReportView === 'clientes'
+                    ? 'bg-[#1A2B5C] text-white shadow-md font-black'
+                    : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
+                }`}
+              >
+                <Crown className="w-3.5 h-3.5 text-amber-400" />
+                <span>4. Clientes</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveReportView('historial')}
+                className={`py-2.5 px-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                  activeReportView === 'historial'
+                    ? 'bg-[#1A2B5C] text-white shadow-md font-black'
+                    : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
+                }`}
+              >
+                <Search className="w-3.5 h-3.5 text-emerald-400" />
+                <span>5. Auditoría</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveReportView('envios')}
+                className={`py-2.5 px-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                  activeReportView === 'envios'
+                    ? 'bg-[#1A2B5C] text-white shadow-md font-black'
+                    : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
+                }`}
+              >
+                <Truck className="w-3.5 h-3.5 text-amber-400" />
+                <span>6. Envíos</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveReportView('compras')}
+                className={`py-2.5 px-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                  activeReportView === 'compras'
+                    ? 'bg-amber-500 text-white shadow-md font-black'
+                    : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
+                }`}
+              >
+                <TrendingDown className="w-3.5 h-3.5" />
+                <span>7. Compras</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveReportView('balance')}
+                className={`py-2.5 px-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                  activeReportView === 'balance'
+                    ? 'bg-emerald-600 text-white shadow-md font-black'
+                    : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
+                }`}
+              >
+                <Scale className="w-3.5 h-3.5" />
+                <span>8. Balance</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Filter Controls Bar (Period + Specific Filters) */}
-      <div className="border rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3 bg-white border-[#E8DFC8]">
-        <div className="flex items-center gap-1.5 overflow-x-auto">
-          <button
-            type="button"
-            onClick={() => setRange('today')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-              range === 'today'
-                ? 'bg-[#1A2B5C] text-white font-black shadow-md'
-                : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C]'
-            }`}
-          >
-            Hoy (Diario)
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setRange('7days')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-              range === '7days'
-                ? 'bg-[#1A2B5C] text-white font-black shadow-md'
-                : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C]'
-            }`}
-          >
-            Últimos 7 Días (Semanal)
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setRange('this_month')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-              range === 'this_month'
-                ? 'bg-[#1A2B5C] text-white font-black shadow-md'
-                : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C]'
-            }`}
-          >
-            Este Mes (Mensual)
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setRange('all')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-              range === 'all'
-                ? 'bg-[#1A2B5C] text-white font-black shadow-md'
-                : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C]'
-            }`}
-          >
-            Histórico Total
-          </button>
-        </div>
-
-        {activeReportView === 'ventas' && allSellers.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-[#78716C]">Vendedor:</span>
-            <select
-              value={selectedSeller}
-              onChange={(e) => setSelectedSeller(e.target.value)}
-              className="text-xs font-bold border rounded-xl px-2.5 py-1.5 focus:outline-none transition bg-[#FBF7EF] text-[#1A2B5C] border-[#E8DFC8]"
-            >
-              <option value="all">Todos los vendedores</option>
-              {allSellers.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {activeReportView === 'envios' && (
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-[#78716C]">Despachó:</span>
-              <select
-                value={shippingShipperFilter}
-                onChange={(e) => setShippingShipperFilter(e.target.value)}
-                className="text-xs font-bold border rounded-xl px-2.5 py-1.5 focus:outline-none transition bg-[#FBF7EF] text-[#1A2B5C] border-[#E8DFC8]"
+      {/* Filter Controls Bar (Period + Specific Filters for Non-Ventas, Non-Comparativa, Non-Clientes, Non-Usuarios, Non-Historial Views) */}
+      {(activeReportView === 'envios' || activeReportView === 'compras' || activeReportView === 'balance') && (
+        <div className="border rounded-2xl p-3.5 space-y-3 bg-white border-[#E8DFC8]">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+              <button
+                type="button"
+                onClick={() => setRange('this_week')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                  range === 'this_week'
+                    ? 'bg-[#1A2B5C] text-white font-black shadow-md'
+                    : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C]'
+                }`}
               >
-                <option value="all">Todos los despachadores</option>
-                {allShippers.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
+                <span>⚡ Esta Semana</span>
+              </button>
 
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-[#78716C]">Vendedora:</span>
-              <select
-                value={shippingSellerFilter}
-                onChange={(e) => setShippingSellerFilter(e.target.value)}
-                className="text-xs font-bold border rounded-xl px-2.5 py-1.5 focus:outline-none transition bg-[#FBF7EF] text-[#1A2B5C] border-[#E8DFC8]"
+              <button
+                type="button"
+                onClick={() => setRange('this_month')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  range === 'this_month'
+                    ? 'bg-[#1A2B5C] text-white font-black shadow-md'
+                    : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C]'
+                }`}
               >
-                <option value="all">Todas las vendedoras</option>
-                {allSellers.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
+                Este Mes
+              </button>
 
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-[#78716C]">Estado:</span>
-              <select
-                value={shippingStatusFilter}
-                onChange={(e) => setShippingStatusFilter(e.target.value)}
-                className="text-xs font-bold border rounded-xl px-2.5 py-1.5 focus:outline-none transition bg-[#FBF7EF] text-[#1A2B5C] border-[#E8DFC8]"
+              <button
+                type="button"
+                onClick={() => setRange('custom')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                  range === 'custom'
+                    ? 'bg-[#1A2B5C] text-white font-black shadow-md'
+                    : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C]'
+                }`}
               >
-                <option value="all">Todos los estados</option>
-                <option value="Entregado">Entregados</option>
-                <option value="Abierto">Pendientes / En Ruta</option>
-                <option value="Anulado">Anulados</option>
-              </select>
-            </div>
-          </div>
-        )}
+                <Calendar className="w-3.5 h-3.5" />
+                <span>Personalizado</span>
+              </button>
 
-        {activeReportView === 'compras' && allSuppliers.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-[#78716C]">Proveedor:</span>
-            <select
-              value={selectedSupplier}
-              onChange={(e) => setSelectedSupplier(e.target.value)}
-              className="text-xs font-bold border rounded-xl px-2.5 py-1.5 focus:outline-none transition bg-[#FBF7EF] text-[#1A2B5C] border-[#E8DFC8]"
-            >
-              <option value="all">Todos los proveedores</option>
-              {allSuppliers.map((sup) => (
-                <option key={sup} value={sup}>
-                  {sup}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-        {/* Balance Privacy Toggle */}
-        <div className="flex items-center ml-auto">
-          <BalanceToggleBtn size="sm" />
-        </div>
-      </div>
+              <button
+                type="button"
+                onClick={() => setRange('today')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  range === 'today'
+                    ? 'bg-[#1A2B5C] text-white font-black shadow-md'
+                    : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C]'
+                }`}
+              >
+                Hoy
+              </button>
 
-      {/* VIEW 1: REPORTE DE VENTAS */}
-      {activeReportView === 'ventas' && (
-        <div className="space-y-6 animate-in fade-in">
-          {/* KPI Cards Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-            <div
-              onClick={toggleShowBalances}
-              className="border rounded-2xl p-4 shadow-sm bg-white border-[#E8DFC8] cursor-pointer select-none hover:border-[#1A2B5C]/30 transition"
-              title="Haz clic para mostrar u ocultar saldos"
-            >
-              <span className="text-[11px] font-bold uppercase tracking-wider block mb-1 text-[#78716C]">
-                Total Ventas (Bs.)
-              </span>
-              <span className="text-xl sm:text-2xl font-black font-['Outfit',sans-serif] block text-[#1A2B5C]">
-                {formatBalance(totalVendido)}
-              </span>
-              <span className="text-[11px] block mt-0.5 text-[#78716C]/80">
-                {validOrders.length} pedidos efectivos
-              </span>
+              <button
+                type="button"
+                onClick={() => setRange('all')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  range === 'all'
+                    ? 'bg-[#1A2B5C] text-white font-black shadow-md'
+                    : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C]'
+                }`}
+              >
+                Todo el año / Histórico
+              </button>
             </div>
 
-            <div
-              onClick={toggleShowBalances}
-              className="border rounded-2xl p-4 shadow-sm bg-white border-emerald-200 cursor-pointer select-none hover:border-emerald-400 transition"
-              title="Haz clic para mostrar u ocultar saldos"
-            >
-              <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider block mb-1">
-                Cobrado en Caja (QR / Ef.)
-              </span>
-              <span className="text-xl sm:text-2xl font-black text-emerald-700 font-['Outfit',sans-serif] block">
-                {formatBalance(totalCobrado)}
-              </span>
-              <span className="text-[11px] text-emerald-700/80 block mt-0.5">
-                Ingreso real recibido
-              </span>
-            </div>
-
-            <div
-              onClick={toggleShowBalances}
-              className="border rounded-2xl p-4 shadow-sm bg-white border-amber-200 cursor-pointer select-none hover:border-amber-400 transition"
-              title="Haz clic para mostrar u ocultar saldos"
-            >
-              <span className="text-[11px] font-bold text-amber-700 uppercase tracking-wider block mb-1">
-                Saldos por Cobrar
-              </span>
-              <span className="text-xl sm:text-2xl font-black text-amber-700 font-['Outfit',sans-serif] block">
-                {formatBalance(totalPorCobrar)}
-              </span>
-              <span className="text-[11px] text-amber-700/80 block mt-0.5">
-                Pendientes de cobro
-              </span>
-            </div>
-
-            <div
-              onClick={toggleShowBalances}
-              className="border rounded-2xl p-4 shadow-sm bg-white border-[#E8DFC8] cursor-pointer select-none hover:border-[#1A2B5C]/30 transition"
-              title="Haz clic para mostrar u ocultar saldos"
-            >
-              <span className="text-[11px] font-bold uppercase tracking-wider block mb-1 text-[#1A2B5C]">
-                Ticket Promedio
-              </span>
-              <span className="text-xl sm:text-2xl font-black font-['Outfit',sans-serif] block text-[#1A2B5C]">
-                {formatBalance(ticketPromedio)}
-              </span>
-              <span className="text-[11px] block mt-0.5 text-[#78716C]/80">
-                Promedio por cliente
-              </span>
-            </div>
+            {/* Custom Range Date Pickers */}
+            {range === 'custom' && (
+              <div className="flex items-center gap-2 bg-[#FBF7EF] px-3 py-1.5 rounded-xl border border-[#E8DFC8]">
+                <span className="text-[11px] font-bold text-[#78716C]">Desde:</span>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="text-xs font-bold border rounded-lg px-2 py-1 bg-white border-[#E8DFC8] text-[#1A2B5C] focus:outline-none"
+                />
+                <span className="text-[11px] font-bold text-[#78716C]">Hasta:</span>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="text-xs font-bold border rounded-lg px-2 py-1 bg-white border-[#E8DFC8] text-[#1A2B5C] focus:outline-none"
+                />
+              </div>
+            )}
           </div>
 
-          {/* Ventas Anuladas KPI if any */}
-          {totalAnulado > 0 && (
-            <div className="p-3.5 border rounded-2xl flex items-center justify-between text-xs bg-rose-50 border-rose-200 text-rose-800">
-              <div className="flex items-center gap-2">
-                <XCircle className="w-4 h-4 text-rose-500 shrink-0" />
-                <span>
-                  <strong>Ventas Anuladas:</strong> {canceledOrders.length} pedido(s) anulado(s) por un valor de {formatBalance(totalAnulado)}.
-                </span>
+          {activeReportView === 'envios' && (
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-[#78716C]">Despachó:</span>
+                <select
+                  value={shippingShipperFilter}
+                  onChange={(e) => setShippingShipperFilter(e.target.value)}
+                  className="text-xs font-bold border rounded-xl px-2.5 py-1.5 focus:outline-none transition bg-[#FBF7EF] text-[#1A2B5C] border-[#E8DFC8]"
+                >
+                  <option value="all">Todos los despachadores</option>
+                  {allShippers.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-[#78716C]">Vendedora:</span>
+                <select
+                  value={shippingSellerFilter}
+                  onChange={(e) => setShippingSellerFilter(e.target.value)}
+                  className="text-xs font-bold border rounded-xl px-2.5 py-1.5 focus:outline-none transition bg-[#FBF7EF] text-[#1A2B5C] border-[#E8DFC8]"
+                >
+                  <option value="all">Todas las vendedoras</option>
+                  {allSellers.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-[#78716C]">Estado:</span>
+                <select
+                  value={shippingStatusFilter}
+                  onChange={(e) => setShippingStatusFilter(e.target.value)}
+                  className="text-xs font-bold border rounded-xl px-2.5 py-1.5 focus:outline-none transition bg-[#FBF7EF] text-[#1A2B5C] border-[#E8DFC8]"
+                >
+                  <option value="all">Todos los estados</option>
+                  <option value="Entregado">Entregados</option>
+                  <option value="Abierto">Pendientes / En Ruta</option>
+                  <option value="Anulado">Anulados</option>
+                </select>
               </div>
             </div>
           )}
 
-          {/* Charts Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Sales by Seller Performance */}
-            <div className="lg:col-span-6 border rounded-3xl p-5 shadow-sm space-y-4 bg-white border-[#E8DFC8]">
-              <div className="flex items-center justify-between border-b pb-3 border-[#E8DFC8]">
-                <div className="flex items-center gap-2">
-                  <Award className="w-5 h-5 text-amber-500" />
-                  <h2 className="text-base font-bold font-['Outfit',sans-serif] text-[#1A2B5C]">
-                    Rendimiento por Vendedor
-                  </h2>
-                </div>
-                <span className="text-xs text-[#78716C]">Total en Bs.</span>
-              </div>
-
-              <div className="space-y-3">
-                {sellerPerformance.length === 0 ? (
-                  <p className="text-xs py-8 text-center text-[#78716C]">
-                    Sin datos de ventas en este rango.
-                  </p>
-                ) : (
-                  sellerPerformance.map((seller, idx) => (
-                    <div
-                      key={idx}
-                      className="p-3 rounded-xl border flex items-center justify-between gap-3 bg-[#FBF7EF] border-[#E8DFC8]"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-7 h-7 rounded-lg font-bold text-xs flex items-center justify-center bg-[#1A2B5C]/10 text-[#1A2B5C]">
-                          #{idx + 1}
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-bold text-[#1A2B5C]">
-                            {seller.name}
-                          </h4>
-                          <p className="text-[11px] text-[#78716C]">
-                            {seller.count} {seller.count === 1 ? 'venta' : 'ventas'}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="text-right">
-                        <span className="text-sm font-black font-mono block text-[#1A2B5C]">
-                          {formatBalance(seller.total)}
-                        </span>
-                        <span className="text-[10px] text-emerald-700 font-bold">
-                          Cobrado: {formatBalance(seller.cobrado)}
-                        </span>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
+          {activeReportView === 'compras' && allSuppliers.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[#78716C]">Proveedor:</span>
+              <select
+                value={selectedSupplier}
+                onChange={(e) => setSelectedSupplier(e.target.value)}
+                className="text-xs font-bold border rounded-xl px-2.5 py-1.5 focus:outline-none transition bg-[#FBF7EF] text-[#1A2B5C] border-[#E8DFC8]"
+              >
+                <option value="all">Todos los proveedores</option>
+                {allSuppliers.map((sup) => (
+                  <option key={sup} value={sup}>
+                    {sup}
+                  </option>
+                ))}
+              </select>
             </div>
-
-            {/* Top 6 Best-selling Products */}
-            <div className="lg:col-span-6 border rounded-3xl p-5 shadow-sm space-y-4 bg-white border-[#E8DFC8]">
-              <div className="flex items-center justify-between border-b pb-3 border-[#E8DFC8]">
-                <div className="flex items-center gap-2">
-                  <Package className="w-5 h-5 text-[#1A2B5C]" />
-                  <h2 className="text-base font-bold font-['Outfit',sans-serif] text-[#1A2B5C]">
-                    Top Artículos Más Vendidos
-                  </h2>
-                </div>
-                <span className="text-xs text-[#78716C]">Unidades vendidas</span>
-              </div>
-
-              <div className="space-y-3">
-                {topProductsSold.length === 0 ? (
-                  <p className="text-xs py-8 text-center text-[#78716C]">
-                    Sin productos en este rango.
-                  </p>
-                ) : (
-                  topProductsSold.map((prod, idx) => (
-                    <div
-                      key={idx}
-                      className="p-3 rounded-xl border flex items-center justify-between gap-3 bg-[#FBF7EF] border-[#E8DFC8]"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="w-6 h-6 rounded-md text-xs font-bold flex items-center justify-center shrink-0 bg-[#1A2B5C]/10 text-[#1A2B5C]">
-                          {prod.cantidad}u
-                        </span>
-                        <span className="text-xs sm:text-sm font-bold truncate text-[#1A2B5C]">
-                          {prod.name}
-                        </span>
-                      </div>
-
-                      <span className="text-xs sm:text-sm font-black font-mono shrink-0 text-[#1A2B5C]">
-                        {formatCurrency(prod.totalBs)}
-                      </span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+          )}
+          {/* Balance Privacy Toggle */}
+          <div className="flex items-center ml-auto">
+            <BalanceToggleBtn size="sm" />
           </div>
         </div>
       )}
 
-      {/* VIEW 2: REPORTE DE ENVÍOS & LOGÍSTICA (NUEVO) */}
+      {/* VIEW 1: REPORTE DE VENTAS (VISTA DIARIA COMPLETA Y DINÁMICA CON GRÁFICOS - EXCLUSIVO JEFE) */}
+      {activeReportView === 'ventas' && isJefe && (
+        <DailySalesReport
+          orders={orders}
+          range={range}
+          onRangeChange={setRange}
+          selectedSeller={selectedSeller}
+          onSellerChange={setSelectedSeller}
+          allSellers={allSellers}
+        />
+      )}
+
+      {/* VIEW SUPERVISOR: REPORTE UNIFICADO DE VENTAS, USUARIOS Y PRODUCTOS (LISTADO CON FILTROS RÁPIDOS, SIN DASHBOARDS) */}
+      {(activeReportView === 'supervisor_ventas' || (isSupervisor && !isJefe && (activeReportView === 'usuarios_productos' || activeReportView === 'ventas' || activeReportView === 'comparativa'))) && (
+        <SupervisorSalesReport orders={orders} />
+      )}
+
+      {/* VIEW 2: REPORTE COMPARATIVO SEMANAL Y MENSUAL (EXCLUSIVO JEFE/ADMIN) */}
+      {activeReportView === 'comparativa' && isJefe && (
+        <ComparativeSalesReport
+          orders={orders}
+          allSellers={allSellers}
+          onNavigateToDaily={() => setActiveReportView('ventas')}
+        />
+      )}
+
+      {/* VIEW 3: VENTAS POR USUARIOS Y PRODUCTOS (MODO GERENCIAL / JEFE) */}
+      {activeReportView === 'usuarios_productos' && isJefe && (
+        <SalesByUserAndProductReport orders={orders} />
+      )}
+
+      {/* VIEW 4: REPORTE TOP CLIENTES (POR DÍAS, SEMANAS Y MESES) */}
+      {activeReportView === 'clientes' && (
+        <TopClientsReport orders={orders} />
+      )}
+
+      {/* VIEW 5: HISTORIAL DE VENTAS PARA REVISIÓN Y AUDITORÍA */}
+      {activeReportView === 'historial' && (
+        <SalesHistoryAuditReport orders={orders} />
+      )}
+
+      {/* VIEW 4: REPORTE DE ENVÍOS & LOGÍSTICA (NUEVO) */}
       {activeReportView === 'envios' && (
         <div className="space-y-6 animate-in fade-in">
           {/* KPI Cards Grid for Envíos */}

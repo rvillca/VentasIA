@@ -403,7 +403,7 @@ REGLAS ESTRICTAS:
 `;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.7-flash',
+        model: 'gemini-2.5-flash',
         contents: `Analiza esta lista de compras / pedido en Bolivia y extrae los productos con sus precios en Bolivianos:\n"""${cleanInput}"""`,
         config: {
           systemInstruction,

@@ -58,6 +58,7 @@ export interface TopClientData {
 export type ClientDateFilterMode =
   | 'today'
   | 'yesterday'
+  | 'this_week'
   | '7days'
   | 'this_month'
   | 'last_month'
@@ -77,7 +78,7 @@ export const TopClientsReport: React.FC<TopClientsReportProps> = ({ orders }) =>
   const { formatBalance, toggleShowBalances } = useFinancialPrivacy();
 
   // Filter & State
-  const [dateMode, setDateMode] = useState<ClientDateFilterMode>('this_month');
+  const [dateMode, setDateMode] = useState<ClientDateFilterMode>('this_week');
   const [customDay, setCustomDay] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
@@ -122,6 +123,18 @@ export const TopClientsReport: React.FC<TopClientsReportProps> = ({ orders }) =>
         const yesterday = new Date(now);
         yesterday.setDate(yesterday.getDate() - 1);
         return orderDate.toDateString() === yesterday.toDateString();
+      }
+
+      if (dateMode === 'this_week') {
+        const day = now.getDay();
+        const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+        const mon = new Date(now);
+        mon.setDate(diff);
+        mon.setHours(0, 0, 0, 0);
+        const sun = new Date(mon);
+        sun.setDate(mon.getDate() + 6);
+        sun.setHours(23, 59, 59, 999);
+        return orderDate >= mon && orderDate <= sun;
       }
 
       if (dateMode === '7days') {
@@ -423,6 +436,7 @@ export const TopClientsReport: React.FC<TopClientsReportProps> = ({ orders }) =>
   const dateLabel = useMemo(() => {
     if (dateMode === 'today') return 'Hoy (Día)';
     if (dateMode === 'yesterday') return 'Ayer';
+    if (dateMode === 'this_week') return 'Esta Semana (Lunes a Hoy)';
     if (dateMode === '7days') return 'Últimos 7 días';
     if (dateMode === 'this_month') return 'Este Mes';
     if (dateMode === 'last_month') return 'Mes Anterior';
@@ -477,99 +491,125 @@ export const TopClientsReport: React.FC<TopClientsReportProps> = ({ orders }) =>
           </span>
         </div>
 
-        {/* Quick Presets */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-          <button
-            type="button"
-            onClick={() => setDateMode('today')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
-              dateMode === 'today'
-                ? 'bg-[#1A2B5C] text-white font-black shadow-sm'
-                : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C]'
-            }`}
-          >
-            Hoy (Diario)
-          </button>
+        {/* Quick Presets by Days, Weeks and Months */}
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          {/* Por Días */}
+          <div className="flex items-center gap-1 bg-[#FBF7EF] p-1 rounded-xl border border-[#E8DFC8]">
+            <span className="text-[10px] font-black uppercase text-[#78716C] px-1.5">
+              Días:
+            </span>
+            <button
+              type="button"
+              onClick={() => setDateMode('today')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                dateMode === 'today'
+                  ? 'bg-[#1A2B5C] text-white font-black shadow-xs'
+                  : 'text-[#78716C] hover:text-[#1A2B5C]'
+              }`}
+            >
+              Hoy
+            </button>
+            <button
+              type="button"
+              onClick={() => setDateMode('yesterday')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                dateMode === 'yesterday'
+                  ? 'bg-[#1A2B5C] text-white font-black shadow-xs'
+                  : 'text-[#78716C] hover:text-[#1A2B5C]'
+              }`}
+            >
+              Ayer
+            </button>
+            <button
+              type="button"
+              onClick={() => setDateMode('specific_day')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                dateMode === 'specific_day'
+                  ? 'bg-[#1A2B5C] text-white font-black shadow-xs'
+                  : 'text-[#78716C] hover:text-[#1A2B5C]'
+              }`}
+            >
+              📅 Día específico
+            </button>
+          </div>
 
-          <button
-            type="button"
-            onClick={() => setDateMode('yesterday')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
-              dateMode === 'yesterday'
-                ? 'bg-[#1A2B5C] text-white font-black shadow-sm'
-                : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C]'
-            }`}
-          >
-            Ayer
-          </button>
+          {/* Por Semanas */}
+          <div className="flex items-center gap-1 bg-[#FBF7EF] p-1 rounded-xl border border-[#E8DFC8]">
+            <span className="text-[10px] font-black uppercase text-[#78716C] px-1.5">
+              Semanas:
+            </span>
+            <button
+              type="button"
+              onClick={() => setDateMode('this_week')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                dateMode === 'this_week'
+                  ? 'bg-[#1A2B5C] text-white font-black shadow-xs'
+                  : 'text-[#78716C] hover:text-[#1A2B5C]'
+              }`}
+            >
+              ⚡ Esta Semana
+            </button>
+            <button
+              type="button"
+              onClick={() => setDateMode('7days')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                dateMode === '7days'
+                  ? 'bg-[#1A2B5C] text-white font-black shadow-xs'
+                  : 'text-[#78716C] hover:text-[#1A2B5C]'
+              }`}
+            >
+              Últimos 7 Días
+            </button>
+          </div>
 
-          <button
-            type="button"
-            onClick={() => setDateMode('7days')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
-              dateMode === '7days'
-                ? 'bg-[#1A2B5C] text-white font-black shadow-sm'
-                : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C]'
-            }`}
-          >
-            Últimos 7 Días
-          </button>
+          {/* Por Meses */}
+          <div className="flex items-center gap-1 bg-[#FBF7EF] p-1 rounded-xl border border-[#E8DFC8]">
+            <span className="text-[10px] font-black uppercase text-[#78716C] px-1.5">
+              Meses:
+            </span>
+            <button
+              type="button"
+              onClick={() => setDateMode('this_month')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                dateMode === 'this_month'
+                  ? 'bg-[#1A2B5C] text-white font-black shadow-xs'
+                  : 'text-[#78716C] hover:text-[#1A2B5C]'
+              }`}
+            >
+              Este Mes
+            </button>
+            <button
+              type="button"
+              onClick={() => setDateMode('last_month')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                dateMode === 'last_month'
+                  ? 'bg-[#1A2B5C] text-white font-black shadow-xs'
+                  : 'text-[#78716C] hover:text-[#1A2B5C]'
+              }`}
+            >
+              Mes Anterior
+            </button>
+            <button
+              type="button"
+              onClick={() => setDateMode('specific_month')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                dateMode === 'specific_month'
+                  ? 'bg-[#1A2B5C] text-white font-black shadow-xs'
+                  : 'text-[#78716C] hover:text-[#1A2B5C]'
+              }`}
+            >
+              🗓️ Mes específico
+            </button>
+          </div>
 
-          <button
-            type="button"
-            onClick={() => setDateMode('this_month')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
-              dateMode === 'this_month'
-                ? 'bg-[#1A2B5C] text-white font-black shadow-sm'
-                : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C]'
-            }`}
-          >
-            Este Mes
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setDateMode('last_month')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
-              dateMode === 'last_month'
-                ? 'bg-[#1A2B5C] text-white font-black shadow-sm'
-                : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C]'
-            }`}
-          >
-            Mes Anterior
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setDateMode('specific_day')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
-              dateMode === 'specific_day'
-                ? 'bg-[#1A2B5C] text-white font-black shadow-sm'
-                : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C]'
-            }`}
-          >
-            📅 Por Día Específico
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setDateMode('specific_month')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
-              dateMode === 'specific_month'
-                ? 'bg-[#1A2B5C] text-white font-black shadow-sm'
-                : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C]'
-            }`}
-          >
-            🗓️ Por Mes Específico
-          </button>
-
+          {/* Histórico Total */}
           <button
             type="button"
             onClick={() => setDateMode('all')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
               dateMode === 'all'
-                ? 'bg-[#1A2B5C] text-white font-black shadow-sm'
-                : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C]'
+                ? 'bg-[#1A2B5C] text-white font-black border-[#1A2B5C] shadow-xs'
+                : 'bg-white border-[#E8DFC8] text-[#78716C] hover:text-[#1A2B5C]'
             }`}
           >
             Histórico Total
