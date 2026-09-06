@@ -34,6 +34,8 @@ import {
 import { Purchase, PurchaseItem, PurchaseStatus } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useFinancialPrivacy } from '../contexts/FinancialPrivacyContext';
+import { BalanceToggleBtn } from './BalanceToggleBtn';
 import {
   formatCurrency,
   formatBoliviaPhone,
@@ -50,6 +52,7 @@ import { PurchaseAnularModal } from './compras/PurchaseAnularModal';
 import { PurchaseDeleteModal } from './compras/PurchaseDeleteModal';
 import { PurchaseDetailModal } from './compras/PurchaseDetailModal';
 import { PackagingSelectionModal } from './PackagingSelectionModal';
+import { computeMonthlyPurchasesStats } from '../lib/roleMetrics';
 
 interface ComprasScreenProps {
   purchases?: Purchase[];
@@ -77,14 +80,19 @@ const CATEGORIES = [
 ];
 
 export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) => {
-  const { isJefe, isSupervisor, isComprador, userProfile, currentUser } = useAuth();
+  const { isJefe, isSupervisor, isComprador, role, userProfile, currentUser } = useAuth();
   const { isDark } = useTheme();
+  const { showBalances, formatBalance, toggleShowBalances } = useFinancialPrivacy();
+  const isCompradorRole = isComprador || role === 'comprador';
 
   // Navigation & Sub-views
   const [activeSubTab, setActiveSubTab] = useState<'list' | 'reports'>('list');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('this_month');
+
+  // Monthly stats and comparison for Comprador
+  const monthlyPurchasesStats = useMemo(() => computeMonthlyPurchasesStats(purchases), [purchases]);
 
   // Modals state
   const [showNewModal, setShowNewModal] = useState(false);
@@ -430,66 +438,118 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-        <div className="bg-white border border-[#E8DFC8] rounded-2xl p-4 shadow-sm">
-          <span className="text-[11px] font-bold text-[#78716C] uppercase tracking-wider block mb-1">
-            Inversión ({periodFilter === 'all' ? 'Histórico' : 'Periodo'})
-          </span>
-          <span className="text-xl sm:text-2xl font-black text-[#1A2B5C] font-['Outfit',sans-serif]">
-            {formatCurrency(totalInvertidoPeriodo)}
-          </span>
-          <span className="text-[11px] text-[#78716C] block mt-0.5">
-            {filteredValid.length} compra(s) registradas
-          </span>
-        </div>
-
-        <div className="bg-white border border-emerald-200 rounded-2xl p-4 shadow-sm bg-gradient-to-br from-white to-emerald-50/50">
-          <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block mb-1">
-            Total Pagado a Proveedores
-          </span>
-          <span className="text-xl sm:text-2xl font-black text-emerald-700 font-['Outfit',sans-serif]">
-            {formatCurrency(totalPagadoPeriodo)}
-          </span>
-          <span className="text-[11px] text-emerald-600 block mt-0.5">
-            Desembolsado en efectivo/QR
-          </span>
-        </div>
-
-        <div className={`bg-white rounded-2xl p-4 shadow-sm border ${
-          totalSaldoPendiente > 0
-            ? 'border-rose-200 bg-gradient-to-br from-white to-rose-50/50'
-            : 'border-[#E8DFC8]'
-        }`}>
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-rose-800 uppercase tracking-wider block mb-1">
-              Deuda Total a Proveedores
+      {isCompradorRole ? (
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
+          {/* Compras registradas */}
+          <div className="bg-white border border-[#E8DFC8] rounded-2xl p-4 shadow-sm">
+            <span className="text-[11px] font-bold text-[#78716C] uppercase tracking-wider block mb-1">
+              Compras registradas
             </span>
-            {totalSaldoPendiente > 0 && (
-              <span className="text-[10px] bg-rose-100 text-rose-800 border border-rose-200 px-1.5 py-0.5 rounded font-bold">
-                {comprasConSaldo.length} pendientes
-              </span>
-            )}
+            <span className="text-xl sm:text-3xl font-black text-[#1A2B5C] font-['Outfit',sans-serif]">
+              {monthlyPurchasesStats.currentMonthCount} {monthlyPurchasesStats.currentMonthCount === 1 ? 'compra' : 'compras'}
+            </span>
+            <span className="text-[11px] text-[#78716C] block mt-0.5">
+              Este mes en curso
+            </span>
           </div>
-          <span className="text-xl sm:text-2xl font-black text-rose-700 font-['Outfit',sans-serif]">
-            {formatCurrency(totalSaldoPendiente)}
-          </span>
-          <span className="text-[11px] text-rose-600 block mt-0.5">
-            Cuentas por pagar acumuladas
-          </span>
-        </div>
 
-        <div className="bg-white border border-amber-200 rounded-2xl p-4 shadow-sm bg-gradient-to-br from-white to-amber-50/50">
-          <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider block mb-1">
-            Total Compras Registradas
-          </span>
-          <span className="text-xl sm:text-2xl font-black text-amber-800 font-['Outfit',sans-serif]">
-            {purchases.length}
-          </span>
-          <span className="text-[11px] text-amber-700 block mt-0.5">
-            Lotes y compras de material
-          </span>
+          {/* Compras pendientes (sin montos) */}
+          <div className="bg-white border border-amber-200 rounded-2xl p-4 shadow-sm bg-gradient-to-br from-white to-amber-50/50">
+            <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider block mb-1">
+              Compras pendientes
+            </span>
+            <span className="text-xl sm:text-3xl font-black text-amber-800 font-['Outfit',sans-serif]">
+              {monthlyPurchasesStats.pendingPurchasesCount} {monthlyPurchasesStats.pendingPurchasesCount === 1 ? 'compra' : 'compras'}
+            </span>
+            <span className="text-[11px] text-amber-700 block mt-0.5">
+              Con saldo pendiente por pagar
+            </span>
+          </div>
         </div>
-      </div>
+      ) : (
+        /* KPI Cards for Boss / Supervisor */
+        <div className="space-y-2">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#78716C]">
+              Resumen Financiero de Compras
+            </span>
+            <BalanceToggleBtn size="sm" />
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+            <div
+              onClick={toggleShowBalances}
+              className="bg-white border border-[#E8DFC8] rounded-2xl p-4 shadow-sm cursor-pointer select-none hover:border-[#1A2B5C]/30 transition group"
+              title="Haz clic para mostrar u ocultar saldos"
+            >
+              <span className="text-[11px] font-bold text-[#78716C] uppercase tracking-wider block mb-1">
+                Inversión ({periodFilter === 'all' ? 'Histórico' : 'Periodo'})
+              </span>
+              <span className="text-xl sm:text-2xl font-black text-[#1A2B5C] font-['Outfit',sans-serif] block">
+                {formatBalance(totalInvertidoPeriodo)}
+              </span>
+              <span className="text-[11px] text-[#78716C] block mt-0.5">
+                {filteredValid.length} compra(s) registradas
+              </span>
+            </div>
+
+            <div
+              onClick={toggleShowBalances}
+              className="bg-white border border-emerald-200 rounded-2xl p-4 shadow-sm bg-gradient-to-br from-white to-emerald-50/50 cursor-pointer select-none hover:border-emerald-400 transition group"
+              title="Haz clic para mostrar u ocultar saldos"
+            >
+              <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block mb-1">
+                Total Pagado a Proveedores
+              </span>
+              <span className="text-xl sm:text-2xl font-black text-emerald-700 font-['Outfit',sans-serif] block">
+                {formatBalance(totalPagadoPeriodo)}
+              </span>
+              <span className="text-[11px] text-emerald-600 block mt-0.5">
+                Desembolsado en efectivo/QR
+              </span>
+            </div>
+
+            <div
+              onClick={toggleShowBalances}
+              className={`bg-white rounded-2xl p-4 shadow-sm border cursor-pointer select-none hover:border-rose-400 transition group ${
+                totalSaldoPendiente > 0
+                  ? 'border-rose-200 bg-gradient-to-br from-white to-rose-50/50'
+                  : 'border-[#E8DFC8]'
+              }`}
+              title="Haz clic para mostrar u ocultar saldos"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-rose-800 uppercase tracking-wider block mb-1">
+                  Deuda Total a Proveedores
+                </span>
+                {totalSaldoPendiente > 0 && (
+                  <span className="text-[10px] bg-rose-100 text-rose-800 border border-rose-200 px-1.5 py-0.5 rounded font-bold">
+                    {comprasConSaldo.length} pendientes
+                  </span>
+                )}
+              </div>
+              <span className="text-xl sm:text-2xl font-black text-rose-700 font-['Outfit',sans-serif] block">
+                {formatBalance(totalSaldoPendiente)}
+              </span>
+              <span className="text-[11px] text-rose-600 block mt-0.5">
+                Cuentas por pagar acumuladas
+              </span>
+            </div>
+
+            <div className="bg-white border border-amber-200 rounded-2xl p-4 shadow-sm bg-gradient-to-br from-white to-amber-50/50">
+              <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider block mb-1">
+                Total Compras Registradas
+              </span>
+              <span className="text-xl sm:text-2xl font-black text-amber-800 font-['Outfit',sans-serif] block">
+                {purchases.length}
+              </span>
+              <span className="text-[11px] text-amber-700 block mt-0.5">
+                Lotes y compras de material
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Sub Tab Selector & Action Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-[#E8DFC8] rounded-2xl p-2.5 shadow-sm">
@@ -507,18 +567,20 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
             <span>Lista de Compras</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveSubTab('reports')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-              activeSubTab === 'reports'
-                ? 'bg-[#1A2B5C] text-white shadow-sm font-extrabold'
-                : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
-            }`}
-          >
-            <TrendingDown className="w-4 h-4" />
-            <span>Reportes de Compras</span>
-          </button>
+          {!isCompradorRole && (
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('reports')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                activeSubTab === 'reports'
+                  ? 'bg-[#1A2B5C] text-white shadow-sm font-extrabold'
+                  : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
+              }`}
+            >
+              <TrendingDown className="w-4 h-4" />
+              <span>Reportes de Compras</span>
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -672,7 +734,7 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                     <div className="bg-[#FBF7EF] border border-[#E8DFC8] rounded-2xl p-3 space-y-1.5">
                       <div className="flex items-center justify-between text-[11px] text-[#78716C] font-bold border-b border-[#E8DFC8] pb-1">
                         <span>{totalItemsCount} artículo(s) en lote</span>
-                        <span>{purchase.metodoPago}</span>
+                        {!isCompradorRole && <span>{purchase.metodoPago}</span>}
                       </div>
                       <div className="space-y-1 max-h-24 overflow-y-auto pr-1">
                         {purchase.productos.map((item, idx) => (
@@ -680,35 +742,56 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                             <span className="truncate pr-2">
                               {formatArticleItem(item)}
                             </span>
-                            <span className="font-mono text-[#78716C] shrink-0">
-                              {formatCurrency(item.subtotal)}
-                            </span>
+                            {!isCompradorRole ? (
+                              <span className="font-mono text-[#78716C] shrink-0">
+                                {formatCurrency(item.subtotal)}
+                              </span>
+                            ) : (
+                              <span className="font-semibold text-[#78716C] shrink-0 text-[11px]">
+                                Cant: {item.cantidad}
+                              </span>
+                            )}
                           </div>
                         ))}
                       </div>
                     </div>
 
-                    {/* Financial Breakdown */}
-                    <div className="grid grid-cols-3 gap-2 text-center p-2.5 bg-[#FBF7EF] rounded-2xl border border-[#E8DFC8]">
-                      <div>
-                        <span className="text-[10px] font-bold text-[#78716C] uppercase block">Total Compra</span>
-                        <span className="text-xs sm:text-sm font-black text-[#1A2B5C] font-mono">
-                          {formatCurrency(purchase.total)}
+                    {/* Financial Breakdown (or Status Pill for Comprador) */}
+                    {isCompradorRole ? (
+                      <div className="p-2.5 bg-[#FBF7EF] rounded-2xl border border-[#E8DFC8] flex items-center justify-between">
+                        <span className="text-xs font-bold text-[#78716C]">Estado de pago al proveedor:</span>
+                        <span className="text-xs font-black">
+                          {isAnulado ? (
+                            <span className="text-rose-700">🚫 Anulado</span>
+                          ) : isPaid ? (
+                            <span className="text-emerald-700">✅ Totalmente Pagado</span>
+                          ) : (
+                            <span className="text-amber-800">⚠️ Con Saldo Pendiente</span>
+                          )}
                         </span>
                       </div>
-                      <div>
-                        <span className="text-[10px] font-bold text-emerald-800 uppercase block">Pagado</span>
-                        <span className="text-xs sm:text-sm font-black text-emerald-700 font-mono">
-                          {formatCurrency(purchase.pagado)}
-                        </span>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-2 text-center p-2.5 bg-[#FBF7EF] rounded-2xl border border-[#E8DFC8]">
+                        <div>
+                          <span className="text-[10px] font-bold text-[#78716C] uppercase block">Total Compra</span>
+                          <span className="text-xs sm:text-sm font-black text-[#1A2B5C] font-['Outfit',sans-serif]">
+                            {formatBalance(purchase.total)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold text-emerald-800 uppercase block">Pagado</span>
+                          <span className="text-xs sm:text-sm font-black text-emerald-700 font-['Outfit',sans-serif]">
+                            {formatBalance(purchase.pagado)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold text-rose-800 uppercase block">Saldo Pendiente</span>
+                          <span className={`text-xs sm:text-sm font-black font-['Outfit',sans-serif] ${purchase.saldo > 0 ? 'text-rose-700' : 'text-[#78716C]'}`}>
+                            {purchase.saldo > 0 ? formatBalance(purchase.saldo) : (showBalances ? 'Bs. 0' : 'Bs. •••••')}
+                          </span>
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-[10px] font-bold text-rose-800 uppercase block">Saldo Pendiente</span>
-                        <span className={`text-xs sm:text-sm font-black font-mono ${purchase.saldo > 0 ? 'text-rose-700' : 'text-[#78716C]'}`}>
-                          {formatCurrency(purchase.saldo)}
-                        </span>
-                      </div>
-                    </div>
+                    )}
 
                     {/* Footer Actions */}
                     <div className="flex items-center justify-between pt-1 gap-2 border-t border-[#E8DFC8]">
@@ -717,7 +800,7 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                       </div>
 
                       <div className="flex flex-wrap items-center gap-1.5">
-                        {isPending && !isAnulado && (
+                        {!isCompradorRole && isPending && !isAnulado && (
                           <>
                             <button
                               type="button"

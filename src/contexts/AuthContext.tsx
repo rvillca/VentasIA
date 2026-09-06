@@ -24,6 +24,7 @@ interface AuthContextType {
   isVendedor: boolean;
   canManageUsers: boolean;
   canViewReports: boolean;
+  canViewSeguimiento: boolean;
   canAccessCompras: boolean;
   canDeleteOrders: boolean;
   canAdminResetPasswords: boolean;
@@ -417,8 +418,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isVendedor = effectiveRole === 'vendedor';
 
   const canManageUsers = isJefe;
-  const canViewReports = isSupervisor || isJefe || isComprador;
-  const canAccessCompras = isJefe || isSupervisor || isComprador || !!userProfile?.comprasAccess;
+  // Supervisor does not view general profit/margin reports, only Jefe does
+  const canViewReports = isJefe;
+  // Seguimiento de Cobros y Pagos is visible for Supervisor and Jefe
+  const canViewSeguimiento = isJefe || effectiveRole === 'supervisor';
+  const canAccessCompras = isJefe || effectiveRole === 'supervisor' || isComprador || !!userProfile?.comprasAccess;
   const canDeleteOrders = isJefe;
   const canAdminResetPasswords = isSupervisor || isJefe;
 
@@ -435,6 +439,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isVendedor,
         canManageUsers,
         canViewReports,
+        canViewSeguimiento,
         canAccessCompras,
         canDeleteOrders,
         canAdminResetPasswords,

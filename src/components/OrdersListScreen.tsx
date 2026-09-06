@@ -30,6 +30,9 @@ import { ThermalPrintModal } from './ThermalPrintModal';
 import { OrderPreparationCardModal } from './OrderPreparationCardModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useFinancialPrivacy } from '../contexts/FinancialPrivacyContext';
+import { BalanceToggleBtn } from './BalanceToggleBtn';
+import { computeMonthlySalesStats } from '../lib/roleMetrics';
 
 interface OrdersListScreenProps {
   orders: Order[];
@@ -46,13 +49,19 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
   onNewOrder,
   onToggleStatus,
 }) => {
-  const { userProfile, role, isJefe, isSupervisor } = useAuth();
+  const { userProfile, role, isJefe, isSupervisor, isVendedor } = useAuth();
   const { isDark } = useTheme();
+  const { showBalances, formatBalance, toggleShowBalances } = useFinancialPrivacy();
+  const isVendedorRole = isVendedor || role === 'vendedor';
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
   const [printOrder, setPrintOrder] = useState<Order | null>(null);
   const [prepOrder, setPrepOrder] = useState<Order | null>(null);
   const [completingId, setCompletingId] = useState<string | null>(null);
+
+  // Monthly stats and comparison for Vendedora & counts
+  const monthlySalesStats = useMemo(() => computeMonthlySalesStats(orders), [orders]);
 
   // Financial summary counters (excluding Anulados)
   const validOrders = orders.filter((o) => o.estado !== 'Anulado');
@@ -143,93 +152,206 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
           </button>
         </div>
 
-        {/* Live Business Balance Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3.5">
-          {/* Total Vendido */}
-          <div
-            className={`border rounded-2xl p-3 sm:p-4 shadow-sm transition-colors ${
-              isDark
-                ? 'bg-[#16234F] border-[#223368] text-white'
-                : 'bg-white border-[#E8DFC8] text-[#1A2B5C]'
-            }`}
-          >
-            <span
-              className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider block mb-0.5 ${
-                isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+        {/* Financial or Count Summary Cards */}
+        {isVendedorRole ? (
+          <div className="grid grid-cols-3 gap-2 sm:gap-3.5">
+            {/* Ventas Registradas (Mes) */}
+            <div
+              className={`border rounded-2xl p-3 sm:p-4 shadow-sm transition-colors ${
+                isDark
+                  ? 'bg-[#16234F] border-[#223368] text-white'
+                  : 'bg-white border-[#E8DFC8] text-[#1A2B5C]'
               }`}
             >
-              Total Ventas Activas
-            </span>
-            <span className="text-lg sm:text-xl font-black font-['Outfit',sans-serif]">
-              {formatCurrency(totalVendido)}
-            </span>
-            <span
-              className={`text-[10px] block mt-0.5 ${
-                isDark ? 'text-[#9AA6C9]/70' : 'text-[#78716C]/80'
-              }`}
-            >
-              {validOrders.length} pedidos
-            </span>
-          </div>
+              <span
+                className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider block mb-0.5 ${
+                  isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                }`}
+              >
+                Ventas registradas
+              </span>
+              <span className="text-lg sm:text-2xl font-black font-['Outfit',sans-serif]">
+                {monthlySalesStats.currentMonthCount} {monthlySalesStats.currentMonthCount === 1 ? 'pedido' : 'pedidos'}
+              </span>
+              <span
+                className={`text-[10px] block mt-0.5 ${
+                  isDark ? 'text-[#9AA6C9]/70' : 'text-[#78716C]/80'
+                }`}
+              >
+                Este mes en curso
+              </span>
+            </div>
 
-          {/* Total Cobrado */}
-          <div
-            className={`border rounded-2xl p-3 sm:p-4 shadow-sm transition-colors ${
-              isDark
-                ? 'bg-[#16234F] border-[#4FD1B5]/30'
-                : 'bg-[#E6FFFA] border-[#99F6E4]'
-            }`}
-          >
-            <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider block mb-0.5 ${
-              isDark ? 'text-[#4FD1B5]' : 'text-[#0D9488]'
-            }`}>
-              Cobrado en Caja
-            </span>
-            <span
-              className={`text-lg sm:text-xl font-black font-['Outfit',sans-serif] ${
-                isDark ? 'text-[#4FD1B5]' : 'text-[#0F766E]'
+            {/* Entregados */}
+            <div
+              className={`border rounded-2xl p-3 sm:p-4 shadow-sm transition-colors ${
+                isDark
+                  ? 'bg-[#16234F] border-[#4FD1B5]/30 text-white'
+                  : 'bg-[#E6FFFA] border-[#99F6E4] text-[#0F766E]'
               }`}
             >
-              {formatCurrency(totalCobrado)}
-            </span>
-            <span
-              className={`text-[10px] block mt-0.5 ${
-                isDark ? 'text-[#4FD1B5]/80' : 'text-[#0D9488]/80'
-              }`}
-            >
-              QR / Efectivo recibido
-            </span>
-          </div>
+              <span
+                className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider block mb-0.5 ${
+                  isDark ? 'text-[#4FD1B5]' : 'text-[#0D9488]'
+                }`}
+              >
+                Entregados
+              </span>
+              <span
+                className={`text-lg sm:text-2xl font-black font-['Outfit',sans-serif] ${
+                  isDark ? 'text-[#4FD1B5]' : 'text-[#0F766E]'
+                }`}
+              >
+                {monthlySalesStats.deliveredCount} {monthlySalesStats.deliveredCount === 1 ? 'pedido' : 'pedidos'}
+              </span>
+              <span
+                className={`text-[10px] block mt-0.5 ${
+                  isDark ? 'text-[#4FD1B5]/80' : 'text-[#0D9488]/80'
+                }`}
+              >
+                Despachados con éxito
+              </span>
+            </div>
 
-          {/* Total Por Cobrar (Saldos) */}
-          <div
-            className={`col-span-2 sm:col-span-1 border rounded-2xl p-3 sm:p-4 shadow-sm transition-colors ${
-              isDark
-                ? 'bg-[#16234F] border-[#FFA26B]/30'
-                : 'bg-[#FFF7ED] border-[#FED7AA]'
-            }`}
-          >
-            <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider block mb-0.5 ${
-              isDark ? 'text-[#FFA26B]' : 'text-[#EA580C]'
-            }`}>
-              Por Cobrar (Saldos)
-            </span>
-            <span
-              className={`text-lg sm:text-xl font-black font-['Outfit',sans-serif] ${
-                isDark ? 'text-[#FFA26B]' : 'text-[#C2410C]'
+            {/* Con saldo pendiente (sin monto) */}
+            <div
+              className={`border rounded-2xl p-3 sm:p-4 shadow-sm transition-colors ${
+                isDark
+                  ? 'bg-[#16234F] border-[#FFA26B]/30 text-white'
+                  : 'bg-[#FFF7ED] border-[#FED7AA] text-[#C2410C]'
               }`}
             >
-              {formatCurrency(totalPorCobrar)}
-            </span>
-            <span
-              className={`text-[10px] block mt-0.5 ${
-                isDark ? 'text-[#FFA26B]/80' : 'text-[#EA580C]/80'
-              }`}
-            >
-              Pendientes de cobro
-            </span>
+              <span
+                className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider block mb-0.5 ${
+                  isDark ? 'text-[#FFA26B]' : 'text-[#EA580C]'
+                }`}
+              >
+                Con saldo pendiente
+              </span>
+              <span
+                className={`text-lg sm:text-2xl font-black font-['Outfit',sans-serif] ${
+                  isDark ? 'text-[#FFA26B]' : 'text-[#C2410C]'
+                }`}
+              >
+                {monthlySalesStats.pendingBalanceCount} {monthlySalesStats.pendingBalanceCount === 1 ? 'pedido' : 'pedidos'}
+              </span>
+              <span
+                className={`text-[10px] block mt-0.5 ${
+                  isDark ? 'text-[#FFA26B]/80' : 'text-[#EA580C]/80'
+                }`}
+              >
+                Por cobrar
+              </span>
+            </div>
           </div>
-        </div>
+        ) : (
+          /* Live Business Balance Cards (Jefe, Supervisor) */
+          <div className="space-y-2">
+            <div className="flex items-center justify-between px-1">
+              <span
+                className={`text-xs font-bold uppercase tracking-wider ${
+                  isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                }`}
+              >
+                Resumen Financiero
+              </span>
+              <BalanceToggleBtn size="sm" />
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3.5">
+              {/* Total Vendido */}
+              <div
+                onClick={toggleShowBalances}
+                className={`border rounded-2xl p-3 sm:p-4 shadow-sm transition-colors cursor-pointer select-none group ${
+                  isDark
+                    ? 'bg-[#16234F] border-[#223368] text-white hover:border-[#FF6FA5]/40'
+                    : 'bg-white border-[#E8DFC8] text-[#1A2B5C] hover:border-[#1A2B5C]/30'
+                }`}
+                title="Haz clic para mostrar u ocultar saldos"
+              >
+                <span
+                  className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider block mb-0.5 ${
+                    isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                  }`}
+                >
+                  Total Ventas Activas
+                </span>
+                <span className="text-lg sm:text-xl font-black font-['Outfit',sans-serif] block">
+                  {formatBalance(totalVendido)}
+                </span>
+                <span
+                  className={`text-[10px] block mt-0.5 ${
+                    isDark ? 'text-[#9AA6C9]/70' : 'text-[#78716C]/80'
+                  }`}
+                >
+                  {validOrders.length} pedidos
+                </span>
+              </div>
+
+              {/* Total Cobrado */}
+              <div
+                onClick={toggleShowBalances}
+                className={`border rounded-2xl p-3 sm:p-4 shadow-sm transition-colors cursor-pointer select-none group ${
+                  isDark
+                    ? 'bg-[#16234F] border-[#4FD1B5]/30 hover:border-[#4FD1B5]'
+                    : 'bg-[#E6FFFA] border-[#99F6E4] hover:border-[#2DD4BF]'
+                }`}
+                title="Haz clic para mostrar u ocultar saldos"
+              >
+                <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider block mb-0.5 ${
+                  isDark ? 'text-[#4FD1B5]' : 'text-[#0D9488]'
+                }`}>
+                  Cobrado en Caja
+                </span>
+                <span
+                  className={`text-lg sm:text-xl font-black font-['Outfit',sans-serif] block ${
+                    isDark ? 'text-[#4FD1B5]' : 'text-[#0F766E]'
+                  }`}
+                >
+                  {formatBalance(totalCobrado)}
+                </span>
+                <span
+                  className={`text-[10px] block mt-0.5 ${
+                    isDark ? 'text-[#4FD1B5]/80' : 'text-[#0D9488]/80'
+                  }`}
+                >
+                  QR / Efectivo recibido
+                </span>
+              </div>
+
+              {/* Total Por Cobrar (Saldos) */}
+              <div
+                onClick={toggleShowBalances}
+                className={`col-span-2 sm:col-span-1 border rounded-2xl p-3 sm:p-4 shadow-sm transition-colors cursor-pointer select-none group ${
+                  isDark
+                    ? 'bg-[#16234F] border-[#FFA26B]/30 hover:border-[#FFA26B]'
+                    : 'bg-[#FFF7ED] border-[#FED7AA] hover:border-[#FB923C]'
+                }`}
+                title="Haz clic para mostrar u ocultar saldos"
+              >
+                <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider block mb-0.5 ${
+                  isDark ? 'text-[#FFA26B]' : 'text-[#EA580C]'
+                }`}>
+                  Por Cobrar (Saldos)
+                </span>
+                <span
+                  className={`text-lg sm:text-xl font-black font-['Outfit',sans-serif] block ${
+                    isDark ? 'text-[#FFA26B]' : 'text-[#C2410C]'
+                  }`}
+                >
+                  {formatBalance(totalPorCobrar)}
+                </span>
+                <span
+                  className={`text-[10px] block mt-0.5 ${
+                    isDark ? 'text-[#FFA26B]/80' : 'text-[#EA580C]/80'
+                  }`}
+                >
+                  Pendientes de cobro
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Search & Filter Controls */}
         <div
@@ -576,60 +698,89 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
                       isDark ? 'border-[#223368]' : 'border-[#E8DFC8]'
                     }`}
                   >
-                    <div className="flex items-center gap-2 sm:gap-4">
-                      <div>
-                        <span
-                          className={`block text-[10px] uppercase font-bold ${
-                            isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-                          }`}
-                        >
-                          Total
-                        </span>
-                        <span
-                          className={`text-sm sm:text-base font-black ${
-                            isDark ? 'text-white' : 'text-[#1A2B5C]'
-                          }`}
-                        >
-                          {formatCurrency(order.total)}
-                        </span>
+                    {isVendedorRole ? (
+                      /* Clean Payment Status Indicator without money amounts for Vendedora */
+                      <div className="flex items-center gap-2">
+                        {isAnulado ? (
+                          <span className={`text-xs font-bold px-2.5 py-1 rounded-xl flex items-center gap-1 ${
+                            isDark ? 'bg-rose-950/60 text-rose-300 border border-rose-800/50' : 'bg-rose-50 text-rose-800 border border-rose-200'
+                          }`}>
+                            <XCircle className="w-3.5 h-3.5" />
+                            <span>Anulado</span>
+                          </span>
+                        ) : hasPendingBalance ? (
+                          <span className={`text-xs font-bold px-2.5 py-1 rounded-xl flex items-center gap-1 ${
+                            isDark ? 'bg-amber-950/60 text-amber-300 border border-amber-800/50' : 'bg-amber-50 text-amber-800 border border-amber-200'
+                          }`}>
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                            <span>Saldo Pendiente</span>
+                          </span>
+                        ) : (
+                          <span className={`text-xs font-bold px-2.5 py-1 rounded-xl flex items-center gap-1 ${
+                            isDark ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-800/50' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                          }`}>
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Totalmente Pagado</span>
+                          </span>
+                        )}
                       </div>
+                    ) : (
+                      /* Full Financial Breakdown for Boss & Supervisor */
+                      <div className="flex items-center gap-2 sm:gap-4">
+                        <div>
+                          <span
+                            className={`block text-[10px] uppercase font-bold ${
+                              isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                            }`}
+                          >
+                            Total
+                          </span>
+                          <span
+                            className={`text-sm sm:text-base font-black font-['Outfit',sans-serif] tracking-tight ${
+                              isDark ? 'text-white' : 'text-[#1A2B5C]'
+                            }`}
+                          >
+                            {formatBalance(order.total)}
+                          </span>
+                        </div>
 
-                      <div
-                        className={`h-6 w-px ${
-                          isDark ? 'bg-[#223368]' : 'bg-[#E8DFC8]'
-                        }`}
-                      />
-
-                      <div>
-                        <span
-                          className={`block text-[10px] uppercase font-bold ${
-                            isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                        <div
+                          className={`h-6 w-px ${
+                            isDark ? 'bg-[#223368]' : 'bg-[#E8DFC8]'
                           }`}
-                        >
-                          Saldo
-                        </span>
-                        <span
-                          className={`text-sm sm:text-base font-black ${
-                            isAnulado
-                              ? 'text-[#9AA6C9] line-through'
+                        />
+
+                        <div>
+                          <span
+                            className={`block text-[10px] uppercase font-bold ${
+                              isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                            }`}
+                          >
+                            Saldo
+                          </span>
+                          <span
+                            className={`text-sm sm:text-base font-black font-['Outfit',sans-serif] tracking-tight ${
+                              isAnulado
+                                ? 'text-[#9AA6C9] line-through'
+                                : hasPendingBalance
+                                ? isDark ? 'text-[#FFA26B]' : 'text-[#C2410C]'
+                                : isDark ? 'text-[#4FD1B5]' : 'text-[#0F766E]'
+                            }`}
+                          >
+                            {isAnulado
+                              ? 'Anulado'
                               : hasPendingBalance
-                              ? isDark ? 'text-[#FFA26B]' : 'text-[#C2410C]'
-                              : isDark ? 'text-[#4FD1B5]' : 'text-[#0F766E]'
-                          }`}
-                        >
-                          {isAnulado
-                            ? 'Anulado'
-                            : hasPendingBalance
-                            ? formatCurrency(order.saldo)
-                            : 'Bs. 0 (Pagado)'}
-                        </span>
+                              ? formatBalance(order.saldo)
+                              : (showBalances ? 'Bs. 0 (Pagado)' : 'Bs. •••••')}
+                          </span>
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     {/* Actions Toolbar */}
                     <div className="flex items-center gap-1.5">
-                      {/* 1-Click Quick Complete Balance */}
-                      {hasPendingBalance && (
+                      {/* 1-Click Quick Complete Balance (Boss / Supervisor only) */}
+                      {!isVendedorRole && hasPendingBalance && (
                         <button
                           id={`complete-balance-list-${order.id}`}
                           type="button"

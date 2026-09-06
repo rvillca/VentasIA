@@ -36,6 +36,8 @@ import { ThermalPrintModal } from './ThermalPrintModal';
 import { OrderPreparationCardModal } from './OrderPreparationCardModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useFinancialPrivacy } from '../contexts/FinancialPrivacyContext';
+import { BalanceToggleBtn } from './BalanceToggleBtn';
 
 interface OrderDetailScreenProps {
   order: Order;
@@ -56,6 +58,7 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
 }) => {
   const { canDeleteOrders, isJefe, isSupervisor, isVendedor, userProfile } = useAuth();
   const { isDark } = useTheme();
+  const { showBalances, formatBalance } = useFinancialPrivacy();
   const [copied, setCopied] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showAnularModal, setShowAnularModal] = useState(false);
@@ -592,122 +595,177 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
                         {formatArticleItem(item)}
                       </span>
                     </div>
-                    {item.cantidad > 1 && (
+                    {!isVendedor && item.cantidad > 1 && (
                       <p className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
                         Precio unitario: {formatCurrency(item.precioUnitario)} c/u
                       </p>
                     )}
                   </div>
 
-                  <div className="text-right shrink-0">
-                    <span className={`text-xs block ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>Subtotal</span>
-                    <span className={`text-base font-black font-['Outfit',sans-serif] ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
-                      {formatCurrency(subtotal)}
-                    </span>
-                  </div>
+                  {!isVendedor ? (
+                    <div className="text-right shrink-0">
+                      <span className={`text-xs block ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>Subtotal</span>
+                      <span className={`text-base font-black font-['Outfit',sans-serif] ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                        {formatCurrency(subtotal)}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="text-right shrink-0">
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-xl border ${
+                        isDark ? 'bg-[#0F1B3C] border-[#223368] text-[#9AA6C9]' : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#78716C]'
+                      }`}>
+                        Cant: {item.cantidad}
+                      </span>
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
         </div>
 
-        {/* Financial Breakdown Card with 1-Click Complete Balance */}
-        <div className={`border rounded-3xl p-5 sm:p-6 shadow-sm space-y-4 ${
-          isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
-        }`}>
-          <div className={`flex items-center justify-between border-b pb-3 ${
-            isDark ? 'border-[#223368]' : 'border-[#E8DFC8]'
+        {/* Financial Breakdown Card (or Payment Status Card for Vendedora) */}
+        {isVendedor ? (
+          <div className={`border rounded-3xl p-5 sm:p-6 shadow-sm space-y-3 ${
+            isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
           }`}>
-            <h2 className={`text-base font-bold font-['Outfit',sans-serif] flex items-center gap-2 ${
-              isDark ? 'text-white' : 'text-[#1A2B5C]'
+            <h2 className={`text-base font-bold font-['Outfit',sans-serif] flex items-center gap-2 border-b pb-3 ${
+              isDark ? 'text-white border-[#223368]' : 'text-[#1A2B5C] border-[#E8DFC8]'
             }`}>
-              <DollarSign className={`w-5 h-5 ${isDark ? 'text-[#4FD1B5]' : 'text-[#0F766E]'}`} />
-              Estado Financiero (Bolivianos)
+              <CheckCircle2 className={`w-5 h-5 ${isDark ? 'text-[#4FD1B5]' : 'text-[#0F766E]'}`} />
+              Estado de Cobro del Pedido
             </h2>
-
-            {/* 1-Click Complete Balance Button */}
-            {hasPendingBalance && (
-              <button
-                id="complete-balance-direct-btn"
-                type="button"
-                disabled={isCompletingBalance}
-                onClick={handleCompleteBalance}
-                className={`py-2 px-3.5 rounded-2xl text-xs font-black flex items-center gap-1.5 shadow-lg active:scale-95 transition disabled:opacity-50 cursor-pointer ${
-                  isDark
-                    ? 'bg-[#4FD1B5] hover:bg-[#38b2ac] text-[#064E3B]'
-                    : 'bg-[#0F766E] hover:bg-[#0D9488] text-white'
-                }`}
-                title="Completar saldo inmediatamente sin entrar a editar"
-              >
-                <DollarSign className="w-4 h-4" />
-                <span>{isCompletingBalance ? 'Completando...' : 'Liquidar Saldo (100% Pagado)'}</span>
-              </button>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-            <div className={`border rounded-2xl p-4 ${
-              isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+            <div className={`p-4 rounded-2xl border flex items-center gap-3 ${
+              hasPendingBalance
+                ? isDark
+                  ? 'bg-amber-950/40 border-amber-800/50 text-amber-200'
+                  : 'bg-amber-50 border-amber-200 text-amber-900'
+                : isDark
+                ? 'bg-emerald-950/40 border-emerald-800/50 text-emerald-200'
+                : 'bg-emerald-50 border-emerald-200 text-emerald-900'
             }`}>
-              <span className={`text-[11px] font-bold uppercase tracking-wider block mb-1 ${
-                isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-              }`}>
-                Total Pedido
-              </span>
-              <span className={`text-2xl font-black font-['Outfit',sans-serif] ${
+              {hasPendingBalance ? (
+                <>
+                  <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+                  <div>
+                    <span className="font-bold text-sm block">Saldo Pendiente de Cobro</span>
+                    <span className="text-xs opacity-80">Este pedido tiene saldo pendiente por completar.</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                  <div>
+                    <span className="font-bold text-sm block">Completamente Pagado</span>
+                    <span className="text-xs opacity-80">El cobro de este pedido está liquidado al 100%.</span>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className={`border rounded-3xl p-5 sm:p-6 shadow-sm space-y-4 ${
+            isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+          }`}>
+            <div className={`flex items-center justify-between border-b pb-3 ${
+              isDark ? 'border-[#223368]' : 'border-[#E8DFC8]'
+            }`}>
+              <h2 className={`text-base font-bold font-['Outfit',sans-serif] flex items-center gap-2 ${
                 isDark ? 'text-white' : 'text-[#1A2B5C]'
               }`}>
-                {formatCurrency(order.total)}
-              </span>
+                <DollarSign className={`w-5 h-5 ${isDark ? 'text-[#4FD1B5]' : 'text-[#0F766E]'}`} />
+                Estado Financiero (Bolivianos)
+              </h2>
+
+              <div className="flex items-center gap-2">
+                {/* Privacy toggle button */}
+                <BalanceToggleBtn size="sm" />
+
+                {/* 1-Click Complete Balance Button */}
+                {hasPendingBalance && (
+                  <button
+                    id="complete-balance-direct-btn"
+                    type="button"
+                    disabled={isCompletingBalance}
+                    onClick={handleCompleteBalance}
+                    className={`py-2 px-3.5 rounded-2xl text-xs font-black flex items-center gap-1.5 shadow-lg active:scale-95 transition disabled:opacity-50 cursor-pointer ${
+                      isDark
+                        ? 'bg-[#4FD1B5] hover:bg-[#38b2ac] text-[#064E3B]'
+                        : 'bg-[#0F766E] hover:bg-[#0D9488] text-white'
+                    }`}
+                    title="Completar saldo inmediatamente sin entrar a editar"
+                  >
+                    <DollarSign className="w-4 h-4" />
+                    <span>{isCompletingBalance ? 'Completando...' : 'Liquidar Saldo (100% Pagado)'}</span>
+                  </button>
+                )}
+              </div>
             </div>
 
-            <div className={`border rounded-2xl p-4 ${
-              isDark ? 'bg-[#0F1B3C] border-[#4FD1B5]/30' : 'bg-[#E6FFFA] border-[#99F6E4]'
-            }`}>
-              <span className={`text-[11px] font-bold uppercase tracking-wider block mb-1 ${
-                isDark ? 'text-[#4FD1B5]' : 'text-[#0D9488]'
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+              <div className={`border rounded-2xl p-4 ${
+                isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
               }`}>
-                Monto Pagado / Abonado
-              </span>
-              <span className={`text-2xl font-black font-['Outfit',sans-serif] ${
-                isDark ? 'text-[#4FD1B5]' : 'text-[#0F766E]'
-              }`}>
-                {formatCurrency(order.pagado)}
-              </span>
-            </div>
-
-            <div
-              className={`border rounded-2xl p-4 flex flex-col justify-between ${
-                hasPendingBalance
-                  ? isDark
-                    ? 'bg-[#0F1B3C] border-[#FFA26B]/40'
-                    : 'bg-[#FFF7ED] border-[#FED7AA]'
-                  : isDark
-                  ? 'bg-[#0F1B3C] border-[#4FD1B5]/40'
-                  : 'bg-[#E6FFFA] border-[#99F6E4]'
-              }`}
-            >
-              <div>
                 <span className={`text-[11px] font-bold uppercase tracking-wider block mb-1 ${
-                  hasPendingBalance
-                    ? isDark ? 'text-[#FFA26B]' : 'text-[#EA580C]'
-                    : isDark ? 'text-[#4FD1B5]' : 'text-[#0D9488]'
+                  isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
                 }`}>
-                  Saldo Pendiente
+                  Total Pedido
                 </span>
-                <span
-                  className={`text-2xl font-black font-['Outfit',sans-serif] ${
+                <span className={`text-2xl font-black font-['Outfit',sans-serif] block ${
+                  isDark ? 'text-white' : 'text-[#1A2B5C]'
+                }`}>
+                  {formatBalance(order.total)}
+                </span>
+              </div>
+
+              <div className={`border rounded-2xl p-4 ${
+                isDark ? 'bg-[#0F1B3C] border-[#4FD1B5]/30' : 'bg-[#E6FFFA] border-[#99F6E4]'
+              }`}>
+                <span className={`text-[11px] font-bold uppercase tracking-wider block mb-1 ${
+                  isDark ? 'text-[#4FD1B5]' : 'text-[#0D9488]'
+                }`}>
+                  Monto Pagado / Abonado
+                </span>
+                <span className={`text-2xl font-black font-['Outfit',sans-serif] block ${
+                  isDark ? 'text-[#4FD1B5]' : 'text-[#0F766E]'
+                }`}>
+                  {formatBalance(order.pagado)}
+                </span>
+              </div>
+
+              <div
+                className={`border rounded-2xl p-4 flex flex-col justify-between ${
+                  hasPendingBalance
+                    ? isDark
+                      ? 'bg-[#0F1B3C] border-[#FFA26B]/40'
+                      : 'bg-[#FFF7ED] border-[#FED7AA]'
+                    : isDark
+                    ? 'bg-[#0F1B3C] border-[#4FD1B5]/40'
+                    : 'bg-[#E6FFFA] border-[#99F6E4]'
+                }`}
+              >
+                <div>
+                  <span className={`text-[11px] font-bold uppercase tracking-wider block mb-1 ${
                     hasPendingBalance
-                      ? isDark ? 'text-[#FFA26B]' : 'text-[#C2410C]'
-                      : isDark ? 'text-[#4FD1B5]' : 'text-[#0F766E]'
-                  }`}
-                >
-                  {hasPendingBalance ? formatCurrency(order.saldo) : 'Bs. 0 (Pagado)'}
-                </span>
+                      ? isDark ? 'text-[#FFA26B]' : 'text-[#EA580C]'
+                      : isDark ? 'text-[#4FD1B5]' : 'text-[#0D9488]'
+                  }`}>
+                    Saldo Pendiente
+                  </span>
+                  <span
+                    className={`text-2xl font-black font-['Outfit',sans-serif] block ${
+                      hasPendingBalance
+                        ? isDark ? 'text-[#FFA26B]' : 'text-[#C2410C]'
+                        : isDark ? 'text-[#4FD1B5]' : 'text-[#0F766E]'
+                    }`}
+                  >
+                    {hasPendingBalance ? formatBalance(order.saldo) : (showBalances ? 'Bs. 0 (Pagado)' : 'Bs. •••••')}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* PRIMARY ACTIONS: WHATSAPP + IMPRESIÓN */}
         <div className="space-y-3 pt-2">

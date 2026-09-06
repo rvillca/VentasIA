@@ -9,11 +9,14 @@ import {
   LogOut,
   KeyRound,
   PackagePlus,
+  Clock,
 } from 'lucide-react';
 import { ActiveTab, Order } from '../types';
 import { formatCurrency } from '../lib/storage';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useFinancialPrivacy } from '../contexts/FinancialPrivacyContext';
+import { BalanceToggleBtn } from './BalanceToggleBtn';
 import { ChangePasswordModal } from './ChangePasswordModal';
 
 interface HeaderProps {
@@ -36,9 +39,11 @@ export const Header: React.FC<HeaderProps> = ({
     isVendedor,
     canAccessCompras,
     canViewReports,
+    canViewSeguimiento,
     logout,
   } = useAuth();
   const { isDark, toggleTheme } = useTheme();
+  const { formatBalance, toggleShowBalances } = useFinancialPrivacy();
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
 
   const pendingOrdersCount = orders.filter((o) => o.estado === 'Abierto').length;
@@ -98,19 +103,24 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Actions: Theme Toggle, User Profile Badge, Password & Logout */}
             <div className="flex items-center gap-2">
-              {pendingBalance > 0 && !isComprador && (
-                <div
+              {/* Privacy toggle button (Supervisor & Jefe) */}
+              {(isJefe || isSupervisor) && <BalanceToggleBtn size="sm" />}
+
+              {pendingBalance > 0 && (isJefe || isSupervisor) && (
+                <button
                   id="pending-balance-badge"
-                  className={`hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold border ${
+                  type="button"
+                  onClick={toggleShowBalances}
+                  className={`hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold border cursor-pointer select-none transition-all active:scale-95 ${
                     isDark
-                      ? 'bg-[#FFA26B]/15 border-[#FFA26B]/30 text-[#FFA26B]'
-                      : 'bg-[#FFF7ED] border-[#FED7AA] text-[#C2410C]'
+                      ? 'bg-[#FFA26B]/15 hover:bg-[#FFA26B]/25 border-[#FFA26B]/30 text-[#FFA26B]'
+                      : 'bg-[#FFF7ED] hover:bg-[#FFEDD5] border-[#FED7AA] text-[#C2410C]'
                   }`}
-                  title="Total por cobrar en pedidos abiertos en Bolivianos"
+                  title="Haz clic para ver u ocultar saldos"
                 >
                   <span>Por cobrar:</span>
-                  <span className="font-extrabold">{formatCurrency(pendingBalance)}</span>
-                </div>
+                  <span className="font-black font-['Outfit',sans-serif] tracking-tight text-xs sm:text-sm">{formatBalance(pendingBalance)}</span>
+                </button>
               )}
 
               {/* Current user role badge + Change password trigger */}
@@ -283,7 +293,27 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
-            {/* Tab: Reportes (Supervisor, Jefe, Comprador) */}
+            {/* Tab: Seguimiento de Cobros y Pagos (Supervisor y Jefe) */}
+            {canViewSeguimiento && (
+              <button
+                id="tab-seguimiento"
+                onClick={() => setActiveTab('seguimiento')}
+                className={`flex-1 min-w-[95px] sm:min-w-0 flex items-center justify-center gap-1 sm:gap-1.5 py-2 px-1.5 sm:px-3 rounded-2xl font-bold text-xs sm:text-sm transition-all duration-200 ${
+                  activeTab === 'seguimiento'
+                    ? isDark
+                      ? 'bg-amber-400 text-slate-950 font-black shadow-md shadow-amber-400/20'
+                      : 'bg-amber-500 text-white font-bold shadow-md shadow-amber-500/20'
+                    : isDark
+                    ? 'bg-[#16234F] text-amber-300 hover:text-white border border-[#223368]'
+                    : 'bg-[#F5EFE0] text-amber-800 hover:bg-[#EBE2CF] border border-[#E8DFC8]'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                <span className="truncate">Seguimiento</span>
+              </button>
+            )}
+
+            {/* Tab: Reportes (Jefe / Admin) */}
             {canViewReports && (
               <button
                 id="tab-reports"

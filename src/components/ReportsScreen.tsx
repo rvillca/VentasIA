@@ -26,11 +26,16 @@ import {
   Search,
   Check,
   UserCheck,
+  Crown,
+  Gift,
 } from 'lucide-react';
 import { Order, Purchase } from '../types';
 import { formatCurrency, formatBoliviaPhone, formatArticleItem } from '../lib/storage';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useFinancialPrivacy } from '../contexts/FinancialPrivacyContext';
+import { BalanceToggleBtn } from './BalanceToggleBtn';
+import { TopClientsReport } from './reports/TopClientsReport';
 
 interface ReportsScreenProps {
   orders: Order[];
@@ -38,11 +43,12 @@ interface ReportsScreenProps {
 }
 
 type DateRangeFilter = 'today' | '7days' | '30days' | 'this_month' | 'all';
-type ReportViewType = 'ventas' | 'envios' | 'compras' | 'balance';
+type ReportViewType = 'ventas' | 'clientes' | 'envios' | 'compras' | 'balance';
 
 export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases = [] }) => {
   const { isComprador, isJefe, isSupervisor } = useAuth();
   const { isDark } = useTheme();
+  const { showBalances, formatBalance, toggleShowBalances } = useFinancialPrivacy();
   const [activeReportView, setActiveReportView] = useState<ReportViewType>(
     isComprador ? 'compras' : 'ventas'
   );
@@ -353,6 +359,32 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
       .slice(0, 6);
   }, [validOrders]);
 
+  // Top Clients Preview in Ventas view
+  const topClientsVentas = useMemo(() => {
+    const map: Record<string, { name: string; telefono: string; count: number; total: number }> = {};
+    validOrders.forEach((o) => {
+      const phoneDigits = (o.telefono || '').replace(/\D/g, '');
+      const key = phoneDigits.length >= 7 ? phoneDigits : (o.cliente || 'Sin nombre').trim().toLowerCase();
+      if (!map[key]) {
+        map[key] = {
+          name: (o.cliente || 'Sin nombre').trim(),
+          telefono: o.telefono || '',
+          count: 0,
+          total: 0,
+        };
+      }
+      if ((o.cliente || '').trim().length > map[key].name.length) {
+        map[key].name = o.cliente.trim();
+      }
+      map[key].count += 1;
+      map[key].total += o.total || 0;
+    });
+
+    return Object.values(map)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
+  }, [validOrders]);
+
   // Top Materials Purchased
   const topMaterialsPurchased = useMemo(() => {
     const map: Record<string, { cantidad: number; totalBs: number }> = {};
@@ -386,6 +418,46 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
         csv += `"${o.orderNumber}","${o.cliente.replace(/"/g, '""')}","${o.telefono}","${o.lugarEntrega.replace(/"/g, '""')}",${o.total},${o.pagado},${o.saldo},"${o.estado}","${o.vendedorNombre || ''}","${dateStr}"\n`;
       });
       downloadFile(csv, `reporte_ventas_${range}.csv`);
+    } else if (activeReportView === 'clientes') {
+      let csv = 'Ranking,Cliente,Telefono,Total_Comprado_Bs,Pagado_Bs,Saldo_Bs,Cantidad_Pedidos,Ticket_Promedio_Bs,Destino_Principal,Ultima_Compra,Categoria_VIP,Candidato_Regalo,Candidato_Mayorista\n';
+      const map: Record<string, { name: string; telefono: string; total: number; pagado: number; saldo: number; count: number; destino: string; lastDate: string }> = {};
+      validOrders.forEach((o) => {
+        const phone = (o.telefono || '').replace(/\D/g, '');
+        const key = phone.length >= 7 ? phone : (o.cliente || 'Sin nombre').trim().toLowerCase();
+        if (!map[key]) {
+          map[key] = {
+            name: (o.cliente || 'Sin nombre').trim(),
+            telefono: o.telefono || '',
+            total: 0,
+            pagado: 0,
+            saldo: 0,
+            count: 0,
+            destino: o.lugarEntrega || '',
+            lastDate: o.createdAt,
+          };
+        }
+        if ((o.cliente || '').trim().length > map[key].name.length) {
+          map[key].name = o.cliente.trim();
+        }
+        map[key].total += o.total || 0;
+        map[key].pagado += o.pagado || 0;
+        map[key].saldo += o.saldo || 0;
+        map[key].count += 1;
+        if (new Date(o.createdAt) > new Date(map[key].lastDate)) {
+          map[key].lastDate = o.createdAt;
+          if (o.lugarEntrega) map[key].destino = o.lugarEntrega;
+        }
+      });
+      const sorted = Object.values(map).sort((a, b) => b.total - a.total);
+      sorted.forEach((c, idx) => {
+        const ticket = c.count > 0 ? (c.total / c.count).toFixed(2) : '0';
+        const isMay = c.total >= 1000 || c.count >= 4 ? 'SI' : 'NO';
+        const isReg = c.total >= 350 || c.count >= 2 ? 'SI' : 'NO';
+        const tier = isMay === 'SI' ? 'Mayorista VIP' : isReg === 'SI' ? 'Cliente Frecuente' : 'Comprador Regular';
+        const dateStr = new Date(c.lastDate).toLocaleDateString('es-BO');
+        csv += `"${idx + 1}","${c.name.replace(/"/g, '""')}","${c.telefono}",${c.total},${c.pagado},${c.saldo},${c.count},${ticket},"${c.destino.replace(/"/g, '""')}","${dateStr}","${tier}","${isReg}","${isMay}"\n`;
+      });
+      downloadFile(csv, `ranking_clientes_${range}.csv`);
     } else if (activeReportView === 'envios') {
       let csv = 'Numero,Venta_Registrada_Por,Despachado_Por,Fecha_Venta,Fecha_Envio,Cliente,Telefono,Lugar_Entrega,Articulos,Total_Bs,Pagado_Bs,Saldo_Bs,Estado\n';
       filteredShippingOrders.forEach((o) => {
@@ -651,6 +723,10 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
             </select>
           </div>
         )}
+        {/* Balance Privacy Toggle */}
+        <div className="flex items-center ml-auto">
+          <BalanceToggleBtn size="sm" />
+        </div>
       </div>
 
       {/* VIEW 1: REPORTE DE VENTAS */}
@@ -658,48 +734,64 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
         <div className="space-y-6 animate-in fade-in">
           {/* KPI Cards Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-            <div className="border rounded-2xl p-4 shadow-sm bg-white border-[#E8DFC8]">
+            <div
+              onClick={toggleShowBalances}
+              className="border rounded-2xl p-4 shadow-sm bg-white border-[#E8DFC8] cursor-pointer select-none hover:border-[#1A2B5C]/30 transition"
+              title="Haz clic para mostrar u ocultar saldos"
+            >
               <span className="text-[11px] font-bold uppercase tracking-wider block mb-1 text-[#78716C]">
                 Total Ventas (Bs.)
               </span>
-              <span className="text-xl sm:text-2xl font-black font-['Outfit',sans-serif] text-[#1A2B5C]">
-                {formatCurrency(totalVendido)}
+              <span className="text-xl sm:text-2xl font-black font-['Outfit',sans-serif] block text-[#1A2B5C]">
+                {formatBalance(totalVendido)}
               </span>
               <span className="text-[11px] block mt-0.5 text-[#78716C]/80">
                 {validOrders.length} pedidos efectivos
               </span>
             </div>
 
-            <div className="border rounded-2xl p-4 shadow-sm bg-white border-emerald-200">
+            <div
+              onClick={toggleShowBalances}
+              className="border rounded-2xl p-4 shadow-sm bg-white border-emerald-200 cursor-pointer select-none hover:border-emerald-400 transition"
+              title="Haz clic para mostrar u ocultar saldos"
+            >
               <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider block mb-1">
                 Cobrado en Caja (QR / Ef.)
               </span>
-              <span className="text-xl sm:text-2xl font-black text-emerald-700 font-['Outfit',sans-serif]">
-                {formatCurrency(totalCobrado)}
+              <span className="text-xl sm:text-2xl font-black text-emerald-700 font-['Outfit',sans-serif] block">
+                {formatBalance(totalCobrado)}
               </span>
               <span className="text-[11px] text-emerald-700/80 block mt-0.5">
                 Ingreso real recibido
               </span>
             </div>
 
-            <div className="border rounded-2xl p-4 shadow-sm bg-white border-amber-200">
+            <div
+              onClick={toggleShowBalances}
+              className="border rounded-2xl p-4 shadow-sm bg-white border-amber-200 cursor-pointer select-none hover:border-amber-400 transition"
+              title="Haz clic para mostrar u ocultar saldos"
+            >
               <span className="text-[11px] font-bold text-amber-700 uppercase tracking-wider block mb-1">
                 Saldos por Cobrar
               </span>
-              <span className="text-xl sm:text-2xl font-black text-amber-700 font-['Outfit',sans-serif]">
-                {formatCurrency(totalPorCobrar)}
+              <span className="text-xl sm:text-2xl font-black text-amber-700 font-['Outfit',sans-serif] block">
+                {formatBalance(totalPorCobrar)}
               </span>
               <span className="text-[11px] text-amber-700/80 block mt-0.5">
                 Pendientes de cobro
               </span>
             </div>
 
-            <div className="border rounded-2xl p-4 shadow-sm bg-white border-[#E8DFC8]">
+            <div
+              onClick={toggleShowBalances}
+              className="border rounded-2xl p-4 shadow-sm bg-white border-[#E8DFC8] cursor-pointer select-none hover:border-[#1A2B5C]/30 transition"
+              title="Haz clic para mostrar u ocultar saldos"
+            >
               <span className="text-[11px] font-bold uppercase tracking-wider block mb-1 text-[#1A2B5C]">
                 Ticket Promedio
               </span>
-              <span className="text-xl sm:text-2xl font-black font-['Outfit',sans-serif] text-[#1A2B5C]">
-                {formatCurrency(ticketPromedio)}
+              <span className="text-xl sm:text-2xl font-black font-['Outfit',sans-serif] block text-[#1A2B5C]">
+                {formatBalance(ticketPromedio)}
               </span>
               <span className="text-[11px] block mt-0.5 text-[#78716C]/80">
                 Promedio por cliente
@@ -713,7 +805,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
               <div className="flex items-center gap-2">
                 <XCircle className="w-4 h-4 text-rose-500 shrink-0" />
                 <span>
-                  <strong>Ventas Anuladas:</strong> {canceledOrders.length} pedido(s) anulado(s) por un valor de {formatCurrency(totalAnulado)}.
+                  <strong>Ventas Anuladas:</strong> {canceledOrders.length} pedido(s) anulado(s) por un valor de {formatBalance(totalAnulado)}.
                 </span>
               </div>
             </div>
@@ -760,10 +852,10 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
 
                       <div className="text-right">
                         <span className="text-sm font-black font-mono block text-[#1A2B5C]">
-                          {formatCurrency(seller.total)}
+                          {formatBalance(seller.total)}
                         </span>
                         <span className="text-[10px] text-emerald-700 font-bold">
-                          Cobrado: {formatCurrency(seller.cobrado)}
+                          Cobrado: {formatBalance(seller.cobrado)}
                         </span>
                       </div>
                     </div>
@@ -853,7 +945,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
                 {shippingPending.length}
               </span>
               <span className="text-[11px] text-amber-700/80 block mt-0.5">
-                Saldo pendiente: {formatCurrency(shippingPendingBalance)}
+                Saldo pendiente: <strong className="font-['Outfit',sans-serif] font-black">{formatBalance(shippingPendingBalance)}</strong>
               </span>
             </div>
 
@@ -1164,11 +1256,11 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
                           </td>
 
                           <td className="py-3 px-3 text-right whitespace-nowrap">
-                            <span className="font-mono font-bold text-[#1A2B5C] block">
+                            <span className="font-['Outfit',sans-serif] font-black text-[#1A2B5C] block">
                               {formatCurrency(order.total)}
                             </span>
                             {order.saldo > 0 ? (
-                              <span className="text-[10px] text-amber-700 font-bold">
+                              <span className="text-[10px] text-amber-700 font-black font-['Outfit',sans-serif]">
                                 Saldo: {formatCurrency(order.saldo)}
                               </span>
                             ) : (
@@ -1212,48 +1304,64 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
         <div className="space-y-6 animate-in fade-in">
           {/* KPI Cards Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-            <div className="border rounded-2xl p-4 shadow-sm bg-white border-[#E8DFC8]">
+            <div
+              onClick={toggleShowBalances}
+              className="border rounded-2xl p-4 shadow-sm bg-white border-[#E8DFC8] cursor-pointer select-none hover:border-[#1A2B5C]/30 transition"
+              title="Haz clic para mostrar u ocultar saldos"
+            >
               <span className="text-[11px] font-bold uppercase tracking-wider block mb-1 text-[#78716C]">
                 Inversión en Compras
               </span>
-              <span className="text-xl sm:text-2xl font-black text-amber-700 font-['Outfit',sans-serif]">
-                {formatCurrency(totalInvertido)}
+              <span className="text-xl sm:text-2xl font-black text-amber-700 font-['Outfit',sans-serif] block">
+                {formatBalance(totalInvertido)}
               </span>
               <span className="text-[11px] block mt-0.5 text-[#78716C]/80">
                 {validPurchases.length} compras de lote
               </span>
             </div>
 
-            <div className="border rounded-2xl p-4 shadow-sm bg-white border-emerald-200">
+            <div
+              onClick={toggleShowBalances}
+              className="border rounded-2xl p-4 shadow-sm bg-white border-emerald-200 cursor-pointer select-none hover:border-emerald-400 transition"
+              title="Haz clic para mostrar u ocultar saldos"
+            >
               <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider block mb-1">
                 Pagado / Desembolsado
               </span>
-              <span className="text-xl sm:text-2xl font-black text-emerald-700 font-['Outfit',sans-serif]">
-                {formatCurrency(totalPagadoCompras)}
+              <span className="text-xl sm:text-2xl font-black text-emerald-700 font-['Outfit',sans-serif] block">
+                {formatBalance(totalPagadoCompras)}
               </span>
               <span className="text-[11px] text-emerald-700/80 block mt-0.5">
                 Efectivo & Transferencias
               </span>
             </div>
 
-            <div className="border rounded-2xl p-4 shadow-sm bg-white border-rose-200">
+            <div
+              onClick={toggleShowBalances}
+              className="border rounded-2xl p-4 shadow-sm bg-white border-rose-200 cursor-pointer select-none hover:border-rose-400 transition"
+              title="Haz clic para mostrar u ocultar saldos"
+            >
               <span className="text-[11px] font-bold text-rose-700 uppercase tracking-wider block mb-1">
                 Cuentas por Pagar (Saldos)
               </span>
-              <span className="text-xl sm:text-2xl font-black text-rose-700 font-['Outfit',sans-serif]">
-                {formatCurrency(totalDeudaProveedores)}
+              <span className="text-xl sm:text-2xl font-black text-rose-700 font-['Outfit',sans-serif] block">
+                {formatBalance(totalDeudaProveedores)}
               </span>
               <span className="text-[11px] text-rose-700/80 block mt-0.5">
                 Deuda pendiente proveedores
               </span>
             </div>
 
-            <div className="border rounded-2xl p-4 shadow-sm bg-white border-[#E8DFC8]">
+            <div
+              onClick={toggleShowBalances}
+              className="border rounded-2xl p-4 shadow-sm bg-white border-[#E8DFC8] cursor-pointer select-none hover:border-[#1A2B5C]/30 transition"
+              title="Haz clic para mostrar u ocultar saldos"
+            >
               <span className="text-[11px] font-bold uppercase tracking-wider block mb-1 text-[#78716C]">
                 Compra Promedio
               </span>
-              <span className="text-xl sm:text-2xl font-black font-['Outfit',sans-serif] text-[#1A2B5C]">
-                {formatCurrency(compraPromedio)}
+              <span className="text-xl sm:text-2xl font-black font-['Outfit',sans-serif] block text-[#1A2B5C]">
+                {formatBalance(compraPromedio)}
               </span>
               <span className="text-[11px] block mt-0.5 text-[#78716C]/80">
                 Promedio por factura/recibo
@@ -1300,11 +1408,11 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
 
                       <div className="text-right">
                         <span className="text-sm font-black text-amber-700 font-mono block">
-                          {formatCurrency(sup.total)}
+                          {formatBalance(sup.total)}
                         </span>
                         {sup.saldo > 0 ? (
                           <span className="text-[10px] text-rose-700 font-bold">
-                            Debe: {formatCurrency(sup.saldo)}
+                            Debe: {formatBalance(sup.saldo)}
                           </span>
                         ) : (
                           <span className="text-[10px] text-emerald-700 font-bold">
@@ -1367,7 +1475,11 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
         <div className="space-y-6 animate-in fade-in">
           {/* Balance Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="border rounded-3xl p-5 shadow-sm bg-white border-[#E8DFC8]">
+            <div
+              onClick={toggleShowBalances}
+              className="border rounded-3xl p-5 shadow-sm bg-white border-[#E8DFC8] cursor-pointer select-none hover:border-[#1A2B5C]/30 transition"
+              title="Haz clic para mostrar u ocultar saldos"
+            >
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-[#1A2B5C]">
                   1. Ingresos por Ventas
@@ -1375,14 +1487,18 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
                 <ArrowUpRight className="w-5 h-5 text-[#1A2B5C]" />
               </div>
               <div className="text-2xl sm:text-3xl font-black font-mono text-[#1A2B5C]">
-                {formatCurrency(totalVendido)}
+                {formatBalance(totalVendido)}
               </div>
               <p className="text-xs mt-1 text-[#78716C]">
-                Efectivamente cobrado: <strong className="text-emerald-700">{formatCurrency(totalCobrado)}</strong>
+                Efectivamente cobrado: <strong className="text-emerald-700">{formatBalance(totalCobrado)}</strong>
               </p>
             </div>
 
-            <div className="border rounded-3xl p-5 shadow-sm bg-white border-[#E8DFC8]">
+            <div
+              onClick={toggleShowBalances}
+              className="border rounded-3xl p-5 shadow-sm bg-white border-[#E8DFC8] cursor-pointer select-none hover:border-amber-400 transition"
+              title="Haz clic para mostrar u ocultar saldos"
+            >
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-amber-700 uppercase tracking-wider">
                   2. Egresos en Compras
@@ -1390,19 +1506,21 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
                 <ArrowDownRight className="w-5 h-5 text-amber-700" />
               </div>
               <div className="text-2xl sm:text-3xl font-black text-amber-700 font-mono">
-                {formatCurrency(totalInvertido)}
+                {formatBalance(totalInvertido)}
               </div>
               <p className="text-xs mt-1 text-[#78716C]">
-                Desembolsado: <strong>{formatCurrency(totalPagadoCompras)}</strong>
+                Desembolsado: <strong>{formatBalance(totalPagadoCompras)}</strong>
               </p>
             </div>
 
             <div
-              className={`rounded-3xl p-5 shadow-sm border ${
+              onClick={toggleShowBalances}
+              className={`rounded-3xl p-5 shadow-sm border cursor-pointer select-none transition ${
                 flujoCajaNeto >= 0
-                  ? 'bg-white border-emerald-300'
-                  : 'bg-white border-rose-300'
+                  ? 'bg-white border-emerald-300 hover:border-emerald-500'
+                  : 'bg-white border-rose-300 hover:border-rose-500'
               }`}
+              title="Haz clic para mostrar u ocultar saldos"
             >
               <div className="flex items-center justify-between mb-2">
                 <span
@@ -1419,7 +1537,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
                   flujoCajaNeto >= 0 ? 'text-emerald-700' : 'text-rose-700'
                 }`}
               >
-                {formatCurrency(flujoCajaNeto)}
+                {formatBalance(flujoCajaNeto)}
               </div>
               <p className="text-xs mt-1 text-[#78716C]">
                 (Ingreso cobrado - Desembolso de compras)
@@ -1435,27 +1553,27 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
             <div className="space-y-2.5 text-xs sm:text-sm">
               <div className="flex justify-between p-3 rounded-xl border bg-[#FBF7EF] border-[#E8DFC8]">
                 <span className="text-[#78716C]">Total Facturado en Ventas:</span>
-                <span className="font-mono font-bold text-[#1A2B5C]">
-                  {formatCurrency(totalVendido)}
+                <span className="font-['Outfit',sans-serif] font-black text-[#1A2B5C]">
+                  {formatBalance(totalVendido)}
                 </span>
               </div>
               <div className="flex justify-between p-3 rounded-xl border bg-[#FBF7EF] border-[#E8DFC8]">
                 <span className="text-[#78716C]">Total Inversión en Mercadería:</span>
-                <span className="font-mono font-bold text-amber-700">{formatCurrency(totalInvertido)}</span>
+                <span className="font-['Outfit',sans-serif] font-black text-amber-700">{formatBalance(totalInvertido)}</span>
               </div>
               <div className="flex justify-between p-3 rounded-xl border bg-[#FBF7EF] border-[#E8DFC8]">
                 <span className="text-[#78716C]">Cuentas por Cobrar (Saldos):</span>
-                <span className="font-mono font-bold text-[#1A2B5C]">
-                  {formatCurrency(totalPorCobrar)}
+                <span className="font-['Outfit',sans-serif] font-black text-[#1A2B5C]">
+                  {formatBalance(totalPorCobrar)}
                 </span>
               </div>
               <div className="flex justify-between p-3 rounded-xl border bg-[#FBF7EF] border-[#E8DFC8]">
                 <span className="text-[#78716C]">Cuentas por Pagar a Proveedores:</span>
-                <span className="font-mono font-bold text-rose-700">{formatCurrency(totalDeudaProveedores)}</span>
+                <span className="font-['Outfit',sans-serif] font-black text-rose-700">{formatBalance(totalDeudaProveedores)}</span>
               </div>
               <div className="flex justify-between p-3.5 rounded-xl border text-base font-bold bg-emerald-50 border-emerald-200 text-emerald-800">
                 <span>Margen Bruto de Ganancia Teórico:</span>
-                <span className="font-mono">{formatCurrency(margenBrutoTeorico)}</span>
+                <span className="font-['Outfit',sans-serif] font-black">{formatBalance(margenBrutoTeorico)}</span>
               </div>
             </div>
           </div>

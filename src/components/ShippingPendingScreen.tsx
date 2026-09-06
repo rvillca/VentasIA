@@ -24,6 +24,7 @@ import {
 } from '../lib/storage';
 import { OrderPreparationCardModal } from './OrderPreparationCardModal';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ShippingPendingScreenProps {
   orders: Order[];
@@ -37,6 +38,8 @@ export const ShippingPendingScreen: React.FC<ShippingPendingScreenProps> = ({
   onToggleStatus,
 }) => {
   const { isDark } = useTheme();
+  const { isVendedor, role } = useAuth();
+  const isVendedorRole = isVendedor || role === 'vendedor';
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPayment, setFilterPayment] = useState<'all' | 'unpaid' | 'paid'>('all');
   const [prepOrder, setPrepOrder] = useState<Order | null>(null);
@@ -135,10 +138,10 @@ export const ShippingPendingScreen: React.FC<ShippingPendingScreenProps> = ({
               }`}
             >
               <span className={`block text-[10px] font-bold uppercase ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
-                Por Cobrar en Destino
+                {isVendedorRole ? 'Con Saldo Pendiente' : 'Por Cobrar en Destino'}
               </span>
               <span className="text-sm sm:text-base font-black text-amber-600 dark:text-amber-400 font-mono">
-                {formatCurrency(totalPendingSaldo)}
+                {isVendedorRole ? `${orders.filter(o => o.estado === 'Abierto' && o.saldo > 0).length} pedidos` : formatCurrency(totalPendingSaldo)}
               </span>
             </div>
 
@@ -321,7 +324,11 @@ export const ShippingPendingScreen: React.FC<ShippingPendingScreenProps> = ({
                         : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-500/30'
                     }`}
                   >
-                    {isFullyPaid ? '✅ Pagado Total' : `⚠️ Saldo: ${formatCurrency(order.saldo)}`}
+                    {isFullyPaid
+                      ? '✅ Pagado Total'
+                      : isVendedorRole
+                      ? '⚠️ Saldo Pendiente'
+                      : `⚠️ Saldo: ${formatCurrency(order.saldo)}`}
                   </span>
                 </div>
 
@@ -337,7 +344,7 @@ export const ShippingPendingScreen: React.FC<ShippingPendingScreenProps> = ({
                     }`}
                   >
                     <span>Artículos ({totalPiezas} piezas)</span>
-                    <span>Total: {formatCurrency(order.total)}</span>
+                    {!isVendedorRole && <span>Total: {formatCurrency(order.total)}</span>}
                   </div>
                   <div className="space-y-0.5 max-h-24 overflow-y-auto pr-1">
                     {order.productos.map((prod, idx) => (
@@ -350,9 +357,15 @@ export const ShippingPendingScreen: React.FC<ShippingPendingScreenProps> = ({
                         <span className="truncate">
                           {formatArticleItem(prod)}
                         </span>
-                        <span className={`font-mono text-[11px] shrink-0 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
-                          {formatCurrency(prod.cantidad * prod.precioUnitario)}
-                        </span>
+                        {!isVendedorRole ? (
+                          <span className={`font-mono text-[11px] shrink-0 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                            {formatCurrency(prod.cantidad * prod.precioUnitario)}
+                          </span>
+                        ) : (
+                          <span className={`text-[11px] font-semibold shrink-0 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                            Cant: {prod.cantidad}
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -396,8 +409,8 @@ export const ShippingPendingScreen: React.FC<ShippingPendingScreenProps> = ({
                     <span>Ficha WhatsApp</span>
                   </button>
 
-                  {/* 1-Click Complete balance button if pending */}
-                  {!isFullyPaid && (
+                  {/* 1-Click Complete balance button if pending (Only Supervisor and Jefe) */}
+                  {!isFullyPaid && !isVendedorRole && (
                     <button
                       id={`btn-complete-balance-${order.id}`}
                       type="button"

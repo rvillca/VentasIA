@@ -20,6 +20,9 @@ import {
   formatArticleItem,
 } from '../../lib/storage';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { useFinancialPrivacy } from '../../contexts/FinancialPrivacyContext';
+import { BalanceToggleBtn } from '../BalanceToggleBtn';
 
 interface PurchaseDetailModalProps {
   purchase: Purchase;
@@ -45,6 +48,9 @@ export const PurchaseDetailModal: React.FC<PurchaseDetailModalProps> = ({
   onReactivada,
 }) => {
   const { isDark } = useTheme();
+  const { isComprador, role } = useAuth();
+  const { showBalances, formatBalance } = useFinancialPrivacy();
+  const isCompradorRole = isComprador || role === 'comprador';
   const isAnulado = purchase.estado === 'Anulado';
   const isPending = purchase.estado === 'Saldo Pendiente';
   const isPaid = purchase.estado === 'Pagado';
@@ -121,15 +127,18 @@ export const PurchaseDetailModal: React.FC<PurchaseDetailModalProps> = ({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className={`p-1.5 rounded-lg transition cursor-pointer ${
-              isDark ? 'text-[#9AA6C9] hover:text-white hover:bg-[#0F1B3C]' : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
-            }`}
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <BalanceToggleBtn size="sm" />
+            <button
+              type="button"
+              onClick={onClose}
+              className={`p-1.5 rounded-lg transition cursor-pointer ${
+                isDark ? 'text-[#9AA6C9] hover:text-white hover:bg-[#0F1B3C]' : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
+              }`}
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Anulado Alert Banner */}
@@ -265,39 +274,66 @@ export const PurchaseDetailModal: React.FC<PurchaseDetailModalProps> = ({
                     <span className={`font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
                       {formatArticleItem(item)}
                     </span>
-                    {item.cantidad > 1 && (
+                    {!isCompradorRole && item.cantidad > 1 && (
                       <span className={`text-[10px] block ${isDark ? 'text-[#9AA6C9]/70' : 'text-[#78716C]/70'}`}>
                         ({formatCurrency(item.costoUnitario)} c/u)
                       </span>
                     )}
                   </div>
-                  <span className={`font-mono font-bold ${isDark ? 'text-amber-300' : 'text-amber-800'}`}>
-                    {formatCurrency(item.subtotal)}
-                  </span>
+                  {!isCompradorRole ? (
+                    <span className={`font-mono font-bold ${isDark ? 'text-amber-300' : 'text-amber-800'}`}>
+                      {formatCurrency(item.subtotal)}
+                    </span>
+                  ) : (
+                    <span className={`font-semibold px-2 py-0.5 rounded-lg border text-[11px] ${
+                      isDark ? 'bg-[#16234F] border-[#223368] text-[#9AA6C9]' : 'bg-white border-[#E8DFC8] text-[#78716C]'
+                    }`}>
+                      Cant: {item.cantidad}
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Financial Totals */}
-          <div className={`p-3 rounded-2xl border space-y-1.5 ${
-            isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
-          }`}>
-            <div className="flex justify-between font-bold">
-              <span className={isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}>Total Compra:</span>
-              <span className={`font-mono ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>{formatCurrency(purchase.total)}</span>
-            </div>
-            <div className={`flex justify-between font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
-              <span>Pagado / Desembolsado:</span>
-              <span className="font-mono">{formatCurrency(purchase.pagado)}</span>
-            </div>
-            <div className={`flex justify-between font-bold border-t pt-1 ${
-              isDark ? 'border-[#223368] text-rose-400' : 'border-[#E8DFC8] text-rose-700'
+          {/* Financial Totals or Status Indicator for Comprador */}
+          {isCompradorRole ? (
+            <div className={`p-3.5 rounded-2xl border space-y-2 ${
+              isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
             }`}>
-              <span>Saldo Pendiente:</span>
-              <span className="font-mono">{formatCurrency(purchase.saldo)}</span>
+              <span className={`block text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                Estado del Pedido / Lote:
+              </span>
+              <div className="flex items-center gap-2 text-sm font-bold">
+                {isAnulado ? (
+                  <span className="text-rose-700">🚫 Compra Anulada</span>
+                ) : isPaid ? (
+                  <span className="text-emerald-700">✅ Compra Totalmente Pagada</span>
+                ) : (
+                  <span className="text-amber-800">⚠️ Con Saldo Pendiente por Pagar</span>
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className={`p-3 rounded-2xl border space-y-1.5 ${
+              isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+            }`}>
+              <div className="flex justify-between font-bold">
+                <span className={isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}>Total Compra:</span>
+                <span className={`font-['Outfit',sans-serif] font-black ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>{formatBalance(purchase.total)}</span>
+              </div>
+              <div className={`flex justify-between font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
+                <span>Pagado / Desembolsado:</span>
+                <span className="font-['Outfit',sans-serif] font-black">{formatBalance(purchase.pagado)}</span>
+              </div>
+              <div className={`flex justify-between font-bold border-t pt-1 ${
+                isDark ? 'border-[#223368] text-rose-400' : 'border-[#E8DFC8] text-rose-700'
+              }`}>
+                <span>Saldo Pendiente:</span>
+                <span className="font-['Outfit',sans-serif] font-black text-sm">{purchase.saldo > 0 ? formatBalance(purchase.saldo) : (showBalances ? 'Bs. 0' : 'Bs. •••••')}</span>
+              </div>
+            </div>
+          )}
 
           {purchase.observaciones && (
             <div className={`p-2.5 rounded-xl border text-[11px] ${

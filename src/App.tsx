@@ -8,6 +8,7 @@ import { ShippingPendingScreen } from './components/ShippingPendingScreen';
 import { ReportsScreen } from './components/ReportsScreen';
 import { UserManagementScreen } from './components/UserManagementScreen';
 import { ComprasScreen } from './components/ComprasScreen';
+import { SeguimientoScreen } from './components/SeguimientoScreen';
 import { LoginScreen } from './components/LoginScreen';
 import { Order, Purchase, ActiveTab } from './types';
 import {
@@ -35,6 +36,7 @@ export default function App() {
     canAccessCompras,
     canAdminResetPasswords,
     canViewReports,
+    canViewSeguimiento,
     isJefe,
     isSupervisor,
     isComprador,
@@ -304,9 +306,21 @@ export default function App() {
           />
         )}
 
-        {/* Tab 5: Reportes y Dashboards (Jefe, Supervisor y Comprador) */}
+        {/* Tab 5: Reportes y Dashboards (Solo Jefe / Admin) */}
         {activeTab === 'reports' && canViewReports && (
           <ReportsScreen orders={orders} purchases={purchases} />
+        )}
+
+        {/* Tab: Seguimiento de Cobros y Pagos (Supervisor y Jefe) */}
+        {activeTab === 'seguimiento' && canViewSeguimiento && (
+          <SeguimientoScreen
+            orders={orders}
+            purchases={purchases}
+            onSelectOrder={(order) => {
+              setSelectedOrderId(order.id);
+              setActiveTab('detail');
+            }}
+          />
         )}
 
         {/* Tab 6: Gestión de Personal / Usuarios (Jefe y Supervisor) */}
