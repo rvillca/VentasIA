@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  getDoc,
   setDoc,
   updateDoc,
   deleteDoc,
@@ -187,6 +188,201 @@ export function subscribeToOrders(
     },
     (err) => {
       console.error('Firestore orders subscription error:', err);
+      if (onError) onError(err);
+    }
+  );
+}
+
+export type StorageDateFilter =
+  | 'today'
+  | 'this_week'
+  | '7days'
+  | '30days'
+  | 'this_month'
+  | 'all_year'
+  | 'all'
+  | 'custom'
+  | 'archivados';
+
+export interface StorageFilterOptions {
+  range?: StorageDateFilter;
+  customStart?: string;
+  customEnd?: string;
+  includeArchived?: boolean;
+}
+
+/**
+ * Calculates start and end ISO strings in exact local calendar boundaries
+ */
+export function getDateRangeIsoBounds(
+  range?: StorageDateFilter,
+  customStart?: string,
+  customEnd?: string
+): { startIso?: string; endIso?: string } {
+  if (!range || range === 'all' || range === 'archivados') {
+    return {};
+  }
+
+  const now = new Date();
+
+  if (range === 'today') {
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    return { startIso: start.toISOString(), endIso: end.toISOString() };
+  }
+
+  if (range === 'this_week') {
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Monday
+    const mon = new Date(now.getFullYear(), now.getMonth(), diff, 0, 0, 0, 0);
+    const sun = new Date(mon);
+    sun.setDate(mon.getDate() + 6);
+    sun.setHours(23, 59, 59, 999);
+    return { startIso: mon.toISOString(), endIso: sun.toISOString() };
+  }
+
+  if (range === '7days') {
+    const past7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    return { startIso: past7.toISOString(), endIso: now.toISOString() };
+  }
+
+  if (range === 'this_month') {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    return { startIso: start.toISOString(), endIso: end.toISOString() };
+  }
+
+  if (range === '30days') {
+    const past30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    return { startIso: past30.toISOString(), endIso: now.toISOString() };
+  }
+
+  if (range === 'all_year') {
+    const start = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
+    const end = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+    return { startIso: start.toISOString(), endIso: end.toISOString() };
+  }
+
+  if (range === 'custom') {
+    if (customStart && customEnd) {
+      const start = new Date(`${customStart}T00:00:00`);
+      const end = new Date(`${customEnd}T23:59:59.999`);
+      return { startIso: start.toISOString(), endIso: end.toISOString() };
+    }
+    if (customStart) {
+      const start = new Date(`${customStart}T00:00:00`);
+      return { startIso: start.toISOString() };
+    }
+  }
+
+  return {};
+}
+
+/**
+ * Optimized direct Firestore query for Orders with where clauses applied at server level
+ */
+export function subscribeToOrdersWithDateFilter(
+  filter: StorageFilterOptions,
+  onUpdate: (orders: Order[]) => void,
+  onError?: (err: any) => void
+) {
+  const ordersRef = collection(db, ORDERS_COLLECTION);
+
+  // If viewing specifically archived orders
+  if (filter.range === 'archivados') {
+    const q = query(ordersRef, where('archivado', '==', true));
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const list: Order[] = [];
+        snapshot.forEach((docSnap) => {
+          list.push({ ...docSnap.data(), id: docSnap.id } as Order);
+        });
+        list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        onUpdate(list);
+      },
+      (err) => {
+        console.error('Firestore archived orders subscription error:', err);
+        if (onError) onError(err);
+      }
+    );
+  }
+
+  // Direct Firestore date range constraints
+  const bounds = getDateRangeIsoBounds(filter.range, filter.customStart, filter.customEnd);
+  const constraints: any[] = [];
+
+  if (bounds.startIso) {
+    constraints.push(where('createdAt', '>=', bounds.startIso));
+  }
+  if (bounds.endIso) {
+    constraints.push(where('createdAt', '<=', bounds.endIso));
+  }
+  constraints.push(orderBy('createdAt', 'desc'));
+
+  const q = query(ordersRef, ...constraints);
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const list: Order[] = [];
+      snapshot.forEach((docSnap) => {
+        const o = { ...docSnap.data(), id: docSnap.id } as Order;
+        // Exclude archived from active views unless explicitly requested
+        if (filter.includeArchived || !o.archivado) {
+          list.push(o);
+        }
+      });
+      onUpdate(list);
+    },
+    (err) => {
+      console.error('Firestore date-filtered orders error:', err);
+      if (onError) onError(err);
+    }
+  );
+}
+
+/**
+ * Fetch a single order by ID directly from Firestore
+ */
+export async function fetchOrderById(orderId: string): Promise<Order | null> {
+  try {
+    const docRef = doc(db, ORDERS_COLLECTION, orderId);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) return null;
+    return { ...snap.data(), id: snap.id } as Order;
+  } catch (err) {
+    console.error('Error fetching order by ID:', err);
+    return null;
+  }
+}
+
+/**
+ * Optimized lightweight subscription for Header badge to track pending balance
+ */
+export function subscribeToPendingBalance(
+  onUpdate: (summary: { pendingCount: number; pendingTotal: number }) => void,
+  onError?: (err: any) => void
+) {
+  const ordersRef = collection(db, ORDERS_COLLECTION);
+  const q = query(ordersRef, where('estado', '==', 'Abierto'));
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      let pendingCount = 0;
+      let pendingTotal = 0;
+      snapshot.forEach((docSnap) => {
+        const o = docSnap.data() as Order;
+        if (!o.archivado) {
+          pendingCount++;
+          pendingTotal += Math.max(0, o.saldo || 0);
+        }
+      });
+      onUpdate({ pendingCount, pendingTotal });
+    },
+    (err) => {
+      console.error('Pending balance subscription error:', err);
       if (onError) onError(err);
     }
   );

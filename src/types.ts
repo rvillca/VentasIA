@@ -48,6 +48,8 @@ export interface Order {
   createdAt: string; // ISO date string
   updatedAt: string;
   rawTranscription?: string;
+  archivado?: boolean;
+  fechaArchivado?: string;
 }
 
 export interface PurchaseItem {
@@ -83,6 +85,8 @@ export interface Purchase {
   anuladoAt?: string;
   createdAt: string;
   updatedAt: string;
+  archivado?: boolean;
+  fechaArchivado?: string;
 }
 
 export interface AiParsedOrderData {

@@ -17,7 +17,9 @@
         "estado": { "type": "string" },
         "vendedorNombre": { "type": "string" },
         "createdAt": { "type": "string" },
-        "updatedAt": { "type": "string" }
+        "updatedAt": { "type": "string" },
+        "archivado": { "type": "boolean" },
+        "fechaArchivado": { "type": "string" }
       },
       "required": ["orderNumber", "cliente", "total", "estado", "createdAt"]
     },
@@ -40,7 +42,9 @@
         "compradorNombre": { "type": "string" },
         "observaciones": { "type": "string" },
         "createdAt": { "type": "string" },
-        "updatedAt": { "type": "string" }
+        "updatedAt": { "type": "string" },
+        "archivado": { "type": "boolean" },
+        "fechaArchivado": { "type": "string" }
       },
       "required": ["purchaseNumber", "proveedor", "total", "estado", "createdAt"]
     },
