@@ -440,6 +440,326 @@ export function subscribeToPurchases(
   );
 }
 
+/**
+ * Optimized direct Firestore query for Purchases with where clauses applied at server level
+ */
+export function subscribeToPurchasesWithDateFilter(
+  filter: StorageFilterOptions,
+  onUpdate: (purchases: Purchase[]) => void,
+  onError?: (err: any) => void
+) {
+  const purchasesRef = collection(db, PURCHASES_COLLECTION);
+
+  // If viewing specifically archived purchases
+  if (filter.range === 'archivados') {
+    const q = query(purchasesRef, where('archivado', '==', true));
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const list: Purchase[] = [];
+        snapshot.forEach((docSnap) => {
+          list.push({ ...docSnap.data(), id: docSnap.id } as Purchase);
+        });
+        list.sort((a, b) => new Date(b.createdAt || b.fechaCompra).getTime() - new Date(a.createdAt || a.fechaCompra).getTime());
+        onUpdate(list);
+      },
+      (err) => {
+        console.error('Firestore archived purchases subscription error:', err);
+        if (onError) onError(err);
+      }
+    );
+  }
+
+  // Direct Firestore date range constraints
+  const bounds = getDateRangeIsoBounds(filter.range, filter.customStart, filter.customEnd);
+  const constraints: any[] = [];
+
+  if (bounds.startIso) {
+    constraints.push(where('createdAt', '>=', bounds.startIso));
+  }
+  if (bounds.endIso) {
+    constraints.push(where('createdAt', '<=', bounds.endIso));
+  }
+  constraints.push(orderBy('createdAt', 'desc'));
+
+  const q = query(purchasesRef, ...constraints);
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const list: Purchase[] = [];
+      snapshot.forEach((docSnap) => {
+        const p = { ...docSnap.data(), id: docSnap.id } as Purchase;
+        // Exclude archived from active views unless explicitly requested
+        if (filter.includeArchived || !p.archivado) {
+          list.push(p);
+        }
+      });
+      onUpdate(list);
+    },
+    (err) => {
+      console.error('Firestore date-filtered purchases error:', err);
+      if (onError) onError(err);
+    }
+  );
+}
+
+/**
+ * Optimized direct Firestore query for Shipping Pending Screen
+ * Directly queries active non-archived orders for the designated period
+ */
+export function subscribeToShippingOrders(
+  period: 'this_month' | 'all_year' | 'all',
+  onUpdate: (orders: Order[]) => void,
+  onError?: (err: any) => void
+) {
+  const ordersRef = collection(db, ORDERS_COLLECTION);
+  const bounds = getDateRangeIsoBounds(period);
+  const constraints: any[] = [];
+
+  if (bounds.startIso) {
+    constraints.push(where('createdAt', '>=', bounds.startIso));
+  }
+  if (bounds.endIso) {
+    constraints.push(where('createdAt', '<=', bounds.endIso));
+  }
+  constraints.push(orderBy('createdAt', 'desc'));
+
+  const q = query(ordersRef, ...constraints);
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const list: Order[] = [];
+      snapshot.forEach((docSnap) => {
+        const o = { ...docSnap.data(), id: docSnap.id } as Order;
+        if (!o.archivado) {
+          list.push(o);
+        }
+      });
+      onUpdate(list);
+    },
+    (err) => {
+      console.error('Firestore shipping orders subscription error:', err);
+      if (onError) onError(err);
+    }
+  );
+}
+
+// Fetch all orders for backup without date filters
+export async function fetchAllOrdersForBackup(): Promise<Order[]> {
+  const ordersRef = collection(db, ORDERS_COLLECTION);
+  const q = query(ordersRef, orderBy('orderNumber', 'desc'));
+  const snapshot = await getDocs(q);
+  const list: Order[] = [];
+  snapshot.forEach((docSnap) => {
+    list.push({ ...docSnap.data(), id: docSnap.id } as Order);
+  });
+  return list;
+}
+
+// Fetch all purchases for backup without date filters
+export async function fetchAllPurchasesForBackup(): Promise<Purchase[]> {
+  const purchasesRef = collection(db, PURCHASES_COLLECTION);
+  const q = query(purchasesRef, orderBy('purchaseNumber', 'desc'));
+  const snapshot = await getDocs(q);
+  const list: Purchase[] = [];
+  snapshot.forEach((docSnap) => {
+    list.push({ ...docSnap.data(), id: docSnap.id } as Purchase);
+  });
+  return list;
+}
+
+// Fetch all users for backup
+export async function fetchAllUsersForBackup(): Promise<AppUser[]> {
+  const usersRef = collection(db, USERS_COLLECTION);
+  const snapshot = await getDocs(usersRef);
+  const list: AppUser[] = [];
+  snapshot.forEach((docSnap) => {
+    list.push({ ...docSnap.data(), uid: docSnap.id } as AppUser);
+  });
+  return list;
+}
+
+/**
+ * ARCHIVAR REGISTROS ANTIGUOS (no eliminar)
+ * STRICT RULE:
+ * Marca como "Archivado" ÚNICAMENTE los pedidos/compras que estén completamente SALDADOS (saldo <= 0)
+ * dentro del rango especificado (fecha <= cutoffDateIso).
+ * Cualquier registro con saldo pendiente mayor a 0 NUNCA se archiva automáticamente,
+ * sin importar su antigüedad.
+ */
+export async function archivePaidRecordsBeforeDate(cutoffDateIso: string): Promise<{
+  archivedOrders: number;
+  archivedPurchases: number;
+  skippedOrdersWithBalance: number;
+  skippedPurchasesWithBalance: number;
+  totalProcessed: number;
+}> {
+  const nowIso = new Date().toISOString();
+  let archivedOrders = 0;
+  let skippedOrdersWithBalance = 0;
+  let archivedPurchases = 0;
+  let skippedPurchasesWithBalance = 0;
+
+  // 1. Orders before cutoff date
+  const ordersRef = collection(db, ORDERS_COLLECTION);
+  const ordersQuery = query(ordersRef, where('createdAt', '<=', cutoffDateIso));
+  const ordersSnap = await getDocs(ordersQuery);
+
+  for (const docSnap of ordersSnap.docs) {
+    const data = docSnap.data() as Order;
+    if (data.archivado) continue; // Already archived
+
+    const saldo = Number(data.saldo || 0);
+    // STRICT RULE: Only archive if completely saldado (saldo <= 0)
+    if (saldo <= 0) {
+      await updateDoc(docSnap.ref, {
+        archivado: true,
+        fechaArchivado: nowIso,
+        updatedAt: nowIso,
+      });
+      archivedOrders++;
+    } else {
+      skippedOrdersWithBalance++;
+    }
+  }
+
+  // 2. Purchases before cutoff date
+  const purchasesRef = collection(db, PURCHASES_COLLECTION);
+  const purchasesSnap = await getDocs(purchasesRef);
+
+  for (const docSnap of purchasesSnap.docs) {
+    const data = docSnap.data() as Purchase;
+    if (data.archivado) continue; // Already archived
+
+    const pDate = data.fechaCompra || data.createdAt;
+    if (pDate && pDate <= cutoffDateIso) {
+      const saldo = Number(data.saldo || 0);
+      // STRICT RULE: Only archive if completely saldado (saldo <= 0)
+      if (saldo <= 0) {
+        await updateDoc(docSnap.ref, {
+          archivado: true,
+          fechaArchivado: nowIso,
+          updatedAt: nowIso,
+        });
+        archivedPurchases++;
+      } else {
+        skippedPurchasesWithBalance++;
+      }
+    }
+  }
+
+  return {
+    archivedOrders,
+    archivedPurchases,
+    skippedOrdersWithBalance,
+    skippedPurchasesWithBalance,
+    totalProcessed: archivedOrders + archivedPurchases + skippedOrdersWithBalance + skippedPurchasesWithBalance,
+  };
+}
+
+/**
+ * Desarchivar Venta (restaurar a listas activas)
+ */
+export async function unarchiveOrderInFirestore(orderId: string): Promise<void> {
+  const docRef = doc(db, ORDERS_COLLECTION, orderId);
+  await updateDoc(docRef, {
+    archivado: false,
+    fechaArchivado: deleteField(),
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+/**
+ * Desarchivar Compra (restaurar a listas activas)
+ */
+export async function unarchivePurchaseInFirestore(purchaseId: string): Promise<void> {
+  const docRef = doc(db, PURCHASES_COLLECTION, purchaseId);
+  await updateDoc(docRef, {
+    archivado: false,
+    fechaArchivado: deleteField(),
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+/**
+ * Fetch counts of currently archived records
+ */
+export async function fetchArchivedCounts(): Promise<{
+  archivedOrdersCount: number;
+  archivedPurchasesCount: number;
+}> {
+  const ordersRef = collection(db, ORDERS_COLLECTION);
+  const qO = query(ordersRef, where('archivado', '==', true));
+  const snapO = await getDocs(qO);
+
+  const purchasesRef = collection(db, PURCHASES_COLLECTION);
+  const qP = query(purchasesRef, where('archivado', '==', true));
+  const snapP = await getDocs(qP);
+
+  return {
+    archivedOrdersCount: snapO.size,
+    archivedPurchasesCount: snapP.size,
+  };
+}
+
+/**
+ * Fetch all currently archived records
+ */
+export async function fetchArchivedRecords(): Promise<{
+  orders: Order[];
+  purchases: Purchase[];
+}> {
+  const ordersRef = collection(db, ORDERS_COLLECTION);
+  const qO = query(ordersRef, where('archivado', '==', true));
+  const snapO = await getDocs(qO);
+  const orders: Order[] = [];
+  snapO.forEach((d) => orders.push({ ...d.data(), id: d.id } as Order));
+
+  const purchasesRef = collection(db, PURCHASES_COLLECTION);
+  const qP = query(purchasesRef, where('archivado', '==', true));
+  const snapP = await getDocs(qP);
+  const purchases: Purchase[] = [];
+  snapP.forEach((d) => purchases.push({ ...d.data(), id: d.id } as Purchase));
+
+  return { orders, purchases };
+}
+
+/**
+ * ELIMINACIÓN DEFINITIVA (Admin/Jefe only)
+ * Elimina permanentemente de la base de datos ÚNICAMENTE registros YA archivados
+ */
+export async function permanentlyDeleteArchivedRecords(options: {
+  deleteOrders: boolean;
+  deletePurchases: boolean;
+}): Promise<{ deletedOrders: number; deletedPurchases: number }> {
+  let deletedOrders = 0;
+  let deletedPurchases = 0;
+
+  if (options.deleteOrders) {
+    const ordersRef = collection(db, ORDERS_COLLECTION);
+    const q = query(ordersRef, where('archivado', '==', true));
+    const snap = await getDocs(q);
+    for (const d of snap.docs) {
+      await deleteDoc(d.ref);
+      deletedOrders++;
+    }
+  }
+
+  if (options.deletePurchases) {
+    const purchasesRef = collection(db, PURCHASES_COLLECTION);
+    const q = query(purchasesRef, where('archivado', '==', true));
+    const snap = await getDocs(q);
+    for (const d of snap.docs) {
+      await deleteDoc(d.ref);
+      deletedPurchases++;
+    }
+  }
+
+  return { deletedOrders, deletedPurchases };
+}
+
 // Recursively remove `undefined` values from objects/arrays before writing to Firestore
 export function sanitizeForFirestore<T>(data: T): T {
   if (data === null || data === undefined) {

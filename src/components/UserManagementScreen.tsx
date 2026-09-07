@@ -21,9 +21,11 @@ import {
   UserX,
   Search,
   AlertTriangle,
+  Database,
 } from 'lucide-react';
 import { AppUser, UserRole } from '../types';
 import { subscribeToUsers } from '../lib/storage';
+import { DatabaseMaintenanceScreen } from './DatabaseMaintenanceScreen';
 
 export const UserManagementScreen: React.FC = () => {
   const {
@@ -38,6 +40,9 @@ export const UserManagementScreen: React.FC = () => {
   const { isDark } = useTheme();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [, setLoading] = useState(true);
+
+  // Sub-tabs for Admin/Jefe: Personal vs Mantenimiento BD
+  const [activeSubTab, setActiveSubTab] = useState<'users' | 'maintenance'>('users');
 
   // Search and filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -373,8 +378,59 @@ export const UserManagementScreen: React.FC = () => {
         </p>
       </div>
 
-      {/* Grid: Create Form + Users List */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {/* Sub-navigation for Jefe: Personal vs Mantenimiento BD */}
+      {isJefe && (
+        <div
+          className={`flex items-center gap-2 p-1.5 rounded-2xl border shadow-sm ${
+            isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+          }`}
+        >
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('users')}
+            className={`flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
+              activeSubTab === 'users'
+                ? isDark
+                  ? 'bg-[#FF6FA5] text-[#0F1B3C] shadow-md shadow-[#FF6FA5]/20'
+                  : 'bg-[#1A2B5C] text-white shadow-md'
+                : isDark
+                ? 'text-[#9AA6C9] hover:text-white hover:bg-[#0F1B3C]'
+                : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            <span>Personal & Cuentas de Acceso</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('maintenance')}
+            className={`flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
+              activeSubTab === 'maintenance'
+                ? isDark
+                  ? 'bg-amber-400 text-slate-950 font-black shadow-md shadow-amber-400/20'
+                  : 'bg-amber-500 text-white font-bold shadow-md'
+                : isDark
+                ? 'text-amber-400 hover:text-white hover:bg-[#0F1B3C]'
+                : 'text-amber-700 hover:text-amber-900 hover:bg-[#FBF7EF]'
+            }`}
+          >
+            <Database className="w-4 h-4" />
+            <span>Mantenimiento de Base de Datos</span>
+            <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-black/15">
+              Admin
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* Render Maintenance Screen if active */}
+      {isJefe && activeSubTab === 'maintenance' ? (
+        <DatabaseMaintenanceScreen />
+      ) : (
+        <>
+          {/* Grid: Create Form + Users List */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Create User Form (Only for Jefe) */}
         {isJefe ? (
           <div
@@ -1586,6 +1642,8 @@ export const UserManagementScreen: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

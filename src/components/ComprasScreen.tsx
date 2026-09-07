@@ -58,7 +58,7 @@ interface ComprasScreenProps {
   purchases?: Purchase[];
 }
 
-type PeriodFilter = 'today' | '7days' | 'this_month' | 'all';
+type PeriodFilter = 'today' | '7days' | 'this_month' | 'all' | 'archivados';
 type StatusFilter = 'all' | 'Pagado' | 'Saldo Pendiente' | 'Anulado';
 
 const FREQUENT_SUPPLIERS = [
@@ -142,6 +142,13 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
   const filteredPurchases = useMemo(() => {
     const now = new Date();
     return purchases.filter((p) => {
+      // Archive handling: only show archived records when 'archivados' filter is selected
+      if (periodFilter === 'archivados') {
+        if (!p.archivado) return false;
+      } else {
+        if (p.archivado) return false;
+      }
+
       // Date filter
       const pDate = new Date(p.fechaCompra || p.createdAt);
       let matchDate = true;
@@ -172,9 +179,9 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
     });
   }, [purchases, periodFilter, statusFilter, searchTerm]);
 
-  // Overall Financial KPIs
+  // Overall Financial KPIs (excluding archived from active counters)
   const validPurchases = useMemo(
-    () => purchases.filter((p) => p.estado !== 'Anulado'),
+    () => purchases.filter((p) => !p.archivado && p.estado !== 'Anulado'),
     [purchases]
   );
   const filteredValid = useMemo(
@@ -644,6 +651,7 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                 <option value="7days">Últimos 7 días</option>
                 <option value="this_month">Este mes</option>
                 <option value="all">Todo el historial</option>
+                {(isJefe || isSupervisor) && <option value="archivados">📦 Ver archivados</option>}
               </select>
             </div>
           </div>

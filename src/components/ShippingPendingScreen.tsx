@@ -134,9 +134,9 @@ export const ShippingPendingScreen: React.FC<ShippingPendingScreenProps> = ({
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   };
 
-  // Base orders filtered by year/month period (excluding canceled)
+  // Base orders filtered by year/month period (excluding canceled and archived)
   const periodOrders = useMemo(() => {
-    return orders.filter((o) => o.estado !== 'Anulado' && isDateInShippingPeriod(o.createdAt));
+    return orders.filter((o) => !o.archivado && o.estado !== 'Anulado' && isDateInShippingPeriod(o.createdAt));
   }, [orders, shippingPeriod]);
 
   // Metric counts for the active period

@@ -133,9 +133,12 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
     return true; // 'all'
   };
 
-  // Filter orders by date range and seller
+  // Filter orders by date range and seller (excluding archived)
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
+      // Archived records are excluded from active reports
+      if (order.archivado) return false;
+
       const orderDate = new Date(order.createdAt);
       const matchDate = isDateInSelectedRange(orderDate);
 
@@ -147,9 +150,11 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
     });
   }, [orders, range, customStartDate, customEndDate, selectedSeller]);
 
-  // Shipping specific filtered orders
+  // Shipping specific filtered orders (excluding archived)
   const filteredShippingOrders = useMemo(() => {
     return orders.filter((order) => {
+      if (order.archivado) return false;
+
       const orderDate = new Date(order.createdAt);
       const matchDate = isDateInSelectedRange(orderDate);
 
@@ -184,9 +189,11 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
     });
   }, [orders, range, customStartDate, customEndDate, shippingShipperFilter, shippingSellerFilter, shippingStatusFilter, shippingSearch]);
 
-  // Filter purchases by date range
+  // Filter purchases by date range (excluding archived)
   const filteredPurchases = useMemo(() => {
     return purchases.filter((p) => {
+      if (p.archivado) return false;
+
       const pDate = new Date(p.fechaCompra || p.createdAt);
       const matchDate = isDateInSelectedRange(pDate);
 

@@ -19,6 +19,7 @@ import {
   Share2,
   Truck,
   Calendar,
+  Archive,
 } from 'lucide-react';
 import { Order, OrderStatus } from '../types';
 import {
@@ -43,7 +44,7 @@ interface OrdersListScreenProps {
 }
 
 type FilterType = 'all' | 'Abierto' | 'Entregado' | 'with_balance' | 'Anulado';
-type SalesDateFilter = 'today' | 'this_week' | 'this_month' | 'all';
+type SalesDateFilter = 'today' | 'this_week' | 'this_month' | 'all' | 'archivados';
 
 export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
   orders = [],
@@ -64,13 +65,21 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
   const [prepOrder, setPrepOrder] = useState<Order | null>(null);
   const [completingId, setCompletingId] = useState<string | null>(null);
 
-  // Monthly stats and comparison for Vendedora & counts
-  const monthlySalesStats = useMemo(() => computeMonthlySalesStats(orders), [orders]);
+  // Active orders (non-archived) for standard monthly calculations
+  const activeOrders = useMemo(() => orders.filter((o) => !o.archivado), [orders]);
 
-  // Total orders today count
+  // Monthly stats and comparison for Vendedora & counts
+  const monthlySalesStats = useMemo(() => computeMonthlySalesStats(activeOrders), [activeOrders]);
+
+  // Total orders today count (including open and pending balance orders, excluding archived)
   const todayOrdersCount = useMemo(() => {
     const now = new Date();
     return orders.filter((o) => {
+      if (o.archivado) return false;
+      const isOpen = o.estado === 'Abierto';
+      const hasPendingBalance = o.saldo > 0 && o.estado !== 'Anulado';
+      if (isOpen || hasPendingBalance) return true;
+
       const d = new Date(o.createdAt);
       return (
         !isNaN(d.getTime()) &&
@@ -81,10 +90,70 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
     }).length;
   }, [orders]);
 
+  // Total orders this week count (including open and pending balance orders, excluding archived)
+  const weekOrdersCount = useMemo(() => {
+    const now = new Date();
+    const day = now.getDay();
+    const diffToMonday = day === 0 ? -6 : 1 - day;
+    const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMonday, 0, 0, 0, 0);
+    const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6, 23, 59, 59, 999);
+
+    return orders.filter((o) => {
+      if (o.archivado) return false;
+      const isOpen = o.estado === 'Abierto';
+      const hasPendingBalance = o.saldo > 0 && o.estado !== 'Anulado';
+      if (isOpen || hasPendingBalance) return true;
+
+      const d = new Date(o.createdAt);
+      return !isNaN(d.getTime()) && d >= monday && d <= sunday;
+    }).length;
+  }, [orders]);
+
+  // Total orders this month count (including open and pending balance orders, excluding archived)
+  const monthOrdersCount = useMemo(() => {
+    const now = new Date();
+    return orders.filter((o) => {
+      if (o.archivado) return false;
+      const isOpen = o.estado === 'Abierto';
+      const hasPendingBalance = o.saldo > 0 && o.estado !== 'Anulado';
+      if (isOpen || hasPendingBalance) return true;
+
+      const d = new Date(o.createdAt);
+      return (
+        !isNaN(d.getTime()) &&
+        d.getMonth() === now.getMonth() &&
+        d.getFullYear() === now.getFullYear()
+      );
+    }).length;
+  }, [orders]);
+
+  // Total archived orders count
+  const archivedOrdersCount = useMemo(() => {
+    return orders.filter((o) => !!o.archivado).length;
+  }, [orders]);
+
   // Date Filter matching
-  const isDateInSelectedRange = (dateStr: string) => {
+  const isDateInSelectedRange = (order: Order) => {
+    // If viewing archived, only show archived records
+    if (dateFilter === 'archivados') {
+      return !!order.archivado;
+    }
+    // For all regular date filters, exclude archived records
+    if (order.archivado) {
+      return false;
+    }
+
     if (dateFilter === 'all') return true;
-    const d = new Date(dateStr);
+
+    // Regla de negocio solicitada: En los filtros de 'today', 'this_week' y 'this_month',
+    // SIEMPRE deben estar los datos de las ventas que aún están con saldo pendiente (> 0) o abiertas ('Abierto')
+    const hasPendingBalance = order.saldo > 0 && order.estado !== 'Anulado';
+    const isOpen = order.estado === 'Abierto';
+    if (isOpen || hasPendingBalance) {
+      return true;
+    }
+
+    const d = new Date(order.createdAt);
     if (isNaN(d.getTime())) return true;
     const now = new Date();
 
@@ -113,7 +182,7 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
 
   // Orders scoped to the chosen date period
   const dateScopedOrders = useMemo(() => {
-    return orders.filter((o) => isDateInSelectedRange(o.createdAt));
+    return orders.filter((o) => isDateInSelectedRange(o));
   }, [orders, dateFilter]);
 
   // Financial summary counters for the selected period (excluding Anulados)
@@ -465,7 +534,7 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
                 type="button"
                 id="filter-date-this-week"
                 onClick={() => setDateFilter('this_week')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
                   dateFilter === 'this_week'
                     ? isDark
                       ? 'bg-[#FF6FA5] text-[#0F1B3C] font-black shadow-sm'
@@ -475,7 +544,20 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
                     : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C] border border-[#E8DFC8]'
                 }`}
               >
-                Esta Semana
+                <span>Esta Semana</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                    dateFilter === 'this_week'
+                      ? isDark
+                        ? 'bg-[#0F1B3C]/30 text-[#0F1B3C]'
+                        : 'bg-white/25 text-white'
+                      : isDark
+                      ? 'bg-[#16234F] text-[#FF6FA5]'
+                      : 'bg-[#E8DFC8] text-[#1A2B5C]'
+                  }`}
+                >
+                  {weekOrdersCount}
+                </span>
               </button>
 
               {/* Botón: Este Mes */}
@@ -483,7 +565,7 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
                 type="button"
                 id="filter-date-this-month"
                 onClick={() => setDateFilter('this_month')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
                   dateFilter === 'this_month'
                     ? isDark
                       ? 'bg-[#FF6FA5] text-[#0F1B3C] font-black shadow-sm'
@@ -493,7 +575,20 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
                     : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C] border border-[#E8DFC8]'
                 }`}
               >
-                Este Mes
+                <span>Este Mes</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                    dateFilter === 'this_month'
+                      ? isDark
+                        ? 'bg-[#0F1B3C]/30 text-[#0F1B3C]'
+                        : 'bg-white/25 text-white'
+                      : isDark
+                      ? 'bg-[#16234F] text-[#FF6FA5]'
+                      : 'bg-[#E8DFC8] text-[#1A2B5C]'
+                  }`}
+                >
+                  {monthOrdersCount}
+                </span>
               </button>
 
               {/* Botón: Todo el Histórico */}
@@ -526,13 +621,62 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
                   {orders.length}
                 </span>
               </button>
+
+              {/* Botón: Ver Archivados */}
+              {(isJefe || isSupervisor || archivedOrdersCount > 0) && (
+                <button
+                  type="button"
+                  id="filter-date-archivados"
+                  onClick={() => setDateFilter('archivados')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                    dateFilter === 'archivados'
+                      ? isDark
+                        ? 'bg-amber-400 text-slate-950 font-black shadow-sm'
+                        : 'bg-amber-500 text-white font-black shadow-sm'
+                      : isDark
+                      ? 'bg-[#0F1B3C] text-amber-400 hover:text-white border border-[#223368]'
+                      : 'bg-[#FBF7EF] text-amber-800 hover:text-amber-950 border border-[#E8DFC8]'
+                  }`}
+                >
+                  <Archive className="w-3.5 h-3.5" />
+                  <span>Ver Archivados</span>
+                  {archivedOrdersCount > 0 && (
+                    <span
+                      className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                        dateFilter === 'archivados'
+                          ? 'bg-black/20 text-current'
+                          : isDark
+                          ? 'bg-amber-950/60 text-amber-300'
+                          : 'bg-amber-100 text-amber-900'
+                      }`}
+                    >
+                      {archivedOrdersCount}
+                    </span>
+                  )}
+                </button>
+              )}
             </div>
 
             <div className="flex items-center gap-2 text-xs">
               {dateFilter === 'today' ? (
                 <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  Mostrando pedidos de hoy
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  <span>Mostrando hoy + pendientes/abiertos</span>
+                </span>
+              ) : dateFilter === 'this_week' ? (
+                <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  <span>Mostrando semana + pendientes/abiertos</span>
+                </span>
+              ) : dateFilter === 'this_month' ? (
+                <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  <span>Mostrando mes + pendientes/abiertos</span>
+                </span>
+              ) : dateFilter === 'archivados' ? (
+                <span className="text-[11px] font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                  <Archive className="w-3.5 h-3.5 shrink-0" />
+                  <span>Mostrando pedidos archivados</span>
                 </span>
               ) : (
                 <button
@@ -737,6 +881,15 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
                 0
               );
 
+              // Date breakdown
+              const orderDateObj = new Date(order.createdAt);
+              const isTodayOrder = !isNaN(orderDateObj.getTime()) && orderDateObj.toDateString() === new Date().toDateString();
+              const formattedDateStr = !isNaN(orderDateObj.getTime())
+                ? orderDateObj.toLocaleDateString('es-BO', { day: '2-digit', month: 'short' }) +
+                  ' · ' +
+                  orderDateObj.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })
+                : '';
+
               return (
                 <div
                   key={order.id}
@@ -765,7 +918,7 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
                         #{String(order.orderNumber).padStart(3, '0')}
                       </span>
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                           <h3
                             className={`text-base font-bold transition-colors font-['Outfit',sans-serif] ${
                               isDark
@@ -775,6 +928,22 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
                           >
                             {order.cliente || 'Clienta sin nombre'}
                           </h3>
+
+                          {/* Badge when displayed in Today/Week/Month due to pending balance or open status */}
+                          {dateFilter !== 'all' && dateFilter !== 'archivados' && !isTodayOrder && (
+                            <span
+                              className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold border flex items-center gap-1 shrink-0 ${
+                                isDark
+                                  ? 'bg-amber-950/70 text-amber-300 border-amber-800/50'
+                                  : 'bg-amber-100 text-amber-900 border-amber-300'
+                              }`}
+                              title={hasPendingBalance ? 'Con saldo pendiente por cobrar' : 'Pedido abierto en proceso'}
+                            >
+                              <Clock className="w-2.5 h-2.5" />
+                              <span>{hasPendingBalance ? 'Saldo pendiente' : 'Abierto activo'}</span>
+                            </span>
+                          )}
+
                           {order.vendedorNombre && (
                             <span
                               className={`text-[10px] px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1 border shrink-0 ${
@@ -802,16 +971,29 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
                             </span>
                           )}
                         </div>
-                        {order.telefono && (
-                          <div
-                            className={`flex items-center gap-1 text-xs mt-0.5 ${
-                              isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-                            }`}
-                          >
-                            <Phone className={`w-3 h-3 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
-                            <span>{order.telefono}</span>
-                          </div>
-                        )}
+
+                        <div className="flex flex-wrap items-center gap-2 text-xs mt-0.5">
+                          {order.telefono && (
+                            <div
+                              className={`flex items-center gap-1 ${
+                                isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                              }`}
+                            >
+                              <Phone className={`w-3 h-3 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
+                              <span>{order.telefono}</span>
+                            </div>
+                          )}
+                          {formattedDateStr && (
+                            <div
+                              className={`flex items-center gap-1 text-[11px] ${
+                                isDark ? 'text-[#9AA6C9]/70' : 'text-[#78716C]/70'
+                              }`}
+                            >
+                              <Calendar className="w-3 h-3" />
+                              <span>{formattedDateStr}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
 

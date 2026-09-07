@@ -33,7 +33,7 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
   order,
   isOpen,
   onClose,
-  initialMode = 'both',
+  initialMode = 'sale',
 }) => {
   const { isDark } = useTheme();
   const [printMode, setPrintMode] = useState<PrintMode>(initialMode);
@@ -100,7 +100,7 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
   };
 
   // 1. Text generator for Sale / Complete Ticket (384 dots / 32 columns full width)
-  const generateSaleText = () => {
+  const generateSaleText = (includeItems: boolean = false) => {
     let t = `================================\n`;
     t += `${centerText('IMPORTADORA CHIQUIMINISOS')}\n`;
     t += `${centerText('Papelería y artículos Kawaii')}\n`;
@@ -126,31 +126,31 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
         t += `${l}\n`;
       });
     }
-    t += `--------------------------------\n`;
-    t += `${justifyCols('ARTÍCULO / DETALLE', 'TOTAL', LINE_WIDTH)}\n`;
-    t += `--------------------------------\n`;
 
-    order.productos.forEach((item) => {
-      const subtotal = item.cantidad * item.precioUnitario;
-      const subtotalStr = formatCurrency(subtotal);
-      const itemTitle = formatArticleItem(item);
-      const isMultiQty = item.cantidad > 1;
+    if (includeItems && order.productos && order.productos.length > 0) {
+      t += `--------------------------------\n`;
+      t += `${justifyCols('ARTÍCULO / DETALLE', 'TOTAL', LINE_WIDTH)}\n`;
+      t += `--------------------------------\n`;
+      order.productos.forEach((item) => {
+        const subtotal = item.cantidad * item.precioUnitario;
+        const subtotalStr = formatCurrency(subtotal);
+        const itemTitle = formatArticleItem(item);
+        const isMultiQty = item.cantidad > 1;
 
-      // Print full article title wrapped to line width
-      const titleLines = wrapTextToLines(itemTitle, LINE_WIDTH);
-      titleLines.forEach((l) => {
-        t += `${l}\n`;
+        // Print full article title wrapped to line width
+        const titleLines = wrapTextToLines(itemTitle, LINE_WIDTH);
+        titleLines.forEach((l) => {
+          t += `${l}\n`;
+        });
+
+        if (isMultiQty) {
+          t += `${justifyCols('   ↳ Subtotal:', subtotalStr, LINE_WIDTH)}\n`;
+          t += `      (${formatCurrency(item.precioUnitario)} c/u)\n`;
+        } else {
+          t += `${justifyCols('   ↳ Subtotal:', subtotalStr, LINE_WIDTH)}\n`;
+        }
       });
-
-      if (isMultiQty) {
-        // Multi-quantity: show subtotal and (Bs. X c/u)
-        t += `${justifyCols('   ↳ Subtotal:', subtotalStr, LINE_WIDTH)}\n`;
-        t += `      (${formatCurrency(item.precioUnitario)} c/u)\n`;
-      } else {
-        // Single quantity (cantidad === 1): show ONLY subtotal without (c/u)
-        t += `${justifyCols('   ↳ Subtotal:', subtotalStr, LINE_WIDTH)}\n`;
-      }
-    });
+    }
 
     t += `--------------------------------\n`;
     t += `${justifyCols('TOTAL A PAGAR:', formatCurrency(order.total), LINE_WIDTH)}\n`;
@@ -217,11 +217,13 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
   };
 
   // Combined text according to current printMode (only 2 lines feed for ~1cm end margin)
-  const getSelectedPlainText = () => {
-    if (printMode === 'sale') return generateSaleText() + '\n\n';
-    if (printMode === 'shipping') return generateShippingText() + '\n\n';
+  const getSelectedPlainText = (modeOverride?: PrintMode | 'sale-with-items') => {
+    const mode = modeOverride || printMode;
+    if (mode === 'sale') return generateSaleText(false) + '\n\n';
+    if (mode === 'sale-with-items') return generateSaleText(true) + '\n\n';
+    if (mode === 'shipping') return generateShippingText() + '\n\n';
     return (
-      generateSaleText() +
+      generateSaleText(true) +
       `\n--------------------------------\n      ✂️ CORTAR AQUÍ ✂️      \n--------------------------------\n\n` +
       generateShippingText() +
       '\n\n'
@@ -229,26 +231,12 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
   };
 
   // HTML Builder for Browser & Direct Thermal Print (48mm / 384 dots full printable area)
-  const getSelectedPrintHtml = () => {
-    const saleHtml = `
-      <div class="ticket-block">
-        <div class="center">
-          <div class="title">IMPORTADORA CHIQUIMINISOS</div>
-          <div class="subtitle">Papelería y artículos Kawaii</div>
-          <div class="ticket-type-banner">*** TICKET DE VENTA ***</div>
-          <div class="order-number">PEDIDO #${String(order.orderNumber).padStart(3, '0')}</div>
-          <div class="order-meta">${formattedDate}</div>
-          ${order.vendedorNombre ? `<div class="order-meta">Atendido por: ${order.vendedorNombre}</div>` : ''}
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="info-section">
-          <div class="info-row"><span class="bold">CLIENTE:</span> ${order.cliente || 'Mostrador / TikTok'}</div>
-          ${order.telefono ? `<div class="info-row"><span class="bold">TEL/WPP:</span> ${formatBoliviaPhone(order.telefono)}</div>` : ''}
-          ${order.lugarEntrega ? `<div class="info-row"><span class="bold">ENTREGA:</span> ${order.lugarEntrega}</div>` : ''}
-        </div>
-
+  const getSelectedPrintHtml = (modeOverride?: PrintMode | 'sale-with-items') => {
+    const mode = modeOverride || printMode;
+    const includeItems = mode === 'both' || mode === 'sale-with-items';
+    const saleItemsHtml =
+      includeItems && order.productos && order.productos.length > 0
+        ? `
         <table class="items-table">
           <thead>
             <tr>
@@ -273,8 +261,30 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
               .join('')}
           </tbody>
         </table>
+        <div class="divider"></div>
+      `
+        : '';
+
+    const saleHtml = `
+      <div class="ticket-block">
+        <div class="center">
+          <div class="title">IMPORTADORA CHIQUIMINISOS</div>
+          <div class="subtitle">Papelería y artículos Kawaii</div>
+          <div class="ticket-type-banner">*** TICKET DE VENTA ***</div>
+          <div class="order-number">PEDIDO #${String(order.orderNumber).padStart(3, '0')}</div>
+          <div class="order-meta">${formattedDate}</div>
+          ${order.vendedorNombre ? `<div class="order-meta">Atendido por: ${order.vendedorNombre}</div>` : ''}
+        </div>
 
         <div class="divider"></div>
+
+        <div class="info-section">
+          <div class="info-row"><span class="bold">CLIENTE:</span> ${order.cliente || 'Mostrador / TikTok'}</div>
+          ${order.telefono ? `<div class="info-row"><span class="bold">TEL/WPP:</span> ${formatBoliviaPhone(order.telefono)}</div>` : ''}
+          ${order.lugarEntrega ? `<div class="info-row"><span class="bold">ENTREGA:</span> ${order.lugarEntrega}</div>` : ''}
+        </div>
+
+        ${saleItemsHtml ? `<div class="divider"></div>${saleItemsHtml}` : ''}
 
         <table class="totals-table">
           <tr>
@@ -365,8 +375,8 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
     `;
 
     let bodyContent = '';
-    if (printMode === 'sale') bodyContent = saleHtml;
-    else if (printMode === 'shipping') bodyContent = shippingHtml;
+    if (mode === 'sale' || mode === 'sale-with-items') bodyContent = saleHtml;
+    else if (mode === 'shipping') bodyContent = shippingHtml;
     else {
       bodyContent = `
         ${saleHtml}
@@ -637,9 +647,9 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
   };
 
   // Launch Print Dialog
-  const handlePrint = () => {
+  const handlePrint = (modeOverride?: PrintMode | 'sale-with-items') => {
     try {
-      const printContent = getSelectedPrintHtml();
+      const printContent = getSelectedPrintHtml(modeOverride);
       const printWindow = window.open('', '_blank', 'width=400,height=650');
       if (printWindow) {
         printWindow.document.open();
@@ -684,29 +694,31 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
   };
 
   // RawBT Bluetooth app launcher with explicit UTF-8 charset
-  const handleBluetoothRawBT = (formatChoice?: 'text' | 'html') => {
+  const handleBluetoothRawBT = (modeOverride?: PrintMode | 'sale-with-items', formatChoice?: 'text' | 'html') => {
     const format = formatChoice || rawbtFormat;
+    const mode = modeOverride || printMode;
     try {
       if (format === 'html') {
-        const html = getSelectedPrintHtml();
+        const html = getSelectedPrintHtml(mode);
         const base64Data = encodeUtf8Base64(html);
         const rawbtUri = `rawbt:data:text/html;charset=utf-8;base64,${base64Data}`;
         launchExternalUri(rawbtUri);
       } else {
-        const text = getSelectedPlainText();
+        const text = getSelectedPlainText(mode);
         const base64Data = encodeUtf8Base64(text);
         const rawbtUri = `rawbt:data:text/plain;charset=utf-8;base64,${base64Data}`;
         launchExternalUri(rawbtUri);
       }
     } catch (err) {
       console.warn('RawBT error, copying text instead:', err);
-      handleCopyText();
+      handleCopyText(mode);
     }
   };
 
   // Copy plain text
-  const handleCopyText = async () => {
-    const text = getSelectedPlainText();
+  const handleCopyText = async (modeOverride?: PrintMode | 'sale-with-items') => {
+    const mode = modeOverride || printMode;
+    const text = getSelectedPlainText(mode);
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -718,19 +730,20 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
   };
 
   // Native share sheet
-  const handleShare = async () => {
-    const text = getSelectedPlainText();
+  const handleShare = async (modeOverride?: PrintMode | 'sale-with-items') => {
+    const mode = modeOverride || printMode;
+    const text = getSelectedPlainText(mode);
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `Ticket #${order.orderNumber} (${printMode.toUpperCase()}) - Chiquiminisos`,
+          title: `Ticket #${order.orderNumber} (${mode.toUpperCase()}) - Chiquiminisos`,
           text: text,
         });
       } catch {
         // user cancelled
       }
     } else {
-      handleCopyText();
+      handleCopyText(mode);
     }
   };
 
@@ -775,14 +788,14 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
             </button>
           </div>
 
-          {/* Mode Selector Tabs (Venta / Envío / Ambos) */}
+          {/* Mode Selector Tabs (Predeterminado: 2. Venta | 1. Ambos) */}
           <div
             className={`px-3 pt-3 pb-2 border-b ${
               isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
             }`}
           >
             <div className="text-[11px] font-medium mb-1.5 flex items-center justify-between">
-              <span className={isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}>¿Qué deseas imprimir?</span>
+              <span className={isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}>Formato de Impresión:</span>
               <span className={`text-[10px] font-bold uppercase tracking-wider ${
                 isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'
               }`}>
@@ -790,59 +803,44 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
               </span>
             </div>
             <div
-              className={`grid grid-cols-3 gap-1.5 p-1 rounded-xl border ${
+              className={`grid grid-cols-2 gap-1.5 p-1 rounded-xl border ${
                 isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
               }`}
             >
               <button
                 type="button"
-                onClick={() => setPrintMode('both')}
-                className={`py-2 px-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                  printMode === 'both'
-                    ? isDark
-                      ? 'bg-[#FF6FA5] text-[#0F1B3C] shadow-sm'
-                      : 'bg-[#1A2B5C] text-white shadow-sm'
-                    : isDark
-                    ? 'text-[#9AA6C9] hover:text-white hover:bg-[#0F1B3C]'
-                    : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
-                }`}
-              >
-                <Layers className="w-3.5 h-3.5" />
-                <span>1. Ambos</span>
-              </button>
-
-              <button
-                type="button"
+                id="tab-mode-sale"
                 onClick={() => setPrintMode('sale')}
-                className={`py-2 px-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`py-2 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   printMode === 'sale'
                     ? isDark
-                      ? 'bg-[#FF6FA5] text-[#0F1B3C] shadow-sm'
-                      : 'bg-[#1A2B5C] text-white shadow-sm'
+                      ? 'bg-[#FF6FA5] text-[#0F1B3C] shadow-sm font-black'
+                      : 'bg-[#1A2B5C] text-white shadow-sm font-black'
                     : isDark
                     ? 'text-[#9AA6C9] hover:text-white hover:bg-[#0F1B3C]'
                     : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
                 }`}
               >
-                <Receipt className="w-3.5 h-3.5" />
-                <span>2. Venta</span>
+                <Receipt className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">2. Venta (Predeterminado)</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => setPrintMode('shipping')}
-                className={`py-2 px-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                  printMode === 'shipping'
+                id="tab-mode-both"
+                onClick={() => setPrintMode('both')}
+                className={`py-2 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  printMode === 'both'
                     ? isDark
-                      ? 'bg-[#2DD4BF] text-[#0F1B3C] shadow-sm'
-                      : 'bg-emerald-600 text-white shadow-sm'
+                      ? 'bg-[#FF6FA5] text-[#0F1B3C] shadow-sm font-black'
+                      : 'bg-[#1A2B5C] text-white shadow-sm font-black'
                     : isDark
                     ? 'text-[#9AA6C9] hover:text-white hover:bg-[#0F1B3C]'
                     : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
                 }`}
               >
-                <Truck className="w-3.5 h-3.5" />
-                <span>3. Envío</span>
+                <Layers className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">1. Ambos (Venta y Envío)</span>
               </button>
             </div>
           </div>
@@ -911,108 +909,141 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
             <div className="w-full max-w-[320px] space-y-3 select-all">
               {/* TICKET 1: VENTA */}
               {(printMode === 'sale' || printMode === 'both') && (
-                <div className="bg-white text-black p-3.5 sm:p-4 rounded-xl shadow-xl font-sans text-xs border border-stone-300 space-y-2.5 w-full">
-                  <div className="text-center border-b-2 border-dashed border-black pb-2 space-y-0.5">
-                    <p className="text-sm sm:text-base font-black tracking-wider uppercase">
-                      IMPORTADORA CHIQUIMINISOS
-                    </p>
-                    <p className="text-[11px] text-gray-700 font-semibold">
-                      Papelería y artículos Kawaii
-                    </p>
-                    <p className="text-xs font-black mt-1">*** TICKET DE VENTA ***</p>
-                    <p className="text-base font-black mt-0.5">PEDIDO #{String(order.orderNumber).padStart(3, '0')}</p>
-                    <p className="text-[11px] text-gray-600">{formattedDate}</p>
-                    {order.vendedorNombre && (
-                      <p className="text-[11px] text-gray-700">Atendido por: {order.vendedorNombre}</p>
-                    )}
-                  </div>
-
-                  {/* Customer Info */}
-                  <div className="border-b-2 border-dashed border-black pb-2 text-xs space-y-1">
-                    <p className="break-words">
-                      <span className="font-black">CLIENTE:</span> {order.cliente || 'Mostrador / TikTok'}
-                    </p>
-                    {order.telefono && (
-                      <p>
-                        <span className="font-black">TEL/WPP:</span> {formatBoliviaPhone(order.telefono)}
-                      </p>
-                    )}
-                    {order.lugarEntrega && (
-                      <p className="break-words">
-                        <span className="font-black">ENTREGA:</span> {order.lugarEntrega}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Items Full-Width Table */}
-                  <div className="border-b-2 border-dashed border-black pb-2">
-                    <table className="w-full border-collapse">
-                      <thead>
-                        <tr className="border-b border-black text-[11px] font-black uppercase">
-                          <th className="text-left py-1">ARTÍCULO / DETALLE</th>
-                          <th className="text-right py-1 whitespace-nowrap pl-2">TOTAL</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {order.productos.map((item, idx) => {
-                          const subtotal = item.cantidad * item.precioUnitario;
-                          return (
-                            <tr key={idx} className="align-top">
-                              <td className="py-1.5 pr-2">
-                                <div className="font-bold text-xs leading-snug break-words">
-                                  {formatArticleItem(item)}
-                                </div>
-                                {item.cantidad > 1 && (
-                                  <div className="text-[11px] text-gray-600 font-medium mt-0.5">
-                                    ({formatCurrency(item.precioUnitario)} c/u)
-                                  </div>
-                                )}
-                              </td>
-                              <td className="py-1.5 text-right whitespace-nowrap font-black text-xs text-black">
-                                {formatCurrency(subtotal)}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Totals Table */}
-                  <table className="w-full border-collapse text-xs pt-1">
-                    <tbody>
-                      <tr>
-                        <td className="py-1 text-left font-bold">TOTAL A PAGAR:</td>
-                        <td className="py-1 text-right whitespace-nowrap font-black text-sm text-black">
-                          {formatCurrency(order.total)}
-                        </td>
-                      </tr>
-                      <tr className="text-gray-700">
-                        <td className="py-0.5 text-left font-medium">PAGADO / ADELANTO:</td>
-                        <td className="py-0.5 text-right whitespace-nowrap font-bold">
-                          {formatCurrency(order.pagado)}
-                        </td>
-                      </tr>
-                      <tr className="border-t-2 border-dashed border-black">
-                        <td className="pt-1.5 text-left font-black text-xs">SALDO POR COBRAR:</td>
-                        <td className="pt-1.5 text-right whitespace-nowrap font-black text-sm text-black">
-                          {formatCurrency(order.saldo)}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-
-                  {order.observaciones && (
-                    <div className="border-t-2 border-dashed border-black pt-2 text-xs">
-                      <span className="font-black">OBS: </span>
-                      <span className="italic text-gray-800 break-words">{order.observaciones}</span>
+                <div className="space-y-1.5 w-full">
+                  {/* Header bar with dedicated print button for Ticket 1: Venta */}
+                  {printMode === 'both' && (
+                    <div className="flex items-center justify-between bg-stone-900 text-white px-3 py-2 rounded-xl text-xs shadow-md border border-stone-800">
+                      <div className="flex items-center gap-1.5 font-black text-amber-300">
+                        <Receipt className="w-4 h-4 shrink-0" />
+                        <span>1. Ticket de Venta (Con detalle)</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleBluetoothRawBT('sale-with-items')}
+                          className="px-2.5 py-1 rounded-lg bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C] font-black text-[11px] flex items-center gap-1 transition cursor-pointer shadow-xs active:scale-95"
+                          title="Imprimir solo Ticket de Venta con detalle con App RawBT"
+                        >
+                          <Bluetooth className="w-3 h-3 shrink-0" />
+                          <span>Imprimir Venta</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handlePrint('sale-with-items')}
+                          className="p-1 px-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold flex items-center gap-1 transition cursor-pointer"
+                          title="Imprimir solo Venta en PC / Navegador"
+                        >
+                          <Printer className="w-3 h-3 shrink-0" />
+                        </button>
+                      </div>
                     </div>
                   )}
 
-                  <div className="text-center pt-2 border-t-2 border-dashed border-black text-[11px] text-gray-700 space-y-0.5">
-                    <p className="font-bold text-black">¡Gracias por tu compra! 🇧🇴</p>
-                    <p>Importadora Chiquiminisos</p>
-                    <p className="text-[10px]">Papelería y artículos Kawaii</p>
+                  <div className="bg-white text-black p-3.5 sm:p-4 rounded-xl shadow-xl font-sans text-xs border border-stone-300 space-y-2.5 w-full">
+                    <div className="text-center border-b-2 border-dashed border-black pb-2 space-y-0.5">
+                      <p className="text-sm sm:text-base font-black tracking-wider uppercase">
+                        IMPORTADORA CHIQUIMINISOS
+                      </p>
+                      <p className="text-[11px] text-gray-700 font-semibold">
+                        Papelería y artículos Kawaii
+                      </p>
+                      <p className="text-xs font-black mt-1">*** TICKET DE VENTA ***</p>
+                      <p className="text-base font-black mt-0.5">PEDIDO #{String(order.orderNumber).padStart(3, '0')}</p>
+                      <p className="text-[11px] text-gray-600">{formattedDate}</p>
+                      {order.vendedorNombre && (
+                        <p className="text-[11px] text-gray-700">Atendido por: {order.vendedorNombre}</p>
+                      )}
+                    </div>
+
+                    {/* Customer Info */}
+                    <div className="border-b-2 border-dashed border-black pb-2 text-xs space-y-1">
+                      <p className="break-words">
+                        <span className="font-black">CLIENTE:</span> {order.cliente || 'Mostrador / TikTok'}
+                      </p>
+                      {order.telefono && (
+                        <p>
+                          <span className="font-black">TEL/WPP:</span> {formatBoliviaPhone(order.telefono)}
+                        </p>
+                      )}
+                      {order.lugarEntrega && (
+                        <p className="break-words">
+                          <span className="font-black">ENTREGA:</span> {order.lugarEntrega}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* For 1. AMBOS: Show ARTÍCULO / DETALLE table with headers and items! (Omitted in 2. Venta) */}
+                    {printMode === 'both' && order.productos.length > 0 && (
+                      <div className="border-b-2 border-dashed border-black pb-2">
+                        <table className="w-full border-collapse">
+                          <thead>
+                            <tr className="border-b border-black text-[11px] font-black uppercase">
+                              <th className="text-left py-1">ARTÍCULO / DETALLE</th>
+                              <th className="text-right py-1 whitespace-nowrap pl-2">TOTAL</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {order.productos.map((item, idx) => {
+                              const subtotal = item.cantidad * item.precioUnitario;
+                              return (
+                                <tr key={idx} className="align-top">
+                                  <td className="py-1.5 pr-2">
+                                    <div className="font-bold text-xs leading-snug break-words">
+                                      {formatArticleItem(item)}
+                                    </div>
+                                    {item.cantidad > 1 && (
+                                      <div className="text-[11px] text-gray-600 font-medium mt-0.5">
+                                        ({formatCurrency(item.precioUnitario)} c/u)
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="py-1.5 text-right whitespace-nowrap font-black text-xs text-black">
+                                    {formatCurrency(subtotal)}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* Totals Table */}
+                    <table className="w-full border-collapse text-xs pt-1">
+                      <tbody>
+                        <tr>
+                          <td className="py-1 text-left font-bold">TOTAL A PAGAR:</td>
+                          <td className="py-1 text-right whitespace-nowrap font-black text-sm text-black">
+                            {formatCurrency(order.total)}
+                          </td>
+                        </tr>
+                        <tr className="text-gray-700">
+                          <td className="py-0.5 text-left font-medium">PAGADO / ADELANTO:</td>
+                          <td className="py-0.5 text-right whitespace-nowrap font-bold">
+                            {formatCurrency(order.pagado)}
+                          </td>
+                        </tr>
+                        <tr className="border-t-2 border-dashed border-black">
+                          <td className="pt-1.5 text-left font-black text-xs">SALDO POR COBRAR:</td>
+                          <td className="pt-1.5 text-right whitespace-nowrap font-black text-sm text-black">
+                            {formatCurrency(order.saldo)}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+
+                    {order.observaciones && (
+                      <div className="border-t-2 border-dashed border-black pt-2 text-xs">
+                        <span className="font-black">OBS: </span>
+                        <span className="italic text-gray-800 break-words">{order.observaciones}</span>
+                      </div>
+                    )}
+
+                    <div className="text-center pt-2 border-t-2 border-dashed border-black text-[11px] text-gray-700 space-y-0.5">
+                      <p className="font-bold text-black">¡Gracias por tu compra! 🇧🇴</p>
+                      <p>Importadora Chiquiminisos</p>
+                      <p className="text-[10px]">Papelería y artículos Kawaii</p>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1028,66 +1059,97 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
 
               {/* TICKET 2: RÓTULO DE ENVÍO */}
               {(printMode === 'shipping' || printMode === 'both') && (
-                <div className="bg-white text-black p-3.5 sm:p-4 rounded-xl shadow-xl font-sans text-xs border-2 border-stone-800 space-y-2.5 w-full">
-                  <div className="text-center border-b-2 border-black pb-2 space-y-0.5">
-                    <p className="text-sm font-black uppercase tracking-wide">
-                      IMPORTADORA CHIQUIMINISOS
-                    </p>
-                    <p className="text-[11px] text-gray-700 font-medium">
-                      Papelería y artículos Kawaii
-                    </p>
-                    <div className="bg-black text-white font-black text-xs py-1.5 px-2 rounded mt-1.5 tracking-wide">
-                      📦 RÓTULO DE ENVÍO / PAQUETE 📦
-                    </div>
-                    <p className="text-lg font-black mt-1">PEDIDO #{String(order.orderNumber).padStart(3, '0')}</p>
-                    <p className="text-[11px] text-gray-600">{formattedDate}</p>
-                  </div>
-
-                  {/* Destination */}
-                  <div className="space-y-2 py-1">
-                    <div className="bg-gray-50 p-2.5 rounded-lg border-2 border-black">
-                      <p className="text-[10px] font-black text-gray-600 uppercase tracking-wider">CLIENTE / DESTINATARIO:</p>
-                      <p className="text-base font-black uppercase tracking-tight text-black break-words leading-tight mt-0.5">
-                        {order.cliente || 'CLIENTE (MOSTRADOR / TIKTOK)'}
-                      </p>
-                      {order.telefono && (
-                        <p className="text-xs font-black text-gray-900 mt-1">
-                          TEL/WPP: {formatBoliviaPhone(order.telefono)}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="bg-gray-50 p-2.5 rounded-lg border-2 border-black">
-                      <p className="text-[10px] font-black text-gray-600 uppercase tracking-wider">DIRECCIÓN DE ENTREGA:</p>
-                      <p className="text-xs sm:text-sm font-black uppercase text-black break-words leading-snug mt-0.5">
-                        {order.lugarEntrega || 'Mostrador / Por coordinar'}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Summary */}
-                  <div className="border-t-2 border-b-2 border-dashed border-black py-2 space-y-1.5">
-                    <div className="flex justify-between font-black text-[11px] border-b border-gray-300 pb-1">
-                      <span>DETALLE DE PRODUCTOS:</span>
-                      <span>{totalItemsCount} ART. TOTAL</span>
-                    </div>
-                    <div className="space-y-1 text-xs text-gray-900">
-                      {order.productos.map((item, idx) => (
-                        <div key={idx} className="break-words font-medium">
-                          • <span className="font-bold">{formatArticleItem(item)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {order.observaciones && (
-                    <div className="border-t-2 border-dashed border-black pt-1.5 text-xs">
-                      <span className="font-black">OBS / NOTA: </span>
-                      <span className="italic break-words">{order.observaciones}</span>
+                <div className="space-y-1.5 w-full">
+                  {/* Header bar with dedicated print button for Ticket 2: Envío */}
+                  {printMode === 'both' && (
+                    <div className="flex items-center justify-between bg-stone-900 text-white px-3 py-2 rounded-xl text-xs shadow-md border border-stone-800">
+                      <div className="flex items-center gap-1.5 font-black text-emerald-400">
+                        <Truck className="w-4 h-4 shrink-0" />
+                        <span>2. Rótulo de Envío</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleBluetoothRawBT('shipping')}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-400 hover:bg-emerald-300 text-stone-950 font-black text-[11px] flex items-center gap-1 transition cursor-pointer shadow-xs active:scale-95"
+                          title="Imprimir solo Rótulo de Envío con App RawBT"
+                        >
+                          <Bluetooth className="w-3 h-3 shrink-0" />
+                          <span>Imprimir Envío</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handlePrint('shipping')}
+                          className="p-1 px-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold flex items-center gap-1 transition cursor-pointer"
+                          title="Imprimir solo Envío en PC / Navegador"
+                        >
+                          <Printer className="w-3 h-3 shrink-0" />
+                        </button>
+                      </div>
                     </div>
                   )}
 
-                  <div className="border-t-2 border-black pt-1" />
+                  <div className="bg-white text-black p-3.5 sm:p-4 rounded-xl shadow-xl font-sans text-xs border-2 border-stone-800 space-y-2.5 w-full">
+                    <div className="text-center border-b-2 border-black pb-2 space-y-0.5">
+                      <p className="text-sm font-black uppercase tracking-wide">
+                        IMPORTADORA CHIQUIMINISOS
+                      </p>
+                      <p className="text-[11px] text-gray-700 font-medium">
+                        Papelería y artículos Kawaii
+                      </p>
+                      <div className="bg-black text-white font-black text-xs py-1.5 px-2 rounded mt-1.5 tracking-wide">
+                        📦 RÓTULO DE ENVÍO / PAQUETE 📦
+                      </div>
+                      <p className="text-lg font-black mt-1">PEDIDO #{String(order.orderNumber).padStart(3, '0')}</p>
+                      <p className="text-[11px] text-gray-600">{formattedDate}</p>
+                    </div>
+
+                    {/* Destination */}
+                    <div className="space-y-2 py-1">
+                      <div className="bg-gray-50 p-2.5 rounded-lg border-2 border-black">
+                        <p className="text-[10px] font-black text-gray-600 uppercase tracking-wider">CLIENTE / DESTINATARIO:</p>
+                        <p className="text-base font-black uppercase tracking-tight text-black break-words leading-tight mt-0.5">
+                          {order.cliente || 'CLIENTE (MOSTRADOR / TIKTOK)'}
+                        </p>
+                        {order.telefono && (
+                          <p className="text-xs font-black text-gray-900 mt-1">
+                            TEL/WPP: {formatBoliviaPhone(order.telefono)}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="bg-gray-50 p-2.5 rounded-lg border-2 border-black">
+                        <p className="text-[10px] font-black text-gray-600 uppercase tracking-wider">DIRECCIÓN DE ENTREGA:</p>
+                        <p className="text-xs sm:text-sm font-black uppercase text-black break-words leading-snug mt-0.5">
+                          {order.lugarEntrega || 'Mostrador / Por coordinar'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Summary */}
+                    <div className="border-t-2 border-b-2 border-dashed border-black py-2 space-y-1.5">
+                      <div className="flex justify-between font-black text-[11px] border-b border-gray-300 pb-1">
+                        <span>DETALLE DE PRODUCTOS:</span>
+                        <span>{totalItemsCount} ART. TOTAL</span>
+                      </div>
+                      <div className="space-y-1 text-xs text-gray-900">
+                        {order.productos.map((item, idx) => (
+                          <div key={idx} className="break-words font-medium">
+                            • <span className="font-bold">{formatArticleItem(item)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {order.observaciones && (
+                      <div className="border-t-2 border-dashed border-black pt-1.5 text-xs">
+                        <span className="font-black">OBS / NOTA: </span>
+                        <span className="italic break-words">{order.observaciones}</span>
+                      </div>
+                    )}
+
+                    <div className="border-t-2 border-black pt-1" />
+                  </div>
                 </div>
               )}
             </div>
@@ -1129,63 +1191,150 @@ export const ThermalPrintModal: React.FC<ThermalPrintModalProps> = ({
               </div>
             </div>
 
-            {/* Primary Highlighted Print Button: RawBT */}
-            <button
-              id="btn-print-rawbt-primary"
-              type="button"
-              onClick={() => handleBluetoothRawBT()}
-              className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm sm:text-base flex items-center justify-center gap-2.5 shadow-md active:scale-[0.98] transition cursor-pointer bg-[#1A2B5C] hover:bg-[#223773] text-white border border-[#1A2B5C]"
-              title={`Imprimir con RawBT en formato ${rawbtFormat === 'html' ? 'Gráfico (HTML con diseño exacto)' : 'Texto plano UTF-8'}`}
-            >
-              <Bluetooth className="w-5 h-5 text-sky-300 shrink-0" />
-              <Printer className="w-5 h-5 shrink-0" />
-              <span>Imprimir con App RawBT ({rawbtFormat === 'html' ? 'Gráfico' : 'Texto UTF-8'})</span>
-            </button>
+            {/* When in 'both' mode: Primary is both together, plus individual buttons */}
+            {printMode === 'both' ? (
+              <div className="space-y-2">
+                <button
+                  id="btn-print-rawbt-primary"
+                  type="button"
+                  onClick={() => handleBluetoothRawBT('both')}
+                  className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm sm:text-base flex items-center justify-center gap-2.5 shadow-md active:scale-[0.98] transition cursor-pointer bg-[#1A2B5C] hover:bg-[#223773] text-white border border-[#1A2B5C]"
+                  title="Imprimir ambos tickets juntos en una sola tira"
+                >
+                  <Bluetooth className="w-5 h-5 text-sky-300 shrink-0" />
+                  <Printer className="w-5 h-5 shrink-0" />
+                  <span>Imprimir Ambos Juntos (RawBT)</span>
+                </button>
 
-            {/* Secondary Alternative Actions */}
-            <div className="grid grid-cols-3 gap-1.5 sm:gap-2 pt-1">
-              <button
-                id="btn-print-browser"
-                type="button"
-                onClick={handlePrint}
-                className="py-2.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition text-center cursor-pointer border bg-[#FBF7EF] hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]"
-                title="Impresión por diálogo de navegador o PC"
-              >
-                <Printer className="w-3.5 h-3.5 text-[#1A2B5C] shrink-0" />
-                <span className="truncate">Navegador / PC</span>
-              </button>
+                {/* Quick Individual Print Buttons */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleBluetoothRawBT('sale-with-items')}
+                    className="py-2.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition text-center cursor-pointer bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 shadow-xs"
+                    title="Imprimir solo el ticket de venta (con artículos y detalle) con RawBT"
+                  >
+                    <Receipt className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                    <span className="truncate">Imprimir Solo Venta</span>
+                  </button>
 
-              <button
-                id="btn-share-ticket"
-                type="button"
-                onClick={handleShare}
-                className="py-2.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition text-center cursor-pointer border bg-[#FBF7EF] hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]"
-                title="Compartir comanda a otra app o Bluetooth"
-              >
-                <Share2 className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                <span className="truncate">Compartir</span>
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => handleBluetoothRawBT('shipping')}
+                    className="py-2.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition text-center cursor-pointer bg-emerald-50 hover:bg-emerald-100 text-emerald-950 border border-emerald-300 shadow-xs"
+                    title="Imprimir solo el rótulo de envío con RawBT"
+                  >
+                    <Truck className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                    <span className="truncate">Imprimir Solo Envío</span>
+                  </button>
+                </div>
 
-              <button
-                id="btn-copy-ticket"
-                type="button"
-                onClick={handleCopyText}
-                className="py-2.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition text-center cursor-pointer border bg-[#FBF7EF] hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]"
-                title="Copiar texto de ticket"
-              >
-                {copied ? (
-                  <>
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    <span className="text-emerald-700 font-bold">¡Copiado!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5 text-stone-600 shrink-0" />
-                    <span className="truncate">Copiar</span>
-                  </>
-                )}
-              </button>
-            </div>
+                {/* Secondary Alternative Actions */}
+                <div className="grid grid-cols-3 gap-1.5 sm:gap-2 pt-0.5">
+                  <button
+                    id="btn-print-browser"
+                    type="button"
+                    onClick={() => handlePrint('both')}
+                    className="py-2.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition text-center cursor-pointer border bg-[#FBF7EF] hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]"
+                    title="Impresión por diálogo de navegador o PC"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-[#1A2B5C] shrink-0" />
+                    <span className="truncate">Navegador / PC</span>
+                  </button>
+
+                  <button
+                    id="btn-share-ticket"
+                    type="button"
+                    onClick={() => handleShare('both')}
+                    className="py-2.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition text-center cursor-pointer border bg-[#FBF7EF] hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]"
+                    title="Compartir comanda a otra app o Bluetooth"
+                  >
+                    <Share2 className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                    <span className="truncate">Compartir</span>
+                  </button>
+
+                  <button
+                    id="btn-copy-ticket"
+                    type="button"
+                    onClick={() => handleCopyText('both')}
+                    className="py-2.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition text-center cursor-pointer border bg-[#FBF7EF] hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]"
+                    title="Copiar texto de ticket"
+                  >
+                    {copied ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span className="text-emerald-700 font-bold">¡Copiado!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5 text-stone-600 shrink-0" />
+                        <span className="truncate">Copiar</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* When in 'sale' mode (Default) */
+              <div className="space-y-2">
+                <button
+                  id="btn-print-rawbt-primary"
+                  type="button"
+                  onClick={() => handleBluetoothRawBT('sale')}
+                  className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm sm:text-base flex items-center justify-center gap-2.5 shadow-md active:scale-[0.98] transition cursor-pointer bg-[#1A2B5C] hover:bg-[#223773] text-white border border-[#1A2B5C]"
+                  title={`Imprimir Ticket de Venta con RawBT (${rawbtFormat === 'html' ? 'Gráfico' : 'Texto UTF-8'})`}
+                >
+                  <Bluetooth className="w-5 h-5 text-sky-300 shrink-0" />
+                  <Printer className="w-5 h-5 shrink-0" />
+                  <span>Imprimir Ticket de Venta (RawBT)</span>
+                </button>
+
+                {/* Secondary Alternative Actions */}
+                <div className="grid grid-cols-3 gap-1.5 sm:gap-2 pt-1">
+                  <button
+                    id="btn-print-browser"
+                    type="button"
+                    onClick={() => handlePrint('sale')}
+                    className="py-2.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition text-center cursor-pointer border bg-[#FBF7EF] hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]"
+                    title="Impresión por diálogo de navegador o PC"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-[#1A2B5C] shrink-0" />
+                    <span className="truncate">Navegador / PC</span>
+                  </button>
+
+                  <button
+                    id="btn-share-ticket"
+                    type="button"
+                    onClick={() => handleShare('sale')}
+                    className="py-2.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition text-center cursor-pointer border bg-[#FBF7EF] hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]"
+                    title="Compartir comanda a otra app o Bluetooth"
+                  >
+                    <Share2 className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                    <span className="truncate">Compartir</span>
+                  </button>
+
+                  <button
+                    id="btn-copy-ticket"
+                    type="button"
+                    onClick={() => handleCopyText('sale')}
+                    className="py-2.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition text-center cursor-pointer border bg-[#FBF7EF] hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]"
+                    title="Copiar texto de ticket"
+                  >
+                    {copied ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span className="text-emerald-700 font-bold">¡Copiado!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5 text-stone-600 shrink-0" />
+                        <span className="truncate">Copiar</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
