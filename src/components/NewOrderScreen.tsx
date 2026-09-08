@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Sparkles,
   Plus,
@@ -16,6 +16,7 @@ import {
   Box,
   Pencil,
   Check,
+  Loader2,
 } from 'lucide-react';
 import { Order, OrderItem } from '../types';
 import { formatCurrency, getNextOrderNumber, formatBoliviaPhone } from '../lib/storage';
@@ -27,7 +28,7 @@ import { PackagingSelectionModal } from './PackagingSelectionModal';
 
 interface NewOrderScreenProps {
   orders: Order[];
-  onSaveOrder: (newOrder: Order) => void;
+  onSaveOrder: (newOrder: Order) => Promise<void> | void;
   onCancel: () => void;
   initialDraft?: {
     productos?: Array<{
@@ -73,6 +74,8 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
     },
   ]);
   const [pagado, setPagado] = useState<number>(0);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const isSubmittingRef = useRef<boolean>(false);
 
   // Check if an item has all core fields completed (nombre, variante, cantidad > 0, precio > 0)
   const isItemComplete = (item: OrderItem): boolean => {
@@ -197,8 +200,14 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
   };
 
   // Save the order
-  const handleSaveOrder = (e: React.FormEvent) => {
+  const handleSaveOrder = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Prevent race conditions and double submission
+    if (isSubmittingRef.current || isSubmitting) {
+      console.warn('Prevented duplicate order submission');
+      return;
+    }
 
     const cleanCliente = cliente.trim() || 'Cliente Mostrador / TikTok';
     const cleanProductos = productos
@@ -213,26 +222,37 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
       return;
     }
 
-    const nextNumber = getNextOrderNumber(orders);
-    const newOrder: Order = {
-      id: `ord_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-      orderNumber: nextNumber,
-      cliente: cleanCliente,
-      telefono: telefono.trim(),
-      lugarEntrega: lugarEntrega.trim(),
-      observaciones: observaciones.trim(),
-      productos: cleanProductos,
-      total: calculatedTotal,
-      pagado: Math.max(0, pagado),
-      saldo: calculatedSaldo,
-      estado: 'Abierto',
-      vendedorUid: userProfile?.uid,
-      vendedorNombre: userProfile?.displayName || 'Vendedor',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    // Set atomic lock and visual loading state
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
 
-    onSaveOrder(newOrder);
+    try {
+      const nextNumber = getNextOrderNumber(orders);
+      const newOrder: Order = {
+        id: `ord_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+        orderNumber: nextNumber,
+        cliente: cleanCliente,
+        telefono: telefono.trim(),
+        lugarEntrega: lugarEntrega.trim(),
+        observaciones: observaciones.trim(),
+        productos: cleanProductos,
+        total: calculatedTotal,
+        pagado: Math.max(0, pagado),
+        saldo: calculatedSaldo,
+        estado: 'Abierto',
+        vendedorUid: userProfile?.uid,
+        vendedorNombre: userProfile?.displayName || 'Vendedor',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      await onSaveOrder(newOrder);
+    } catch (err) {
+      console.error('Error in onSaveOrder:', err);
+      // Release lock on failure so user can retry
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -1052,21 +1072,40 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
           <button
             id="confirm-save-order-btn"
             type="submit"
-            className={`flex-1 py-4 px-6 rounded-2xl font-black text-base active:scale-[0.99] shadow-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
+            disabled={isSubmitting}
+            className={`flex-1 py-4 px-6 rounded-2xl font-black text-base active:scale-[0.99] shadow-xl flex items-center justify-center gap-2.5 transition-all ${
+              isSubmitting
+                ? 'opacity-60 cursor-not-allowed pointer-events-none'
+                : 'cursor-pointer'
+            } ${
               isDark
                 ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C] shadow-[#FF6FA5]/25 border border-[#FF6FA5]'
                 : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white shadow-[#1A2B5C]/25'
             }`}
           >
-            <CheckCircle2 className="w-5 h-5" />
-            <span>Guardar Pedido Permanentemente</span>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Guardando Pedido...</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-5 h-5" />
+                <span>Guardar Pedido Permanentemente</span>
+              </>
+            )}
           </button>
 
           <button
             id="cancel-confirmation-btn"
             type="button"
+            disabled={isSubmitting}
             onClick={onCancel}
-            className={`py-3.5 px-6 rounded-2xl font-bold text-sm transition-all border cursor-pointer ${
+            className={`py-3.5 px-6 rounded-2xl font-bold text-sm transition-all border ${
+              isSubmitting
+                ? 'opacity-40 cursor-not-allowed pointer-events-none'
+                : 'cursor-pointer'
+            } ${
               isDark
                 ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-white border-[#223368]'
                 : 'bg-white hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]'

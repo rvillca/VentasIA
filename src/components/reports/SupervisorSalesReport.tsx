@@ -562,89 +562,61 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
 
       {/* 2. Key Decision Metrics (Direct, clear, without confusing charts) */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
-        <div
-          className={`border rounded-2xl p-3 text-center transition-colors ${
-            isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
-          }`}
-        >
-          <div className="text-[11px] font-bold uppercase tracking-wider text-[#78716C] dark:text-[#9AA6C9]">
+        <div className="border rounded-2xl p-3 text-center bg-white border-[#E8DFC8] shadow-xs">
+          <div className="text-[11px] font-extrabold uppercase tracking-wider text-stone-500">
             Total Pedidos
           </div>
-          <div className="text-xl font-black mt-0.5 text-[#1A2B5C] dark:text-white">
-            {totals.count} <span className="text-xs font-normal opacity-70">ventas</span>
+          <div className="text-2xl font-black mt-0.5 text-[#1A2B5C]">
+            {totals.count} <span className="text-xs font-semibold text-stone-500">ventas</span>
           </div>
         </div>
 
-        <div
-          className={`border rounded-2xl p-3 text-center transition-colors ${
-            isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
-          }`}
-        >
-          <div className="text-[11px] font-bold uppercase tracking-wider text-[#78716C] dark:text-[#9AA6C9]">
+        <div className="border rounded-2xl p-3 text-center bg-white border-[#E8DFC8] shadow-xs">
+          <div className="text-[11px] font-extrabold uppercase tracking-wider text-stone-500">
             Total Facturado
           </div>
-          <div className="text-xl font-black mt-0.5 text-blue-600 dark:text-blue-400">
+          <div className="text-2xl font-black mt-0.5 text-blue-700">
             {formatBalance(totals.sales)}
           </div>
         </div>
 
-        <div
-          className={`border rounded-2xl p-3 text-center transition-colors ${
-            isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
-          }`}
-        >
-          <div className="text-[11px] font-bold uppercase tracking-wider text-[#78716C] dark:text-[#9AA6C9]">
+        <div className="border rounded-2xl p-3 text-center bg-white border-[#E8DFC8] shadow-xs">
+          <div className="text-[11px] font-extrabold uppercase tracking-wider text-stone-500">
             Total Cobrado
           </div>
-          <div className="text-xl font-black mt-0.5 text-emerald-600 dark:text-emerald-400">
+          <div className="text-2xl font-black mt-0.5 text-emerald-700">
             {formatBalance(totals.paid)}
           </div>
         </div>
 
-        <div
-          className={`border rounded-2xl p-3 text-center transition-colors ${
-            isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
-          }`}
-        >
-          <div className="text-[11px] font-bold uppercase tracking-wider text-[#78716C] dark:text-[#9AA6C9]">
+        <div className="border rounded-2xl p-3 text-center bg-white border-[#E8DFC8] shadow-xs">
+          <div className="text-[11px] font-extrabold uppercase tracking-wider text-stone-500">
             Saldo Pendiente
           </div>
           <div
-            className={`text-xl font-black mt-0.5 ${
-              totals.pending > 0 ? 'text-amber-500 dark:text-amber-400' : 'text-emerald-500'
+            className={`text-2xl font-black mt-0.5 ${
+              totals.pending > 0 ? 'text-amber-700' : 'text-emerald-700'
             }`}
           >
             {formatBalance(totals.pending)}
           </div>
         </div>
 
-        <div
-          className={`border rounded-2xl p-3 text-center transition-colors col-span-2 sm:col-span-1 ${
-            isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
-          }`}
-        >
-          <div className="text-[11px] font-bold uppercase tracking-wider text-[#78716C] dark:text-[#9AA6C9]">
+        <div className="border rounded-2xl p-3 text-center col-span-2 sm:col-span-1 bg-white border-[#E8DFC8] shadow-xs">
+          <div className="text-[11px] font-extrabold uppercase tracking-wider text-stone-500">
             Artículos Vendidos
           </div>
-          <div className="text-xl font-black mt-0.5 text-purple-600 dark:text-purple-400">
-            {totals.units} <span className="text-xs font-normal opacity-70">unidades</span>
+          <div className="text-2xl font-black mt-0.5 text-purple-700">
+            {totals.units} <span className="text-xs font-semibold text-stone-500">unidades</span>
           </div>
         </div>
       </div>
 
       {/* 3. Quick Filter Bar & View Selector */}
-      <div
-        className={`border rounded-2xl p-3.5 space-y-3 transition-colors ${
-          isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
-        }`}
-      >
+      <div className="border rounded-2xl p-3.5 space-y-3 bg-white border-[#E8DFC8] shadow-xs">
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5">
           {/* Sub-view switcher: Listado de Ventas, Por Vendedor, Por Producto */}
-          <div
-            className={`flex items-center p-1 rounded-xl border w-full md:w-auto ${
-              isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
-            }`}
-          >
+          <div className="flex items-center p-1 rounded-xl border w-full md:w-auto bg-[#FBF7EF] border-[#E8DFC8]">
             <button
               type="button"
               onClick={() => setViewMode('ventas_detalle')}
@@ -693,17 +665,13 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Buscar por N° pedido, cliente, celular, vendedor..."
-              className={`w-full rounded-xl pl-9 pr-8 py-2 text-xs border focus:outline-none transition ${
-                isDark
-                  ? 'bg-[#0F1B3C] border-[#223368] text-white placeholder-stone-500 focus:border-[#FF6FA5]'
-                  : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C] placeholder-stone-400 focus:border-[#1A2B5C]'
-              }`}
+              className="w-full rounded-xl pl-9 pr-8 py-2 text-xs border focus:outline-none transition bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C] placeholder-stone-400 focus:border-[#1A2B5C] font-medium"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-stone-400 hover:text-stone-600"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-stone-400 hover:text-stone-600 font-bold"
               >
                 ✕
               </button>
@@ -712,18 +680,14 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
         </div>
 
         {/* Quick Filter Selectors */}
-        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-inherit">
+        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-[#E8DFC8]">
           {/* Seller Filter */}
           <div className="flex items-center gap-1.5 text-xs">
-            <span className="text-[11px] font-bold text-[#78716C] dark:text-[#9AA6C9]">Vendedor:</span>
+            <span className="text-[11px] font-extrabold text-stone-600">Vendedor:</span>
             <select
               value={selectedSeller}
               onChange={(e) => setSelectedSeller(e.target.value)}
-              className={`rounded-xl px-2.5 py-1.5 text-xs border font-medium focus:outline-none cursor-pointer ${
-                isDark
-                  ? 'bg-[#0F1B3C] border-[#223368] text-white'
-                  : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C]'
-              }`}
+              className="rounded-xl px-2.5 py-1.5 text-xs border font-semibold focus:outline-none cursor-pointer bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C]"
             >
               <option value="all">Todos los vendedores</option>
               {availableSellers.map((s) => (
@@ -736,15 +700,11 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
 
           {/* Status Filter */}
           <div className="flex items-center gap-1.5 text-xs">
-            <span className="text-[11px] font-bold text-[#78716C] dark:text-[#9AA6C9]">Estado:</span>
+            <span className="text-[11px] font-extrabold text-stone-600">Estado:</span>
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className={`rounded-xl px-2.5 py-1.5 text-xs border font-medium focus:outline-none cursor-pointer ${
-                isDark
-                  ? 'bg-[#0F1B3C] border-[#223368] text-white'
-                  : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C]'
-              }`}
+              className="rounded-xl px-2.5 py-1.5 text-xs border font-semibold focus:outline-none cursor-pointer bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C]"
             >
               <option value="all">Todos los estados</option>
               <option value="Entregado">Entregados</option>
@@ -754,15 +714,11 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
 
           {/* Payment Status Filter */}
           <div className="flex items-center gap-1.5 text-xs">
-            <span className="text-[11px] font-bold text-[#78716C] dark:text-[#9AA6C9]">Cobranza:</span>
+            <span className="text-[11px] font-extrabold text-stone-600">Cobranza:</span>
             <select
               value={selectedPaymentStatus}
               onChange={(e) => setSelectedPaymentStatus(e.target.value)}
-              className={`rounded-xl px-2.5 py-1.5 text-xs border font-medium focus:outline-none cursor-pointer ${
-                isDark
-                  ? 'bg-[#0F1B3C] border-[#223368] text-white'
-                  : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C]'
-              }`}
+              className="rounded-xl px-2.5 py-1.5 text-xs border font-semibold focus:outline-none cursor-pointer bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C]"
             >
               <option value="all">Todos los saldos</option>
               <option value="con_saldo">Con saldo pendiente</option>
@@ -782,7 +738,7 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
                 setSelectedPaymentStatus('all');
                 setSearchQuery('');
               }}
-              className="text-[11px] font-bold text-rose-500 hover:underline ml-auto cursor-pointer"
+              className="text-[11px] font-black text-rose-600 hover:underline ml-auto cursor-pointer"
             >
               Limpiar filtros
             </button>
@@ -794,53 +750,44 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
           Columns: 1. N° Pedido | 2. Solo Fecha | 3. Nombre del cliente | 4. Número de celular | 5. Total | 6. Cobrado | 7. Nombre del vendedor | 8. Botón Detalles
       */}
       {viewMode === 'ventas_detalle' && (
-        <div
-          className={`border rounded-2xl overflow-hidden shadow-sm transition-colors ${
-            isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
-          }`}
-        >
-          <div className="px-4 py-3 border-b border-inherit flex items-center justify-between">
-            <span className="text-xs font-bold text-[#1A2B5C] dark:text-white flex items-center gap-1.5">
-              <ShoppingBag className="w-4 h-4 text-blue-500" />
+        <div className="border rounded-2xl overflow-hidden shadow-xs bg-white border-[#E8DFC8]">
+          <div className="px-4 py-3 border-b border-[#E8DFC8] flex items-center justify-between bg-[#FAF8F5]">
+            <span className="text-xs font-black text-[#1A2B5C] flex items-center gap-1.5">
+              <ShoppingBag className="w-4 h-4 text-blue-600" />
               Listado de Ventas ({fullyFilteredOrders.length} pedidos encontrados)
             </span>
-            <span className="text-[11px] text-[#78716C] dark:text-[#9AA6C9]">
-              Revisa el detalle completo de productos en el botón <strong className="text-blue-500">Detalles</strong>
+            <span className="text-[11px] text-stone-600 font-medium">
+              Revisa el detalle completo de productos en el botón <strong className="text-blue-700 font-bold">Detalles</strong>
             </span>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr
-                  className={`border-b font-black uppercase text-[10px] tracking-wider ${
-                    isDark
-                      ? 'bg-[#0F1B3C] text-[#9AA6C9] border-[#223368]'
-                      : 'bg-[#FBF7EF] text-[#78716C] border-[#E8DFC8]'
-                  }`}
-                >
+                <tr className="border-b font-black uppercase text-[11px] tracking-wider bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]">
                   {/* Exact requested column structure: */}
-                  <th className="py-2.5 px-3 whitespace-nowrap">N° Pedido</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap">Fecha</th>
-                  <th className="py-2.5 px-3">Nombre del Cliente</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap">N° Celular</th>
-                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Total</th>
-                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Cobrado</th>
-                  <th className="py-2.5 px-3">Vendedor</th>
-                  <th className="py-2.5 px-3 text-center whitespace-nowrap">Acción</th>
+                  <th className="py-3 px-3 whitespace-nowrap">N° Pedido</th>
+                  <th className="py-3 px-3 whitespace-nowrap">Fecha</th>
+                  <th className="py-3 px-3">Nombre del Cliente</th>
+                  <th className="py-3 px-3 whitespace-nowrap">N° Celular</th>
+                  <th className="py-3 px-3 text-right whitespace-nowrap">Total</th>
+                  <th className="py-3 px-3 text-right whitespace-nowrap">Cobrado</th>
+                  <th className="py-3 px-3">Vendedor</th>
+                  <th className="py-3 px-3 text-center whitespace-nowrap">Acción</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-inherit">
+              <tbody className="divide-y divide-[#E8DFC8]">
                 {fullyFilteredOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center text-stone-400">
+                    <td colSpan={8} className="py-10 text-center text-stone-500 font-semibold">
                       No se encontraron pedidos en el período y filtros seleccionados.
                     </td>
                   </tr>
                 ) : (
                   fullyFilteredOrders.map((o) => {
                     const orderNum = o.orderNumber || (o as any).numeroPedido || o.id.slice(0, 6);
-                    const clientName = o.cliente || (o as any).clienteNombre || 'Sin nombre';
+                    const rawClient = o.cliente || (o as any).clienteNombre || (o as any).client || '';
+                    const clientName = rawClient.trim() || 'Cliente Mostrador / TikTok';
                     const clientPhone = o.telefono || (o as any).clienteTelefono || '';
                     const dateOnlyStr = formatDateOnly(o.createdAt);
                     const sellerName = o.vendedorNombre || 'Sin asignar';
@@ -850,87 +797,90 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
                     return (
                       <tr
                         key={o.id}
-                        className={`transition ${
-                          isDark ? 'hover:bg-[#1E2D5A]' : 'hover:bg-[#FBF7EF]'
-                        }`}
+                        className="hover:bg-[#FBF7EF] transition-colors"
                       >
                         {/* 1. Número de pedido */}
-                        <td className="py-2.5 px-3 font-mono font-bold text-[#1A2B5C] dark:text-[#FF6FA5] whitespace-nowrap">
-                          #{orderNum}
+                        <td className="py-3 px-3 whitespace-nowrap">
+                          <span className="font-mono font-black text-xs text-[#1A2B5C] bg-[#1A2B5C]/10 px-2 py-1 rounded-md">
+                            #{orderNum}
+                          </span>
                         </td>
 
                         {/* 2. Solo fecha (sin hora) */}
-                        <td className="py-2.5 px-3 font-medium text-stone-700 dark:text-stone-300 whitespace-nowrap">
+                        <td className="py-3 px-3 font-semibold text-stone-700 whitespace-nowrap">
                           {dateOnlyStr}
                         </td>
 
-                        {/* 3. Nombre del cliente */}
-                        <td className="py-2.5 px-3 font-semibold text-stone-900 dark:text-white">
-                          <span className="truncate max-w-[170px] block" title={clientName}>
+                        {/* 3. Nombre del cliente - Alta legibilidad */}
+                        <td className="py-3 px-3">
+                          <span
+                            className="font-black text-sm text-[#1A2B5C] block truncate max-w-[200px]"
+                            title={clientName}
+                          >
                             {clientName}
                           </span>
                         </td>
 
                         {/* 4. Número de celular */}
-                        <td className="py-2.5 px-3 whitespace-nowrap">
+                        <td className="py-3 px-3 whitespace-nowrap">
                           {clientPhone ? (
                             <div className="flex items-center gap-1.5">
-                              <Phone className="w-3 h-3 text-stone-400" />
-                              <span className="font-mono text-stone-700 dark:text-stone-300">{clientPhone}</span>
+                              <Phone className="w-3.5 h-3.5 text-stone-500" />
+                              <span className="font-mono font-bold text-stone-800">{clientPhone}</span>
                               {waClean && (
                                 <a
                                   href={`https://wa.me/${waClean}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="text-emerald-600 hover:text-emerald-700 p-0.5"
+                                  className="text-emerald-700 hover:text-emerald-800 p-0.5 transition"
                                   title="Contactar por WhatsApp"
                                   onClick={(e) => e.stopPropagation()}
                                 >
-                                  <MessageCircle className="w-3.5 h-3.5" />
+                                  <MessageCircle className="w-4 h-4" />
                                 </a>
                               )}
                             </div>
                           ) : (
-                            <span className="text-stone-400 text-[11px]">-</span>
+                            <span className="text-stone-400 font-semibold text-xs">-</span>
                           )}
                         </td>
 
                         {/* 5. Total */}
-                        <td className="py-2.5 px-3 text-right font-black text-[#1A2B5C] dark:text-white whitespace-nowrap">
+                        <td className="py-3 px-3 text-right font-black text-sm text-[#1A2B5C] whitespace-nowrap">
                           {formatBalance(o.total || 0)}
                         </td>
 
                         {/* 6. Cobrado (con indicación si existe saldo pendiente) */}
-                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                          <div className="font-bold text-emerald-600 dark:text-emerald-400">
+                        <td className="py-3 px-3 text-right whitespace-nowrap">
+                          <div className="font-black text-sm text-emerald-700">
                             {formatBalance(o.pagado || 0)}
                           </div>
                           {hasPending && (
-                            <div className="text-[10px] text-amber-500 font-semibold" title="Saldo por cobrar">
+                            <div className="text-[11px] text-amber-700 font-black mt-0.5" title="Saldo por cobrar">
                               Saldo: {formatBalance(o.saldo || 0)}
                             </div>
                           )}
                         </td>
 
                         {/* 7. Nombre del vendedor (al final) */}
-                        <td className="py-2.5 px-3 font-medium text-stone-800 dark:text-stone-200">
+                        <td className="py-3 px-3">
                           <div className="flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
-                            <span className="truncate max-w-[140px]" title={sellerName}>
+                            <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0" />
+                            <span className="font-bold text-xs text-stone-800 truncate max-w-[140px]" title={sellerName}>
                               {sellerName}
                             </span>
                           </div>
                         </td>
 
                         {/* 8. Botón Detalles para mostrar la venta completa con los productos */}
-                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                        <td className="py-3 px-3 text-center whitespace-nowrap">
                           <button
                             type="button"
                             onClick={() => setInspectOrder(o)}
-                            className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-[#1A2B5C] text-white hover:bg-[#253B7A] dark:bg-[#223368] dark:hover:bg-[#2e4282] transition shadow-xs flex items-center gap-1 mx-auto cursor-pointer"
+                            className="px-3 py-1.5 rounded-xl text-xs font-black bg-[#1A2B5C] text-white hover:bg-[#253B7A] transition shadow-xs flex items-center gap-1.5 mx-auto cursor-pointer"
                             title="Ver venta completa con productos"
                           >
-                            <Eye className="w-3 h-3 text-blue-300" />
+                            <Eye className="w-3.5 h-3.5 text-blue-300" />
                             <span>Detalles</span>
                           </button>
                         </td>
@@ -946,17 +896,13 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
 
       {/* SUB-VIEW B: RESUMEN POR VENDEDOR / USUARIO (Para toma de decisiones de supervisión) */}
       {viewMode === 'usuarios' && (
-        <div
-          className={`border rounded-2xl overflow-hidden shadow-sm transition-colors ${
-            isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
-          }`}
-        >
-          <div className="px-4 py-3 border-b border-inherit flex items-center justify-between">
-            <span className="text-xs font-bold text-[#1A2B5C] dark:text-white flex items-center gap-1.5">
-              <Users className="w-4 h-4 text-blue-500" />
+        <div className="border rounded-2xl overflow-hidden shadow-xs bg-white border-[#E8DFC8]">
+          <div className="px-4 py-3 border-b border-[#E8DFC8] flex items-center justify-between bg-[#FAF8F5]">
+            <span className="text-xs font-black text-[#1A2B5C] flex items-center gap-1.5">
+              <Users className="w-4 h-4 text-blue-600" />
               Rendimiento por Vendedor ({usersSummary.length} activos en el período)
             </span>
-            <span className="text-[11px] text-[#78716C] dark:text-[#9AA6C9]">
+            <span className="text-[11px] text-stone-600 font-semibold">
               Ordenado por volumen facturado
             </span>
           </div>
@@ -964,27 +910,21 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr
-                  className={`border-b font-black uppercase text-[10px] tracking-wider ${
-                    isDark
-                      ? 'bg-[#0F1B3C] text-[#9AA6C9] border-[#223368]'
-                      : 'bg-[#FBF7EF] text-[#78716C] border-[#E8DFC8]'
-                  }`}
-                >
-                  <th className="py-2.5 px-4">#</th>
-                  <th className="py-2.5 px-4">Vendedor / Usuario</th>
-                  <th className="py-2.5 px-4 text-center">N° Pedidos</th>
-                  <th className="py-2.5 px-4 text-center">Unidades</th>
-                  <th className="py-2.5 px-4 text-right">Total Facturado</th>
-                  <th className="py-2.5 px-4 text-right">Total Cobrado</th>
-                  <th className="py-2.5 px-4 text-right">Saldo Pendiente</th>
-                  <th className="py-2.5 px-4 text-right">Ticket Promedio</th>
+                <tr className="border-b font-black uppercase text-[11px] tracking-wider bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]">
+                  <th className="py-3 px-4">#</th>
+                  <th className="py-3 px-4">Vendedor / Usuario</th>
+                  <th className="py-3 px-4 text-center">N° Pedidos</th>
+                  <th className="py-3 px-4 text-center">Unidades</th>
+                  <th className="py-3 px-4 text-right">Total Facturado</th>
+                  <th className="py-3 px-4 text-right">Total Cobrado</th>
+                  <th className="py-3 px-4 text-right">Saldo Pendiente</th>
+                  <th className="py-3 px-4 text-right">Ticket Promedio</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-inherit">
+              <tbody className="divide-y divide-[#E8DFC8]">
                 {usersSummary.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center text-stone-400">
+                    <td colSpan={8} className="py-10 text-center text-stone-500 font-semibold">
                       No hay registros de vendedores en este período.
                     </td>
                   </tr>
@@ -994,35 +934,33 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
                     return (
                       <tr
                         key={u.sellerName}
-                        className={`transition ${
-                          isDark ? 'hover:bg-[#1E2D5A]' : 'hover:bg-[#FBF7EF]'
-                        }`}
+                        className="hover:bg-[#FBF7EF] transition-colors"
                       >
-                        <td className="py-3 px-4 font-bold text-[#78716C] dark:text-[#9AA6C9]">
+                        <td className="py-3 px-4 font-bold text-stone-500">
                           {idx + 1}
                         </td>
-                        <td className="py-3 px-4 font-black text-[#1A2B5C] dark:text-white">
+                        <td className="py-3 px-4 font-black text-[#1A2B5C]">
                           <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 flex items-center justify-center font-bold text-[11px]">
+                            <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-black text-[11px]">
                               {u.sellerName.slice(0, 2).toUpperCase()}
                             </div>
-                            <span>{u.sellerName}</span>
+                            <span className="text-sm font-black text-[#1A2B5C]">{u.sellerName}</span>
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-center font-bold">{u.ordersCount}</td>
-                        <td className="py-3 px-4 text-center font-medium text-stone-600 dark:text-stone-300">
+                        <td className="py-3 px-4 text-center font-black text-stone-800">{u.ordersCount}</td>
+                        <td className="py-3 px-4 text-center font-bold text-stone-700">
                           {u.unitsSold} uds.
                         </td>
-                        <td className="py-3 px-4 text-right font-black text-[#1A2B5C] dark:text-white">
+                        <td className="py-3 px-4 text-right font-black text-[#1A2B5C] text-sm">
                           {formatBalance(u.totalSales)}
                         </td>
-                        <td className="py-3 px-4 text-right font-semibold text-emerald-600 dark:text-emerald-400">
+                        <td className="py-3 px-4 text-right font-black text-emerald-700">
                           {formatBalance(u.totalPaid)}
                         </td>
-                        <td className="py-3 px-4 text-right font-bold text-amber-600 dark:text-amber-400">
+                        <td className="py-3 px-4 text-right font-black text-amber-700">
                           {formatBalance(u.totalPending)}
                         </td>
-                        <td className="py-3 px-4 text-right font-medium text-stone-500 dark:text-stone-400">
+                        <td className="py-3 px-4 text-right font-bold text-stone-700">
                           {formatBalance(avgTicket)}
                         </td>
                       </tr>
@@ -1037,17 +975,13 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
 
       {/* SUB-VIEW C: RESUMEN POR PRODUCTO (Para decisiones de reposición y stock) */}
       {viewMode === 'productos' && (
-        <div
-          className={`border rounded-2xl overflow-hidden shadow-sm transition-colors ${
-            isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
-          }`}
-        >
-          <div className="px-4 py-3 border-b border-inherit flex items-center justify-between">
-            <span className="text-xs font-bold text-[#1A2B5C] dark:text-white flex items-center gap-1.5">
-              <Package className="w-4 h-4 text-purple-500" />
+        <div className="border rounded-2xl overflow-hidden shadow-xs bg-white border-[#E8DFC8]">
+          <div className="px-4 py-3 border-b border-[#E8DFC8] flex items-center justify-between bg-[#FAF8F5]">
+            <span className="text-xs font-black text-[#1A2B5C] flex items-center gap-1.5">
+              <Package className="w-4 h-4 text-purple-600" />
               Rotación de Productos ({productsSummary.length} artículos vendidos)
             </span>
-            <span className="text-[11px] text-[#78716C] dark:text-[#9AA6C9]">
+            <span className="text-[11px] text-stone-600 font-semibold">
               Ordenado por unidades vendidas
             </span>
           </div>
@@ -1055,26 +989,20 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr
-                  className={`border-b font-black uppercase text-[10px] tracking-wider ${
-                    isDark
-                      ? 'bg-[#0F1B3C] text-[#9AA6C9] border-[#223368]'
-                      : 'bg-[#FBF7EF] text-[#78716C] border-[#E8DFC8]'
-                  }`}
-                >
-                  <th className="py-2.5 px-4">#</th>
-                  <th className="py-2.5 px-4">Producto</th>
-                  <th className="py-2.5 px-4">Variante Principal</th>
-                  <th className="py-2.5 px-4 text-center">Unidades</th>
-                  <th className="py-2.5 px-4 text-center">En N° Pedidos</th>
-                  <th className="py-2.5 px-4 text-right">Total Facturado</th>
-                  <th className="py-2.5 px-4 text-right">Precio Promedio</th>
+                <tr className="border-b font-black uppercase text-[11px] tracking-wider bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]">
+                  <th className="py-3 px-4">#</th>
+                  <th className="py-3 px-4">Producto</th>
+                  <th className="py-3 px-4">Variante Principal</th>
+                  <th className="py-3 px-4 text-center">Unidades</th>
+                  <th className="py-3 px-4 text-center">En N° Pedidos</th>
+                  <th className="py-3 px-4 text-right">Total Facturado</th>
+                  <th className="py-3 px-4 text-right">Precio Promedio</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-inherit">
+              <tbody className="divide-y divide-[#E8DFC8]">
                 {productsSummary.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-stone-400">
+                    <td colSpan={7} className="py-10 text-center text-stone-500 font-semibold">
                       No hay productos vendidos en este período.
                     </td>
                   </tr>
@@ -1082,36 +1010,34 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
                   productsSummary.map((p, idx) => (
                     <tr
                       key={p.nombre}
-                      className={`transition ${
-                        isDark ? 'hover:bg-[#1E2D5A]' : 'hover:bg-[#FBF7EF]'
-                      }`}
+                      className="hover:bg-[#FBF7EF] transition-colors"
                     >
-                      <td className="py-3 px-4 font-bold text-[#78716C] dark:text-[#9AA6C9]">
+                      <td className="py-3 px-4 font-bold text-stone-500">
                         {idx + 1}
                       </td>
-                      <td className="py-3 px-4 font-black text-[#1A2B5C] dark:text-white">
+                      <td className="py-3 px-4 font-black text-[#1A2B5C]">
                         <div className="flex items-center gap-2">
-                          <div className="p-1 rounded-lg bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300">
+                          <div className="p-1 rounded-lg bg-purple-100 text-purple-700">
                             <Package className="w-3.5 h-3.5" />
                           </div>
-                          <span>{p.nombre}</span>
+                          <span className="text-sm font-black text-[#1A2B5C]">{p.nombre}</span>
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-stone-600 dark:text-stone-300">
-                        <span className="px-2 py-0.5 rounded-md bg-stone-100 dark:bg-stone-800 text-[11px] font-medium">
+                      <td className="py-3 px-4 text-stone-700 font-semibold">
+                        <span className="px-2 py-0.5 rounded-md bg-stone-100 text-[11px] font-bold text-stone-800">
                           {p.topVariant}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-center font-black text-purple-600 dark:text-purple-400">
+                      <td className="py-3 px-4 text-center font-black text-purple-700 text-sm">
                         {p.unitsSold} uds.
                       </td>
-                      <td className="py-3 px-4 text-center font-semibold text-stone-700 dark:text-stone-300">
+                      <td className="py-3 px-4 text-center font-black text-stone-800">
                         {p.ordersCount}
                       </td>
-                      <td className="py-3 px-4 text-right font-black text-[#1A2B5C] dark:text-white">
+                      <td className="py-3 px-4 text-right font-black text-[#1A2B5C] text-sm">
                         {formatBalance(p.totalRevenue)}
                       </td>
-                      <td className="py-3 px-4 text-right font-medium text-stone-500 dark:text-stone-400">
+                      <td className="py-3 px-4 text-right font-bold text-stone-700">
                         {formatBalance(p.avgPrice)}
                       </td>
                     </tr>
@@ -1126,29 +1052,25 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
       {/* 5. MODAL DE DETALLE COMPLETO DE LA VENTA (MUESTRA VENTA COMPLETA CON PRODUCTOS) */}
       {inspectOrder && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div
-            className={`w-full max-w-lg border rounded-3xl p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200 ${
-              isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
-            }`}
-          >
+          <div className="w-full max-w-lg border rounded-3xl p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto bg-white border-[#E8DFC8] animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b pb-3 border-inherit">
+            <div className="flex items-center justify-between border-b pb-3 border-[#E8DFC8]">
               <div>
                 <div className="flex items-center gap-2">
                   <span
-                    className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                    className={`text-[11px] font-black uppercase px-2.5 py-0.5 rounded-full ${
                       inspectOrder.estado === 'Entregado'
-                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
-                        : 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-blue-100 text-blue-800'
                     }`}
                   >
                     {inspectOrder.estado || 'Abierto'}
                   </span>
-                  <span className="text-xs text-stone-400">
+                  <span className="text-xs font-semibold text-stone-500">
                     Fecha: {formatDateOnly(inspectOrder.createdAt)}
                   </span>
                 </div>
-                <h3 className="text-lg font-black text-[#1A2B5C] dark:text-white mt-1">
+                <h3 className="text-xl font-black text-[#1A2B5C] mt-1 font-['Outfit',sans-serif]">
                   Pedido #{inspectOrder.orderNumber || (inspectOrder as any).numeroPedido || inspectOrder.id.slice(0, 6)}
                 </h3>
               </div>
@@ -1156,41 +1078,33 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
               <button
                 type="button"
                 onClick={() => setInspectOrder(null)}
-                className="p-1.5 rounded-xl hover:bg-stone-200 dark:hover:bg-stone-700 transition cursor-pointer"
+                className="p-1.5 rounded-xl hover:bg-stone-100 transition cursor-pointer text-stone-500 hover:text-stone-800"
               >
-                <X className="w-5 h-5 text-stone-500" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Info Grid: Cliente & Vendedor */}
             <div className="grid grid-cols-2 gap-3 text-xs">
-              <div
-                className={`p-3 rounded-xl border ${
-                  isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
-                }`}
-              >
-                <span className="block text-[10px] font-bold uppercase opacity-70">Cliente:</span>
-                <span className="font-bold text-sm text-[#1A2B5C] dark:text-white block truncate">
+              <div className="p-3.5 rounded-xl border bg-[#FBF7EF] border-[#E8DFC8]">
+                <span className="block text-[10px] font-black uppercase text-stone-500">Cliente:</span>
+                <span className="font-black text-sm text-[#1A2B5C] block truncate mt-0.5">
                   {inspectOrder.cliente || (inspectOrder as any).clienteNombre || 'Sin nombre'}
                 </span>
                 {(inspectOrder.telefono || (inspectOrder as any).clienteTelefono) && (
-                  <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1 flex items-center gap-1">
-                    <Phone className="w-3 h-3" />
+                  <div className="text-xs text-emerald-700 font-bold mt-1.5 flex items-center gap-1">
+                    <Phone className="w-3.5 h-3.5" />
                     <span>{inspectOrder.telefono || (inspectOrder as any).clienteTelefono}</span>
                   </div>
                 )}
               </div>
 
-              <div
-                className={`p-3 rounded-xl border ${
-                  isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
-                }`}
-              >
-                <span className="block text-[10px] font-bold uppercase opacity-70">Vendedor:</span>
-                <span className="font-bold text-sm text-[#1A2B5C] dark:text-white block truncate">
+              <div className="p-3.5 rounded-xl border bg-[#FBF7EF] border-[#E8DFC8]">
+                <span className="block text-[10px] font-black uppercase text-stone-500">Vendedor:</span>
+                <span className="font-black text-sm text-[#1A2B5C] block truncate mt-0.5">
                   {inspectOrder.vendedorNombre || 'Sin asignar'}
                 </span>
-                <span className="block text-[11px] text-stone-500 mt-1">
+                <span className="block text-[11px] text-stone-500 font-medium mt-1">
                   Atención asignada
                 </span>
               </div>
@@ -1198,15 +1112,11 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
 
             {/* Delivery Location or Notes if present */}
             {inspectOrder.lugarEntrega && (
-              <div
-                className={`p-2.5 rounded-xl border text-xs flex items-start gap-2 ${
-                  isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
-                }`}
-              >
-                <MapPin className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+              <div className="p-3 rounded-xl border text-xs flex items-start gap-2 bg-[#FBF7EF] border-[#E8DFC8]">
+                <MapPin className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <div>
-                  <span className="font-bold text-[10px] uppercase opacity-70 block">Punto / Lugar de entrega:</span>
-                  <span className="text-stone-800 dark:text-stone-200">{inspectOrder.lugarEntrega}</span>
+                  <span className="font-black text-[10px] uppercase text-stone-500 block">Punto / Lugar de entrega:</span>
+                  <span className="text-stone-900 font-bold text-xs">{inspectOrder.lugarEntrega}</span>
                 </div>
               </div>
             )}
@@ -1214,33 +1124,29 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
             {/* Complete Products Breakdown (LA VENTA COMPLETA CON PRODUCTOS) */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-[#1A2B5C] dark:text-white flex items-center gap-1.5">
-                  <Package className="w-3.5 h-3.5 text-blue-500" />
+                <span className="text-xs font-black uppercase tracking-wider text-[#1A2B5C] flex items-center gap-1.5">
+                  <Package className="w-3.5 h-3.5 text-blue-600" />
                   Productos del Pedido ({(inspectOrder.productos || []).length})
                 </span>
-                <span className="text-[11px] text-stone-400">
+                <span className="text-[11px] text-stone-500 font-semibold">
                   Cantidades y Subtotales
                 </span>
               </div>
 
-              <div className="border rounded-2xl overflow-hidden divide-y divide-inherit border-inherit">
+              <div className="border rounded-2xl overflow-hidden divide-y divide-[#E8DFC8] border-[#E8DFC8]">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr
-                      className={`text-[10px] uppercase font-bold ${
-                        isDark ? 'bg-[#0F1B3C] text-[#9AA6C9]' : 'bg-[#FBF7EF] text-[#78716C]'
-                      }`}
-                    >
+                    <tr className="text-[10px] uppercase font-black bg-[#F5EFE0] text-[#1A2B5C]">
                       <th className="py-2 px-3">Producto</th>
                       <th className="py-2 px-2 text-center">Cant.</th>
                       <th className="py-2 px-3 text-right">P. Unit</th>
                       <th className="py-2 px-3 text-right">Subtotal</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-inherit">
+                  <tbody className="divide-y divide-[#E8DFC8]">
                     {(inspectOrder.productos || []).length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="py-4 text-center text-stone-400">
+                        <td colSpan={4} className="py-4 text-center text-stone-500 font-semibold">
                           Sin productos registrados en este pedido.
                         </td>
                       </tr>
@@ -1250,25 +1156,25 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
                         return (
                           <tr
                             key={idx}
-                            className={isDark ? 'hover:bg-[#1E2D5A]' : 'hover:bg-[#FBF7EF]'}
+                            className="hover:bg-[#FBF7EF] transition-colors"
                           >
                             <td className="py-2.5 px-3">
-                              <div className="font-bold text-stone-900 dark:text-white">
+                              <div className="font-black text-stone-900">
                                 {p.nombre}
                               </div>
                               {p.variante && (
-                                <div className="text-[10px] text-stone-500">
+                                <div className="text-[11px] text-stone-600 font-medium">
                                   Variante: {p.variante}
                                 </div>
                               )}
                             </td>
-                            <td className="py-2.5 px-2 text-center font-black text-blue-600 dark:text-blue-400">
+                            <td className="py-2.5 px-2 text-center font-black text-blue-700">
                               {p.cantidad || 1}
                             </td>
-                            <td className="py-2.5 px-3 text-right text-stone-600 dark:text-stone-300">
+                            <td className="py-2.5 px-3 text-right font-semibold text-stone-700">
                               {formatBalance(p.precioUnitario || 0)}
                             </td>
-                            <td className="py-2.5 px-3 text-right font-black text-[#1A2B5C] dark:text-white">
+                            <td className="py-2.5 px-3 text-right font-black text-[#1A2B5C]">
                               {formatBalance(lineSubtotal)}
                             </td>
                           </tr>
@@ -1282,36 +1188,28 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
 
             {/* Observations if present */}
             {inspectOrder.observaciones && (
-              <div
-                className={`p-2.5 rounded-xl border text-xs flex items-start gap-2 ${
-                  isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
-                }`}
-              >
-                <FileText className="w-3.5 h-3.5 text-stone-400 shrink-0 mt-0.5" />
+              <div className="p-3 rounded-xl border text-xs flex items-start gap-2 bg-[#FBF7EF] border-[#E8DFC8]">
+                <FileText className="w-4 h-4 text-stone-500 shrink-0 mt-0.5" />
                 <div>
-                  <span className="font-bold text-[10px] uppercase opacity-70 block">Observaciones:</span>
-                  <span className="text-stone-700 dark:text-stone-300">{inspectOrder.observaciones}</span>
+                  <span className="font-black text-[10px] uppercase text-stone-500 block">Observaciones:</span>
+                  <span className="text-stone-800 font-medium text-xs">{inspectOrder.observaciones}</span>
                 </div>
               </div>
             )}
 
             {/* Financial Summary */}
-            <div
-              className={`p-3.5 rounded-2xl border space-y-1.5 text-xs ${
-                isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
-              }`}
-            >
+            <div className="p-3.5 rounded-2xl border space-y-2 text-xs bg-[#FBF7EF] border-[#E8DFC8]">
               <div className="flex justify-between items-center">
-                <span className="font-bold text-stone-600 dark:text-stone-300">Total del Pedido:</span>
-                <span className="font-black text-base text-[#1A2B5C] dark:text-white">
+                <span className="font-extrabold text-stone-600">Total del Pedido:</span>
+                <span className="font-black text-lg text-[#1A2B5C]">
                   {formatBalance(inspectOrder.total || 0)}
                 </span>
               </div>
-              <div className="flex justify-between items-center text-emerald-600 dark:text-emerald-400 font-semibold">
+              <div className="flex justify-between items-center text-emerald-700 font-black">
                 <span>Monto Cobrado (Pagado):</span>
                 <span>{formatBalance(inspectOrder.pagado || 0)}</span>
               </div>
-              <div className="flex justify-between items-center text-amber-600 dark:text-amber-400 font-bold border-t pt-1.5 border-inherit">
+              <div className="flex justify-between items-center text-amber-700 font-black border-t pt-2 border-[#E8DFC8]">
                 <span>Saldo por Cobrar:</span>
                 <span>{formatBalance(inspectOrder.saldo || 0)}</span>
               </div>
@@ -1322,7 +1220,7 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
               <button
                 type="button"
                 onClick={() => setInspectOrder(null)}
-                className="w-full py-2.5 rounded-xl font-bold text-xs bg-[#1A2B5C] text-white hover:bg-[#253B7A] transition cursor-pointer shadow-sm"
+                className="w-full py-3 rounded-xl font-black text-xs bg-[#1A2B5C] text-white hover:bg-[#253B7A] transition cursor-pointer shadow-sm"
               >
                 Cerrar Detalle
               </button>

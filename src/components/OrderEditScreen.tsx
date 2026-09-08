@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -11,6 +11,7 @@ import {
   MapPin,
   FileText,
   Box,
+  Loader2,
 } from 'lucide-react';
 import { Order, OrderItem, OrderStatus } from '../types';
 import { formatCurrency, formatBoliviaPhone } from '../lib/storage';
@@ -20,7 +21,7 @@ import { useTheme } from '../contexts/ThemeContext';
 
 interface OrderEditScreenProps {
   order: Order;
-  onSave: (updatedOrder: Order) => void;
+  onSave: (updatedOrder: Order) => Promise<void> | void;
   onCancel: () => void;
 }
 
@@ -41,6 +42,8 @@ export const OrderEditScreen: React.FC<OrderEditScreenProps> = ({
     order.productos.map((p) => ({ ...p }))
   );
   const [pagado, setPagado] = useState<number>(order.pagado);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const isSubmittingRef = useRef<boolean>(false);
 
   const calculatedTotal = productos.reduce(
     (sum, item) => sum + (item.cantidad || 0) * (item.precioUnitario || 0),
@@ -90,60 +93,74 @@ export const OrderEditScreen: React.FC<OrderEditScreenProps> = ({
     setProductos((prev) => prev.filter((item) => item.id !== id));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingRef.current || isSubmitting) {
+      console.warn('Prevented duplicate save in OrderEditScreen');
+      return;
+    }
+
     if (!cliente.trim()) {
       alert('Por favor ingresa el nombre de la clienta.');
       return;
     }
 
-    const currentUserName = userProfile?.displayName || userProfile?.email || 'Usuario';
-    const currentUserUid = userProfile?.uid || '';
-    const nowIso = new Date().toISOString();
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
 
-    let shippingData = {};
-    if (estado === 'Entregado') {
-      shippingData = {
-        enviadoPorNombre: order.enviadoPorNombre || order.despachadoPorNombre || currentUserName,
-        enviadoPorUid: order.enviadoPorUid || order.despachadoPorUid || currentUserUid,
-        despachadoPorNombre: order.despachadoPorNombre || order.enviadoPorNombre || currentUserName,
-        despachadoPorUid: order.despachadoPorUid || order.enviadoPorUid || currentUserUid,
-        fechaEnvio: order.fechaEnvio || order.despachadoAt || nowIso,
-        despachadoAt: order.despachadoAt || order.fechaEnvio || nowIso,
+    try {
+      const currentUserName = userProfile?.displayName || userProfile?.email || 'Usuario';
+      const currentUserUid = userProfile?.uid || '';
+      const nowIso = new Date().toISOString();
+
+      let shippingData = {};
+      if (estado === 'Entregado') {
+        shippingData = {
+          enviadoPorNombre: order.enviadoPorNombre || order.despachadoPorNombre || currentUserName,
+          enviadoPorUid: order.enviadoPorUid || order.despachadoPorUid || currentUserUid,
+          despachadoPorNombre: order.despachadoPorNombre || order.enviadoPorNombre || currentUserName,
+          despachadoPorUid: order.despachadoPorUid || order.enviadoPorUid || currentUserUid,
+          fechaEnvio: order.fechaEnvio || order.despachadoAt || nowIso,
+          despachadoAt: order.despachadoAt || order.fechaEnvio || nowIso,
+        };
+      } else if (estado === 'Abierto') {
+        shippingData = {
+          enviadoPorNombre: undefined,
+          enviadoPorUid: undefined,
+          despachadoPorNombre: undefined,
+          despachadoPorUid: undefined,
+          fechaEnvio: undefined,
+          despachadoAt: undefined,
+        };
+      }
+
+      const updated: Order = {
+        ...order,
+        cliente: cliente.trim(),
+        telefono: telefono.trim(),
+        lugarEntrega: lugarEntrega.trim(),
+        observaciones: observaciones.trim(),
+        estado,
+        ...shippingData,
+        productos: productos.map((p) => ({
+          ...p,
+          nombre: p.nombre.trim() || 'Artículo',
+          variante: p.variante.trim(),
+          cantidad: Math.max(1, p.cantidad),
+          precioUnitario: Math.max(0, p.precioUnitario),
+        })),
+        total: calculatedTotal,
+        pagado: Math.max(0, pagado),
+        saldo: calculatedSaldo,
+        updatedAt: nowIso,
       };
-    } else if (estado === 'Abierto') {
-      shippingData = {
-        enviadoPorNombre: undefined,
-        enviadoPorUid: undefined,
-        despachadoPorNombre: undefined,
-        despachadoPorUid: undefined,
-        fechaEnvio: undefined,
-        despachadoAt: undefined,
-      };
+
+      await onSave(updated);
+    } catch (err) {
+      console.error('Error saving order edits:', err);
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
     }
-
-    const updated: Order = {
-      ...order,
-      cliente: cliente.trim(),
-      telefono: telefono.trim(),
-      lugarEntrega: lugarEntrega.trim(),
-      observaciones: observaciones.trim(),
-      estado,
-      ...shippingData,
-      productos: productos.map((p) => ({
-        ...p,
-        nombre: p.nombre.trim() || 'Artículo',
-        variante: p.variante.trim(),
-        cantidad: Math.max(1, p.cantidad),
-        precioUnitario: Math.max(0, p.precioUnitario),
-      })),
-      total: calculatedTotal,
-      pagado: Math.max(0, pagado),
-      saldo: calculatedSaldo,
-      updatedAt: nowIso,
-    };
-
-    onSave(updated);
   };
 
   return (
@@ -579,14 +596,28 @@ export const OrderEditScreen: React.FC<OrderEditScreenProps> = ({
         <div className="flex gap-3 pt-2">
           <button
             type="submit"
-            className={`flex-1 py-4 px-6 rounded-2xl font-black text-base active:scale-95 shadow-xl flex items-center justify-center gap-2 transition cursor-pointer ${
+            disabled={isSubmitting}
+            className={`flex-1 py-4 px-6 rounded-2xl font-black text-base active:scale-95 shadow-xl flex items-center justify-center gap-2 transition ${
+              isSubmitting
+                ? 'opacity-60 cursor-not-allowed pointer-events-none'
+                : 'cursor-pointer'
+            } ${
               isDark
                 ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C] shadow-[#FF6FA5]/25 border border-[#FF6FA5]'
                 : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white shadow-[#1A2B5C]/25'
             }`}
           >
-            <CheckCircle2 className="w-5 h-5" />
-            <span>Guardar Cambios</span>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Guardando Cambios...</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-5 h-5" />
+                <span>Guardar Cambios</span>
+              </>
+            )}
           </button>
         </div>
       </form>

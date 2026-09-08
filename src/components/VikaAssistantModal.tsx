@@ -117,6 +117,7 @@ export const VikaAssistantModal: React.FC<VikaAssistantModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const registeredMsgIdsRef = useRef<Set<string>>(new Set());
 
   // Hook for voice speech recognition
   const {
@@ -337,6 +338,12 @@ export const VikaAssistantModal: React.FC<VikaAssistantModalProps> = ({
 
   const handleConfirmAndRegisterDirect = (msgId: string, suggested: VikaSuggestedOrder) => {
     if (!onSaveDirectOrder) return;
+    if (registeredMsgIdsRef.current.has(msgId)) {
+      console.warn('Prevented duplicate order registration in VikaAssistantModal');
+      return;
+    }
+    registeredMsgIdsRef.current.add(msgId);
+
     const nextNumber = getNextOrderNumber(orders);
     const newOrder: Order = {
       id: `ord_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
 import { OrdersListScreen } from './components/OrdersListScreen';
 import { NewOrderScreen } from './components/NewOrderScreen';
@@ -110,7 +110,14 @@ export default function App() {
   };
 
   // Handlers for Orders Firestore CRUD & Actions
+  const isSavingOrderRef = useRef<boolean>(false);
+
   const handleSaveNewOrder = async (newOrder: Order) => {
+    if (isSavingOrderRef.current) {
+      console.warn('Blocked concurrent handleSaveNewOrder call to prevent duplicate orders');
+      return;
+    }
+    isSavingOrderRef.current = true;
     try {
       await saveOrderToFirestore(newOrder);
       setSelectedOrderId(newOrder.id);
@@ -119,6 +126,10 @@ export default function App() {
     } catch (err: any) {
       console.error('Error saving order:', err);
       showToast('Error al guardar pedido en la base de datos.');
+    } finally {
+      setTimeout(() => {
+        isSavingOrderRef.current = false;
+      }, 1500);
     }
   };
 
