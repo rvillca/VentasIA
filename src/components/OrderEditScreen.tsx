@@ -67,14 +67,24 @@ export const OrderEditScreen: React.FC<OrderEditScreenProps> = ({
   };
 
   const handleAddProduct = () => {
+    const newItemId = `item_${Date.now()}_${productos.length}`;
     const newItem: OrderItem = {
-      id: `item_${Date.now()}_${productos.length}`,
+      id: newItemId,
       nombre: '',
       variante: '',
       cantidad: 1,
       precioUnitario: 0,
     };
     setProductos((prev) => [...prev, newItem]);
+
+    setTimeout(() => {
+      const el = document.getElementById(`edit-product-item-${newItemId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const input = el.querySelector<HTMLInputElement>('input[name="edit-item-nombre"]');
+        if (input) input.focus();
+      }
+    }, 60);
   };
 
   const handleRemoveProduct = (id: string) => {
@@ -356,16 +366,26 @@ export const OrderEditScreen: React.FC<OrderEditScreenProps> = ({
           </div>
 
           <div className="space-y-3">
-            {productos.map((prod) => {
+            {productos.map((prod, index) => {
+              const subtotal = (prod.cantidad || 0) * (prod.precioUnitario || 0);
               return (
                 <div
                   key={prod.id}
+                  id={`edit-product-item-${prod.id}`}
                   className={`p-3.5 border rounded-2xl space-y-2.5 transition ${
                     isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
+                    <span
+                      className={`text-[11px] font-black px-2 py-0.5 rounded-lg shrink-0 ${
+                        isDark ? 'bg-[#16234F] text-[#FF6FA5]' : 'bg-[#EAE0D0] text-[#1A2B5C]'
+                      }`}
+                    >
+                      #{index + 1}
+                    </span>
                     <input
+                      name="edit-item-nombre"
                       type="text"
                       value={prod.nombre}
                       onChange={(e) =>
@@ -382,7 +402,7 @@ export const OrderEditScreen: React.FC<OrderEditScreenProps> = ({
                       type="button"
                       onClick={() => handleRemoveProduct(prod.id)}
                       className="p-2 text-slate-400 hover:text-rose-500 rounded-lg transition cursor-pointer"
-                      title="Eliminar"
+                      title="Eliminar artículo"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -418,98 +438,149 @@ export const OrderEditScreen: React.FC<OrderEditScreenProps> = ({
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 items-center pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-end pt-1">
                     {/* Quantity */}
-                    <div
-                      className={`flex items-center border rounded-xl overflow-hidden ${
-                        isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleUpdateProduct(
-                            prod.id,
-                            'cantidad',
-                            Math.max(0, (prod.cantidad || 0) - 1)
-                          )
-                        }
-                        className={`w-8 h-8 flex items-center justify-center text-sm font-bold transition cursor-pointer ${
-                          isDark ? 'text-white hover:bg-[#223368]' : 'text-[#1A2B5C] hover:bg-[#F5EFE0]'
+                    <div>
+                      <label
+                        className={`block text-[10px] uppercase font-bold mb-1 ${
+                          isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
                         }`}
                       >
-                        -
-                      </button>
-                      <input
-                        type="number"
-                        min="0"
-                        value={prod.cantidad === 0 ? '' : prod.cantidad}
-                        onFocus={(e) => e.target.select()}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          handleUpdateProduct(
-                            prod.id,
-                            'cantidad',
-                            val === '' ? 0 : Math.max(0, parseInt(val, 10) || 0)
-                          );
-                        }}
-                        placeholder="0"
-                        className={`w-full bg-transparent text-center text-xs font-bold outline-none ${
-                          isDark ? 'text-white' : 'text-[#1A2B5C]'
-                        }`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleUpdateProduct(
-                            prod.id,
-                            'cantidad',
-                            (prod.cantidad || 0) + 1
-                          )
-                        }
-                        className={`w-8 h-8 flex items-center justify-center text-sm font-bold transition cursor-pointer ${
-                          isDark ? 'text-white hover:bg-[#223368]' : 'text-[#1A2B5C] hover:bg-[#F5EFE0]'
+                        Cantidad
+                      </label>
+                      <div
+                        className={`flex items-center border rounded-xl overflow-hidden ${
+                          isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
                         }`}
                       >
-                        +
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleUpdateProduct(
+                              prod.id,
+                              'cantidad',
+                              Math.max(0, (prod.cantidad || 0) - 1)
+                            )
+                          }
+                          className={`w-8 h-8 flex items-center justify-center text-sm font-bold transition cursor-pointer ${
+                            isDark ? 'text-white hover:bg-[#223368]' : 'text-[#1A2B5C] hover:bg-[#F5EFE0]'
+                          }`}
+                        >
+                          -
+                        </button>
+                        <input
+                          type="number"
+                          min="0"
+                          value={prod.cantidad === 0 ? '' : prod.cantidad}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            handleUpdateProduct(
+                              prod.id,
+                              'cantidad',
+                              val === '' ? 0 : Math.max(0, parseInt(val, 10) || 0)
+                            );
+                          }}
+                          placeholder="0"
+                          className={`w-full bg-transparent text-center text-xs font-bold outline-none ${
+                            isDark ? 'text-white' : 'text-[#1A2B5C]'
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleUpdateProduct(
+                              prod.id,
+                              'cantidad',
+                              (prod.cantidad || 0) + 1
+                            )
+                          }
+                          className={`w-8 h-8 flex items-center justify-center text-sm font-bold transition cursor-pointer ${
+                            isDark ? 'text-white hover:bg-[#223368]' : 'text-[#1A2B5C] hover:bg-[#F5EFE0]'
+                          }`}
+                        >
+                          +
+                        </button>
+                      </div>
                     </div>
 
                     {/* Unit Price */}
-                    <div className="relative">
-                      <span
-                        className={`absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold ${
-                          isDark ? 'text-[#FF6FA5]' : 'text-[#78716C]'
+                    <div>
+                      <label
+                        className={`block text-[10px] uppercase font-bold mb-1 ${
+                          isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
                         }`}
                       >
-                        Bs.
-                      </span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="any"
-                        value={prod.precioUnitario === 0 ? '' : (prod.precioUnitario || '')}
-                        onFocus={(e) => e.target.select()}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          handleUpdateProduct(
-                            prod.id,
-                            'precioUnitario',
-                            val === '' ? 0 : Math.max(0, parseFloat(val) || 0)
-                          );
-                        }}
-                        placeholder="0.00"
-                        className={`w-full border rounded-xl py-1.5 pl-8 pr-2 text-xs font-bold outline-none transition ${
-                          isDark
-                            ? 'bg-[#16234F] border-[#223368] text-white focus:ring-2 focus:ring-[#FF6FA5]'
-                            : 'bg-white border-[#E8DFC8] text-[#1A2B5C] focus:ring-2 focus:ring-[#1A2B5C]'
+                        Precio Unitario (Bs.)
+                      </label>
+                      <div className="relative">
+                        <span
+                          className={`absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold ${
+                            isDark ? 'text-[#FF6FA5]' : 'text-[#78716C]'
+                          }`}
+                        >
+                          Bs.
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={prod.precioUnitario === 0 ? '' : (prod.precioUnitario || '')}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            handleUpdateProduct(
+                              prod.id,
+                              'precioUnitario',
+                              val === '' ? 0 : Math.max(0, parseFloat(val) || 0)
+                            );
+                          }}
+                          placeholder="0.00"
+                          className={`w-full border rounded-xl py-1.5 pl-8 pr-2 text-xs font-bold outline-none transition ${
+                            isDark
+                              ? 'bg-[#16234F] border-[#223368] text-white focus:ring-2 focus:ring-[#FF6FA5]'
+                              : 'bg-white border-[#E8DFC8] text-[#1A2B5C] focus:ring-2 focus:ring-[#1A2B5C]'
+                          }`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Subtotal Display */}
+                    <div className="text-right pb-1">
+                      <span
+                        className={`block text-[10px] uppercase font-bold mb-0.5 ${
+                          isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
                         }`}
-                      />
+                      >
+                        Subtotal
+                      </span>
+                      <span
+                        className={`text-sm font-black ${
+                          isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'
+                        }`}
+                      >
+                        {formatCurrency(subtotal)}
+                      </span>
                     </div>
                   </div>
                 </div>
               );
             })}
+
+            {/* Bottom Add Product Button - Always visible and prominent at the end of the products list */}
+            <button
+              id="edit-add-product-btn-bottom"
+              type="button"
+              onClick={handleAddProduct}
+              className={`w-full py-3.5 px-4 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border-2 border-dashed transition-all active:scale-[0.99] cursor-pointer shadow-xs ${
+                isDark
+                  ? 'bg-[#0F1B3C]/50 hover:bg-[#16234F] text-[#FF6FA5] border-[#223368] hover:border-[#FF6FA5]/60'
+                  : 'bg-[#FBF7EF] hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8] hover:border-[#1A2B5C]/40'
+              }`}
+            >
+              <Plus className="w-4 h-4 stroke-[3]" />
+              <span>+ Agregar Otro Artículo / Producto</span>
+            </button>
           </div>
         </div>
 
