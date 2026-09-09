@@ -57,6 +57,12 @@
         "email": { "type": "string" },
         "displayName": { "type": "string" },
         "role": { "type": "string" },
+        "twoFactorEnabled": { "type": "boolean" },
+        "twoFactorRequired": { "type": "boolean" },
+        "twoFactorSecret": { "type": "string" },
+        "twoFactorCreatedAt": { "type": "string" },
+        "autoLogoutEnabled": { "type": "boolean" },
+        "autoLogoutMinutes": { "type": "number" },
         "createdAt": { "type": "string" },
         "updatedAt": { "type": "string" }
       },

@@ -10,6 +10,8 @@ import {
   KeyRound,
   PackagePlus,
   Clock,
+  ShieldCheck,
+  Shield,
 } from 'lucide-react';
 import { ActiveTab, Order } from '../types';
 import { formatCurrency } from '../lib/storage';
@@ -17,7 +19,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useFinancialPrivacy } from '../contexts/FinancialPrivacyContext';
 import { BalanceToggleBtn } from './BalanceToggleBtn';
-import { ChangePasswordModal } from './ChangePasswordModal';
+import { UserSecurityModal } from './UserSecurityModal';
 
 interface HeaderProps {
   activeTab: ActiveTab;
@@ -123,7 +125,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
               )}
 
-              {/* Current user role badge + Change password trigger */}
+              {/* Current user role badge + Security & 2FA / Password trigger */}
               <button
                 id="my-profile-password-btn"
                 onClick={() => setIsPasswordModalOpen(true)}
@@ -132,12 +134,17 @@ export const Header: React.FC<HeaderProps> = ({
                     ? 'bg-[#16234F] hover:bg-[#1E2D5A] border-[#223368] hover:border-[#FF6FA5]/40 text-white'
                     : 'bg-[#F5EFE0] hover:bg-[#EBE2CF] border-[#E8DFC8] hover:border-[#1A2B5C]/40 text-[#1A2B5C]'
                 }`}
-                title="Haz clic para cambiar tu contraseña"
+                title="Configuración de seguridad (2FA, inactividad y contraseña)"
               >
                 <div className="flex flex-col text-right">
-                  <span className="font-bold leading-tight truncate max-w-[100px] sm:max-w-[130px] group-hover:text-[#FF6FA5] transition">
-                    {userProfile?.displayName || 'Usuario'}
-                  </span>
+                  <div className="flex items-center justify-end gap-1">
+                    <span className="font-bold leading-tight truncate max-w-[100px] sm:max-w-[130px] group-hover:text-[#FF6FA5] transition">
+                      {userProfile?.displayName || 'Usuario'}
+                    </span>
+                    {userProfile?.twoFactorEnabled && (
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" title="2FA Activo con App Autenticadora" />
+                    )}
+                  </div>
                   <span
                     className={`text-[10px] uppercase font-bold ${
                       isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'
@@ -152,7 +159,11 @@ export const Header: React.FC<HeaderProps> = ({
                       : '💼 Vendedora'}
                   </span>
                 </div>
-                <KeyRound className="w-3.5 h-3.5 text-[#FF6FA5] group-hover:scale-110 transition" />
+                {userProfile?.twoFactorEnabled ? (
+                  <ShieldCheck className="w-4 h-4 text-emerald-500 group-hover:scale-110 transition shrink-0" />
+                ) : (
+                  <KeyRound className="w-3.5 h-3.5 text-[#FF6FA5] group-hover:scale-110 transition shrink-0" />
+                )}
               </button>
 
               <button
@@ -356,10 +367,11 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </header>
 
-      {/* Change Password Modal for Current User */}
-      <ChangePasswordModal
+      {/* Security & Password Modal for Current User */}
+      <UserSecurityModal
         isOpen={isPasswordModalOpen}
         onClose={() => setIsPasswordModalOpen(false)}
+        defaultTab="2fa"
       />
     </>
   );

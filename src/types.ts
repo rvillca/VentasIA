@@ -20,6 +20,17 @@ export interface AppUser {
   disabled?: boolean;
   comprasAccess?: boolean;
   password?: string;
+  updatedAt?: string;
+
+  // 2FA Security fields (TOTP via Google Authenticator / Authy)
+  twoFactorEnabled?: boolean;
+  twoFactorRequired?: boolean; // Forzado u obligatorio por el Administrador
+  twoFactorSecret?: string;
+  twoFactorCreatedAt?: string;
+
+  // Inactivity Auto-Logout preferences
+  autoLogoutEnabled?: boolean; // default true
+  autoLogoutMinutes?: number; // default 20
 }
 
 export interface Order {

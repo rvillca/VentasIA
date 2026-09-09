@@ -22,6 +22,13 @@ import {
   Search,
   AlertTriangle,
   Database,
+  ShieldCheck,
+  Smartphone,
+  Clock,
+  ShieldAlert,
+  RefreshCw,
+  Sliders,
+  Sparkles,
 } from 'lucide-react';
 import { AppUser, UserRole } from '../types';
 import { subscribeToUsers } from '../lib/storage';
@@ -35,6 +42,10 @@ export const UserManagementScreen: React.FC = () => {
     adminResetUserPassword,
     updateUserAccount,
     deleteUserAccount,
+    adminResetUserTwoFactor,
+    adminToggleForceTwoFactor,
+    adminDisableUserTwoFactor,
+    adminSetAllUsersTwoFactorRequired,
     userProfile,
   } = useAuth();
   const { isDark } = useTheme();
@@ -80,6 +91,20 @@ export const UserManagementScreen: React.FC = () => {
   const [selectedUserForDelete, setSelectedUserForDelete] = useState<AppUser | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Disable 2FA modal state
+  const [confirmDisable2FAUser, setConfirmDisable2FAUser] = useState<AppUser | null>(null);
+  const [disable2FALoading, setDisable2FALoading] = useState(false);
+
+  // Dedicated MFA / 2FA Management Modal State (for Jefe)
+  const [selectedUserForMfa, setSelectedUserForMfa] = useState<AppUser | null>(null);
+  const [mfaActionLoading, setMfaActionLoading] = useState(false);
+  const [mfaActionSuccess, setMfaActionSuccess] = useState<string | null>(null);
+  const [mfaActionError, setMfaActionError] = useState<string | null>(null);
+
+  // Global MFA Policy Modal State
+  const [showGlobalMfaModal, setShowGlobalMfaModal] = useState(false);
+  const [globalMfaLoading, setGlobalMfaLoading] = useState(false);
 
   // Global action notification
   const [actionNotice, setActionNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -315,6 +340,133 @@ export const UserManagementScreen: React.FC = () => {
       setResetError(err.message || 'Error al cambiar contraseña.');
     } finally {
       setResetLoading(false);
+    }
+  };
+
+  // Handle Jefe disabling 2FA for a user (e.g. lost device)
+  const handleConfirmDisable2FA = async () => {
+    if (!confirmDisable2FAUser) return;
+    try {
+      setDisable2FALoading(true);
+      await adminDisableUserTwoFactor(confirmDisable2FAUser.uid);
+      const name = confirmDisable2FAUser.displayName || confirmDisable2FAUser.email;
+      showNotice('success', `Doble Factor (2FA) desactivado para ${name}.`);
+      setConfirmDisable2FAUser(null);
+    } catch (err: any) {
+      console.error('Error disabling 2FA:', err);
+      showNotice('error', err.message || 'No se pudo desactivar el 2FA.');
+    } finally {
+      setDisable2FALoading(false);
+    }
+  };
+
+  // Open MFA Management Modal
+  const handleOpenMfaModal = (targetUser: AppUser) => {
+    setSelectedUserForMfa(targetUser);
+    setMfaActionError(null);
+    setMfaActionSuccess(null);
+  };
+
+  // 1. Reset 2FA for lost phone + Force re-enrollment on next login
+  const handleResetMfaAndForce = async () => {
+    if (!selectedUserForMfa) return;
+    try {
+      setMfaActionLoading(true);
+      setMfaActionError(null);
+      await adminResetUserTwoFactor(selectedUserForMfa.uid, true);
+      const name = selectedUserForMfa.displayName || selectedUserForMfa.email;
+      setMfaActionSuccess(`¡2FA reseteado! Se exigirá a ${name} escanear un nuevo código QR en su próximo inicio de sesión.`);
+      showNotice('success', `2FA reseteado con vinculación obligatoria para ${name}.`);
+      setSelectedUserForMfa((prev) => prev ? { ...prev, twoFactorEnabled: false, twoFactorSecret: '', twoFactorRequired: true } : null);
+    } catch (err: any) {
+      console.error('Error resetting 2FA:', err);
+      setMfaActionError(err.message || 'No se pudo resetear el 2FA');
+    } finally {
+      setMfaActionLoading(false);
+    }
+  };
+
+  // 1b. Reset 2FA for lost phone + make optional
+  const handleResetMfaOptional = async () => {
+    if (!selectedUserForMfa) return;
+    try {
+      setMfaActionLoading(true);
+      setMfaActionError(null);
+      await adminResetUserTwoFactor(selectedUserForMfa.uid, false);
+      const name = selectedUserForMfa.displayName || selectedUserForMfa.email;
+      setMfaActionSuccess(`¡2FA reseteado! El acceso con 2FA es ahora opcional para ${name}.`);
+      showNotice('success', `2FA reseteado a modo opcional para ${name}.`);
+      setSelectedUserForMfa((prev) => prev ? { ...prev, twoFactorEnabled: false, twoFactorSecret: '', twoFactorRequired: false } : null);
+    } catch (err: any) {
+      console.error('Error resetting 2FA:', err);
+      setMfaActionError(err.message || 'No se pudo resetear el 2FA');
+    } finally {
+      setMfaActionLoading(false);
+    }
+  };
+
+  // 2. Toggle forcing 2FA for user
+  const handleToggleUserMfaRequired = async (required: boolean) => {
+    if (!selectedUserForMfa) return;
+    try {
+      setMfaActionLoading(true);
+      setMfaActionError(null);
+      await adminToggleForceTwoFactor(selectedUserForMfa.uid, required);
+      const name = selectedUserForMfa.displayName || selectedUserForMfa.email;
+      setMfaActionSuccess(
+        required
+          ? `¡2FA marcado como OBLIGATORIO para ${name}! Deberá configurar su app autenticadora.`
+          : `2FA configurado como OPCIONAL para ${name}.`
+      );
+      showNotice(
+        'success',
+        required ? `2FA ahora es OBLIGATORIO para ${name}.` : `2FA ahora es OPCIONAL para ${name}.`
+      );
+      setSelectedUserForMfa((prev) => prev ? { ...prev, twoFactorRequired: required } : null);
+    } catch (err: any) {
+      console.error('Error toggling force 2FA:', err);
+      setMfaActionError(err.message || 'No se pudo cambiar la obligatoriedad de 2FA');
+    } finally {
+      setMfaActionLoading(false);
+    }
+  };
+
+  // 3. Disable 2FA completely
+  const handleDisableMfaTotal = async () => {
+    if (!selectedUserForMfa) return;
+    try {
+      setMfaActionLoading(true);
+      setMfaActionError(null);
+      await adminDisableUserTwoFactor(selectedUserForMfa.uid);
+      const name = selectedUserForMfa.displayName || selectedUserForMfa.email;
+      setMfaActionSuccess(`2FA desactivado totalmente para ${name}.`);
+      showNotice('success', `2FA desactivado totalmente para ${name}.`);
+      setSelectedUserForMfa((prev) => prev ? { ...prev, twoFactorEnabled: false, twoFactorSecret: '', twoFactorRequired: false } : null);
+    } catch (err: any) {
+      console.error('Error disabling 2FA:', err);
+      setMfaActionError(err.message || 'No se pudo desactivar el 2FA');
+    } finally {
+      setMfaActionLoading(false);
+    }
+  };
+
+  // 4. Set global policy for all users
+  const handleSetGlobalMfaPolicy = async (required: boolean) => {
+    try {
+      setGlobalMfaLoading(true);
+      await adminSetAllUsersTwoFactorRequired(required);
+      showNotice(
+        'success',
+        required
+          ? '¡Política aplicada! 2FA es ahora OBLIGATORIO para todo el personal.'
+          : 'Política actualizada: 2FA es ahora OPCIONAL para todo el personal.'
+      );
+      setShowGlobalMfaModal(false);
+    } catch (err: any) {
+      console.error('Error applying global 2FA policy:', err);
+      showNotice('error', err.message || 'No se pudo aplicar la política global.');
+    } finally {
+      setGlobalMfaLoading(false);
     }
   };
 
@@ -782,6 +934,52 @@ export const UserManagementScreen: React.FC = () => {
             )}
           </div>
 
+          {/* Global MFA Policy & Quick Overview for Jefe */}
+          {isJefe && (
+            <div
+              className={`p-3.5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                isDark ? 'bg-[#0F1B3C]/90 border-purple-500/30' : 'bg-purple-50/70 border-purple-200'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`text-xs font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                      Doble Factor de Autenticación (MFA / TOTP)
+                    </span>
+                    <span className="text-[10px] bg-purple-500/20 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full font-bold">
+                      {users.filter((u) => u.twoFactorEnabled).length} de {users.length} vinculados
+                    </span>
+                    {users.filter((u) => u.twoFactorRequired).length > 0 && (
+                      <span className="text-[10px] bg-amber-500/20 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full font-bold">
+                        ⚡ {users.filter((u) => u.twoFactorRequired).length} obligatorios
+                      </span>
+                    )}
+                  </div>
+                  <p className={`text-[11px] ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                    Gestiona individualmente o define la política de seguridad para toda la empresa.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowGlobalMfaModal(true)}
+                className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
+                  isDark
+                    ? 'bg-purple-500/20 hover:bg-purple-500/30 border-purple-500/40 text-purple-200'
+                    : 'bg-white hover:bg-purple-100 border-purple-300 text-purple-900 shadow-sm'
+                }`}
+              >
+                <Sliders className="w-3.5 h-3.5" />
+                <span>Política Global 2FA</span>
+              </button>
+            </div>
+          )}
+
           {/* Users List Cards */}
           <div className="space-y-3 max-h-[540px] overflow-y-auto pr-1">
             {filteredUsers.length === 0 ? (
@@ -883,6 +1081,67 @@ export const UserManagementScreen: React.FC = () => {
                             <span className="text-[9px] bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-extrabold flex items-center gap-1">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                               Activo
+                            </span>
+                          )}
+
+                          {/* 2FA Security Badge */}
+                          {u.twoFactorEnabled ? (
+                            <span
+                              className="text-[9px] bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1"
+                              title={`2FA Activo con app autenticadora (TOTP)${u.twoFactorCreatedAt ? ` desde ${new Date(u.twoFactorCreatedAt).toLocaleDateString()}` : ''}`}
+                            >
+                              <ShieldCheck className="w-3 h-3 text-emerald-500" />
+                              2FA Activo
+                            </span>
+                          ) : u.twoFactorRequired ? (
+                            <span
+                              className="text-[9px] bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1"
+                              title="2FA Obligatorio: Pendiente de vinculación con app autenticadora al iniciar sesión"
+                            >
+                              <ShieldAlert className="w-3 h-3 text-amber-500" />
+                              2FA Obligatorio (Pendiente)
+                            </span>
+                          ) : (
+                            <span
+                              className={`text-[9px] opacity-60 px-1.5 py-0.5 rounded-full border border-dashed ${
+                                isDark ? 'border-[#223368] text-[#9AA6C9]' : 'border-[#E8DFC8] text-[#78716C]'
+                              }`}
+                              title="El usuario no ha activado el Doble Factor todavía (Opcional)"
+                            >
+                              Sin 2FA
+                            </span>
+                          )}
+
+                          {u.twoFactorRequired && u.twoFactorEnabled && (
+                            <span
+                              className="text-[9px] bg-purple-500/15 text-purple-600 dark:text-purple-300 border border-purple-500/30 px-1.5 py-0.5 rounded-full font-bold"
+                              title="2FA Exigido por el Administrador"
+                            >
+                              ⚡ Obligatorio
+                            </span>
+                          )}
+
+                          {/* Auto-logout Inactivity Badge */}
+                          {u.autoLogoutEnabled !== false ? (
+                            <span
+                              className={`text-[9px] px-1.5 py-0.5 rounded-full flex items-center gap-1 border ${
+                                isDark
+                                  ? 'bg-[#16234F] text-[#9AA6C9] border-[#223368]'
+                                  : 'bg-white text-[#78716C] border-[#E8DFC8]'
+                              }`}
+                              title={`Cierre automático por inactividad: ${u.autoLogoutMinutes || 20} minutos`}
+                            >
+                              <Clock className="w-2.5 h-2.5 text-[#FF6FA5]" />
+                              {u.autoLogoutMinutes || 20}m
+                            </span>
+                          ) : (
+                            <span
+                              className={`text-[9px] px-1.5 py-0.5 rounded-full opacity-60 border ${
+                                isDark ? 'border-[#223368] text-[#9AA6C9]' : 'border-[#E8DFC8] text-[#78716C]'
+                              }`}
+                              title="Auto-cierre por inactividad desactivado"
+                            >
+                              Sin auto-cierre
                             </span>
                           )}
                         </div>
@@ -1027,6 +1286,31 @@ export const UserManagementScreen: React.FC = () => {
                           <KeyRound className={`w-3.5 h-3.5 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
                           <span>Clave</span>
                         </button>
+
+                        {/* 3.1 Gestión MFA / 2FA (Only Jefe) */}
+                        {isJefe && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenMfaModal(u)}
+                            className={`px-2.5 py-1 border text-xs font-bold rounded-xl flex items-center gap-1 transition cursor-pointer ${
+                              u.twoFactorEnabled
+                                ? isDark
+                                  ? 'bg-emerald-950/40 hover:bg-emerald-900/60 border-emerald-500/40 text-emerald-300'
+                                  : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-800'
+                                : u.twoFactorRequired
+                                ? isDark
+                                  ? 'bg-amber-950/40 hover:bg-amber-900/60 border-amber-500/40 text-amber-300'
+                                  : 'bg-amber-50 hover:bg-amber-100 border-amber-300 text-amber-800'
+                                : isDark
+                                ? 'bg-[#16234F] hover:bg-[#1E2D5A] border-[#223368] text-[#9AA6C9] hover:text-white'
+                                : 'bg-white hover:bg-[#F5EFE0] border-[#E8DFC8] text-[#78716C] hover:text-[#1A2B5C]'
+                            }`}
+                            title="Gestionar 2FA: Resetear celular perdido, Forzar obligatoriedad o Desactivar"
+                          >
+                            <ShieldCheck className="w-3.5 h-3.5 text-purple-500" />
+                            <span>MFA / 2FA</span>
+                          </button>
+                        )}
 
                         {/* 4. Delete User Button (Only Jefe) */}
                         {isJefe && (
@@ -1640,6 +1924,463 @@ export const UserManagementScreen: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Disable 2FA Confirmation Modal for Admin (Legacy quick confirmation) */}
+      {confirmDisable2FAUser && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div
+            className={`w-full max-w-sm border rounded-3xl p-6 shadow-2xl space-y-4 ${
+              isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 shrink-0">
+                <Smartphone className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className={`text-base font-bold font-['Outfit',sans-serif] ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                  ¿Desactivar 2FA?
+                </h3>
+                <p className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                  {confirmDisable2FAUser.displayName || confirmDisable2FAUser.email}
+                </p>
+              </div>
+            </div>
+
+            <div
+              className={`p-3.5 rounded-2xl border text-xs space-y-2 ${
+                isDark ? 'bg-[#0F1B3C] border-[#223368] text-[#CBD5E1]' : 'bg-[#FAF8F5] border-[#E8DFC8] text-[#57534E]'
+              }`}
+            >
+              <p>
+                Al desactivar el Doble Factor (TOTP), el usuario podrá iniciar sesión únicamente con su correo y contraseña normal.
+              </p>
+              <p className="text-[11px] opacity-80">
+                Utiliza esta opción si el empleado extravió su teléfono celular o desinstaló por error la aplicación autenticadora.
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDisable2FAUser(null)}
+                className={`flex-1 py-2.5 px-3 rounded-xl border font-bold text-xs transition cursor-pointer ${
+                  isDark
+                    ? 'border-[#223368] text-[#9AA6C9] hover:bg-[#0F1B3C]'
+                    : 'border-[#E8DFC8] text-[#78716C] hover:bg-[#FBF7EF]'
+                }`}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={disable2FALoading}
+                onClick={handleConfirmDisable2FA}
+                className="flex-1 py-2.5 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-md flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+              >
+                {disable2FALoading ? 'Desactivando...' : 'Sí, Desactivar 2FA'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* Modal: Full MFA / 2FA Management for Selected User (Jefe) */}
+      {/* ========================================================= */}
+      {selectedUserForMfa && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div
+            className={`w-full max-w-lg border rounded-3xl p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto ${
+              isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+            }`}
+          >
+            {/* Header */}
+            <div className={`flex items-center justify-between border-b pb-4 ${isDark ? 'border-[#223368]' : 'border-[#E8DFC8]'}`}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-500 shrink-0">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className={`text-base font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                    Gestión de Doble Factor (MFA / 2FA)
+                  </h3>
+                  <p className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                    Usuario: <strong className={isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}>{selectedUserForMfa.displayName || selectedUserForMfa.email}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedUserForMfa(null)}
+                className={`p-1.5 rounded-lg cursor-pointer ${
+                  isDark ? 'text-[#9AA6C9] hover:text-white hover:bg-[#0F1B3C]' : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
+                }`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Notification messages */}
+            {mfaActionSuccess && (
+              <div
+                className={`p-3 border rounded-xl text-xs flex items-center gap-2 animate-in fade-in ${
+                  isDark
+                    ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-200'
+                    : 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                }`}
+              >
+                <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{mfaActionSuccess}</span>
+              </div>
+            )}
+
+            {mfaActionError && (
+              <div
+                className={`p-3 border rounded-xl text-xs flex items-center gap-2 animate-in fade-in ${
+                  isDark
+                    ? 'bg-rose-950/80 border-rose-500/50 text-rose-200'
+                    : 'bg-rose-50 border-rose-300 text-rose-800'
+                }`}
+              >
+                <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                <span>{mfaActionError}</span>
+              </div>
+            )}
+
+            {/* Current Status Overview Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div
+                className={`p-3 rounded-2xl border ${
+                  selectedUserForMfa.twoFactorEnabled
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+                    : selectedUserForMfa.twoFactorRequired
+                    ? 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300'
+                    : isDark
+                    ? 'bg-[#0F1B3C] border-[#223368] text-[#9AA6C9]'
+                    : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#78716C]'
+                }`}
+              >
+                <span className="text-[10px] font-bold uppercase tracking-wider block opacity-75">Estado de Vinculación</span>
+                <div className="flex items-center gap-1.5 mt-1 font-bold text-xs">
+                  {selectedUserForMfa.twoFactorEnabled ? (
+                    <>
+                      <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+                      <span>Vinculado con App TOTP</span>
+                    </>
+                  ) : selectedUserForMfa.twoFactorRequired ? (
+                    <>
+                      <ShieldAlert className="w-4 h-4 text-amber-500 shrink-0" />
+                      <span>Pendiente de Vincular</span>
+                    </>
+                  ) : (
+                    <>
+                      <Smartphone className="w-4 h-4 opacity-60 shrink-0" />
+                      <span>Sin App Vinculada</span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div
+                className={`p-3 rounded-2xl border ${
+                  selectedUserForMfa.twoFactorRequired
+                    ? 'bg-purple-500/10 border-purple-500/30 text-purple-700 dark:text-purple-300'
+                    : isDark
+                    ? 'bg-[#0F1B3C] border-[#223368] text-[#9AA6C9]'
+                    : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#78716C]'
+                }`}
+              >
+                <span className="text-[10px] font-bold uppercase tracking-wider block opacity-75">Regla de Acceso</span>
+                <div className="flex items-center gap-1.5 mt-1 font-bold text-xs">
+                  {selectedUserForMfa.twoFactorRequired ? (
+                    <>
+                      <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />
+                      <span>Obligatorio (Forzado)</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0" />
+                      <span>Opcional (Libre)</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Section 1: Lost Device / Reset 2FA */}
+            <div
+              className={`p-4 rounded-2xl border space-y-3 ${
+                isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+              }`}
+            >
+              <div className="flex items-start gap-2.5">
+                <div className="w-7 h-7 rounded-xl bg-amber-500/15 text-amber-500 flex items-center justify-center shrink-0 mt-0.5">
+                  <Smartphone className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className={`text-xs font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                    ¿El usuario perdió o cambió su teléfono celular?
+                  </h4>
+                  <p className={`text-[11px] mt-0.5 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                    Si no puede generar el código de 6 dígitos porque extravió su celular o reinstaló su app, resetea su clave TOTP.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                <button
+                  type="button"
+                  disabled={mfaActionLoading}
+                  onClick={handleResetMfaAndForce}
+                  className="py-2.5 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-50 text-center"
+                  title="Borra la clave previa y obliga a escanear un nuevo QR al iniciar sesión"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${mfaActionLoading ? 'animate-spin' : ''}`} />
+                  <span>Resetear y Forzar Nuevo QR</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={mfaActionLoading}
+                  onClick={handleResetMfaOptional}
+                  className={`py-2.5 px-3 rounded-xl border font-bold text-xs transition cursor-pointer disabled:opacity-50 text-center ${
+                    isDark
+                      ? 'border-[#223368] text-[#9AA6C9] hover:bg-[#16234F] hover:text-white'
+                      : 'border-[#E8DFC8] text-[#78716C] hover:bg-white hover:text-[#1A2B5C]'
+                  }`}
+                  title="Borra la clave previa y permite entrar solo con contraseña"
+                >
+                  <span>Resetear y Dejar Opcional</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Section 2: Force / Require 2FA policy */}
+            <div
+              className={`p-4 rounded-2xl border space-y-3 ${
+                isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+              }`}
+            >
+              <div className="flex items-start gap-2.5">
+                <div className="w-7 h-7 rounded-xl bg-purple-500/15 text-purple-500 flex items-center justify-center shrink-0 mt-0.5">
+                  <Shield className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className={`text-xs font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                    Exigir Uso Obligatorio de Doble Factor
+                  </h4>
+                  <p className={`text-[11px] mt-0.5 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                    {selectedUserForMfa.twoFactorRequired
+                      ? 'Este usuario tiene 2FA como requisito indispensable para ingresar al sistema.'
+                      : 'Actualmente el usuario puede ingresar sin activar 2FA si así lo prefiere.'}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                {selectedUserForMfa.twoFactorRequired ? (
+                  <button
+                    type="button"
+                    disabled={mfaActionLoading}
+                    onClick={() => handleToggleUserMfaRequired(false)}
+                    className={`w-full py-2.5 px-3 rounded-xl border font-bold text-xs transition cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5 ${
+                      isDark
+                        ? 'border-purple-500/40 text-purple-300 hover:bg-purple-950/40'
+                        : 'border-purple-300 text-purple-800 hover:bg-purple-50'
+                    }`}
+                  >
+                    <span>🔓 Quitar Obligatoriedad (Hacer Opcional)</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={mfaActionLoading}
+                    onClick={() => handleToggleUserMfaRequired(true)}
+                    className="w-full py-2.5 px-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-md flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>⚡ Exigir 2FA Obligatorio a este Usuario</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Section 3: Disable 2FA Completely */}
+            {(selectedUserForMfa.twoFactorEnabled || selectedUserForMfa.twoFactorRequired) && (
+              <div
+                className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 ${
+                  isDark ? 'bg-rose-950/20 border-rose-900/40' : 'bg-rose-50/70 border-rose-200'
+                }`}
+              >
+                <div>
+                  <h4 className="text-xs font-bold text-rose-600 dark:text-rose-400">
+                    Desactivar 2FA Totalmente
+                  </h4>
+                  <p className={`text-[11px] ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                    Borra la clave vinculada y quita cualquier obligatoriedad.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={mfaActionLoading}
+                  onClick={handleDisableMfaTotal}
+                  className="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-sm flex items-center gap-1 transition cursor-pointer disabled:opacity-50 shrink-0"
+                >
+                  <UserX className="w-3.5 h-3.5" />
+                  <span>Desactivar</span>
+                </button>
+              </div>
+            )}
+
+            {/* Close modal button */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setSelectedUserForMfa(null)}
+                className={`w-full py-2.5 rounded-xl border font-bold text-xs transition cursor-pointer ${
+                  isDark
+                    ? 'border-[#223368] text-[#9AA6C9] hover:bg-[#0F1B3C]'
+                    : 'border-[#E8DFC8] text-[#78716C] hover:bg-[#FBF7EF]'
+                }`}
+              >
+                Cerrar Panel MFA
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* Modal: Global MFA / 2FA Policy for All Users (Jefe)       */}
+      {/* ========================================================= */}
+      {showGlobalMfaModal && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div
+            className={`w-full max-w-lg border rounded-3xl p-6 shadow-2xl space-y-5 ${
+              isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+            }`}
+          >
+            {/* Header */}
+            <div className={`flex items-center justify-between border-b pb-4 ${isDark ? 'border-[#223368]' : 'border-[#E8DFC8]'}`}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-500 shrink-0">
+                  <Sliders className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className={`text-base font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                    Política Global de Seguridad 2FA
+                  </h3>
+                  <p className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                    Configuración colectiva para todas las cuentas del sistema
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowGlobalMfaModal(false)}
+                className={`p-1.5 rounded-lg cursor-pointer ${
+                  isDark ? 'text-[#9AA6C9] hover:text-white hover:bg-[#0F1B3C]' : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
+                }`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Metrics summary */}
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className={`p-3 rounded-xl border ${isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'}`}>
+                <span className="text-base font-black block">{users.length}</span>
+                <span className={`text-[10px] font-bold ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>Usuarios</span>
+              </div>
+              <div className="p-3 rounded-xl border bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
+                <span className="text-base font-black block">{users.filter((u) => u.twoFactorEnabled).length}</span>
+                <span className="text-[10px] font-bold">2FA Activo</span>
+              </div>
+              <div className="p-3 rounded-xl border bg-purple-500/10 border-purple-500/30 text-purple-600 dark:text-purple-400">
+                <span className="text-base font-black block">{users.filter((u) => u.twoFactorRequired).length}</span>
+                <span className="text-[10px] font-bold">Obligatorios</span>
+              </div>
+            </div>
+
+            {/* Option 1: Force all */}
+            <div
+              className={`p-4 rounded-2xl border space-y-3 ${
+                isDark ? 'bg-[#0F1B3C] border-purple-500/40' : 'bg-purple-50/60 border-purple-300'
+              }`}
+            >
+              <div>
+                <h4 className={`text-xs font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                  ⚡ Exigir 2FA Obligatorio a Todo el Personal
+                </h4>
+                <p className={`text-[11px] mt-1 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                  Todo usuario que inicie sesión deberá tener o configurar obligatoriamente su aplicación autenticadora (TOTP). No podrán omitir este paso.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                disabled={globalMfaLoading}
+                onClick={() => handleSetGlobalMfaPolicy(true)}
+                className="w-full py-2.5 px-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
+              >
+                {globalMfaLoading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>Aplicar 2FA Obligatorio a Todos</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Option 2: Make optional for all */}
+            <div
+              className={`p-4 rounded-2xl border space-y-3 ${
+                isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+              }`}
+            >
+              <div>
+                <h4 className={`text-xs font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                  🔓 Hacer 2FA Opcional para Todo el Personal
+                </h4>
+                <p className={`text-[11px] mt-1 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                  Quita la exigencia forzada. Los usuarios que deseen activar 2FA podrán hacerlo voluntariamente desde su perfil.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                disabled={globalMfaLoading}
+                onClick={() => handleSetGlobalMfaPolicy(false)}
+                className={`w-full py-2.5 px-3 rounded-xl border font-bold text-xs transition cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 ${
+                  isDark
+                    ? 'border-[#223368] text-[#9AA6C9] hover:bg-[#16234F] hover:text-white'
+                    : 'border-[#E8DFC8] text-[#78716C] hover:bg-white hover:text-[#1A2B5C]'
+                }`}
+              >
+                <span>Hacer 2FA Opcional General</span>
+              </button>
+            </div>
+
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => setShowGlobalMfaModal(false)}
+                className={`w-full py-2.5 rounded-xl border font-bold text-xs transition cursor-pointer ${
+                  isDark
+                    ? 'border-[#223368] text-[#9AA6C9] hover:bg-[#0F1B3C]'
+                    : 'border-[#E8DFC8] text-[#78716C] hover:bg-[#FBF7EF]'
+                }`}
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import {
   doc,
   getDoc,
@@ -12,6 +12,15 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { AppUser, UserRole } from '../types';
+import { verifyTotpCode, generateTotpSecret } from '../lib/totp';
+
+export interface LoginResult {
+  require2FA?: boolean;
+  require2FASetup?: boolean;
+  userEmail?: string;
+  userDisplayName?: string;
+  setupSecret?: string;
+}
 
 interface AuthContextType {
   currentUser: { uid: string; email: string; displayName: string } | null;
@@ -28,8 +37,8 @@ interface AuthContextType {
   canAccessCompras: boolean;
   canDeleteOrders: boolean;
   canAdminResetPasswords: boolean;
-  login: (email: string, pass: string) => Promise<void>;
-  loginAsJefe: () => Promise<void>;
+  login: (email: string, pass: string, twoFactorCode?: string, setupSecret?: string) => Promise<LoginResult | void>;
+  loginAsJefe: () => Promise<LoginResult | void>;
   resetJefePassword: (newPass: string) => Promise<void>;
   register: (email: string, pass: string, name?: string) => Promise<void>;
   registerNewUserByJefe: (email: string, pass: string, name: string, role: UserRole) => Promise<void>;
@@ -37,7 +46,17 @@ interface AuthContextType {
   adminResetUserPassword: (targetEmail: string, newPass: string) => Promise<void>;
   updateUserAccount: (targetUid: string, updates: Partial<AppUser> & { newPassword?: string }) => Promise<void>;
   deleteUserAccount: (targetUid: string, targetEmail: string) => Promise<void>;
-  logout: () => Promise<void>;
+  enableTwoFactor: (secretBase32: string, verificationCode: string) => Promise<void>;
+  disableTwoFactor: (passwordOrCode: string) => Promise<void>;
+  adminResetUserTwoFactor: (targetUid: string, forceReconfigure?: boolean) => Promise<void>;
+  adminToggleForceTwoFactor: (targetUid: string, required: boolean) => Promise<void>;
+  adminDisableUserTwoFactor: (targetUid: string) => Promise<void>;
+  adminSetAllUsersTwoFactorRequired: (required: boolean) => Promise<void>;
+  updateSecurityPreferences: (prefs: { autoLogoutEnabled?: boolean; autoLogoutMinutes?: number }) => Promise<void>;
+  resetInactivityTimer: () => void;
+  showInactivityWarning: boolean;
+  remainingInactivitySeconds: number | null;
+  logout: (reason?: 'inactivity' | 'user') => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -50,6 +69,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentUser, setCurrentUser] = useState<{ uid: string; email: string; displayName: string } | null>(null);
   const [userProfile, setUserProfile] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Inactivity auto-logout state
+  const [showInactivityWarning, setShowInactivityWarning] = useState(false);
+  const [remainingInactivitySeconds, setRemainingInactivitySeconds] = useState<number | null>(null);
+  const lastActivityRef = useRef<number>(Date.now());
 
   // Helper to load registered credentials map
   const getStoredPasswords = (): Record<string, string> => {
@@ -76,6 +100,116 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.warn('Could not save password to storage:', err);
     }
   };
+
+  // Inactivity auto-logout hook and event listeners
+  const resetInactivityTimer = useCallback(() => {
+    lastActivityRef.current = Date.now();
+    setShowInactivityWarning(false);
+    setRemainingInactivitySeconds(null);
+  }, []);
+
+  const logout = useCallback(async (reason?: 'inactivity' | 'user') => {
+    if (reason === 'inactivity') {
+      sessionStorage.setItem('ventasia_logged_out_reason', 'inactivity');
+    }
+    localStorage.removeItem(STORAGE_AUTH_KEY);
+    setCurrentUser(null);
+    setUserProfile(null);
+    setShowInactivityWarning(false);
+    setRemainingInactivitySeconds(null);
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser) {
+      setShowInactivityWarning(false);
+      setRemainingInactivitySeconds(null);
+      return;
+    }
+
+    const isEnabled = userProfile?.autoLogoutEnabled !== false;
+    if (!isEnabled) {
+      setShowInactivityWarning(false);
+      setRemainingInactivitySeconds(null);
+      return;
+    }
+
+    const timeoutMinutes = userProfile?.autoLogoutMinutes && userProfile.autoLogoutMinutes > 0
+      ? userProfile.autoLogoutMinutes
+      : 20; // Default 20 minutes
+    const timeoutMs = timeoutMinutes * 60 * 1000;
+    const warningMs = 60 * 1000; // Warning in the last 60 seconds
+
+    lastActivityRef.current = Date.now();
+
+    const handleUserActivity = () => {
+      lastActivityRef.current = Date.now();
+      setShowInactivityWarning(false);
+    };
+
+    const activityEvents: (keyof WindowEventMap)[] = [
+      'mousedown',
+      'mousemove',
+      'keydown',
+      'touchstart',
+      'scroll',
+      'click',
+    ];
+
+    let throttleTimer: any = null;
+    const throttledActivity = () => {
+      if (!throttleTimer) {
+        handleUserActivity();
+        throttleTimer = setTimeout(() => {
+          throttleTimer = null;
+        }, 1000);
+      }
+    };
+
+    activityEvents.forEach((evt) => {
+      window.addEventListener(evt, throttledActivity, { passive: true });
+    });
+
+    const checkInterval = setInterval(() => {
+      const elapsed = Date.now() - lastActivityRef.current;
+      const timeLeft = timeoutMs - elapsed;
+
+      if (timeLeft <= 0) {
+        clearInterval(checkInterval);
+        sessionStorage.setItem('ventasia_logged_out_reason', 'inactivity');
+        sessionStorage.setItem('ventasia_inactivity_minutes', String(timeoutMinutes));
+        logout('inactivity');
+      } else if (timeLeft <= warningMs) {
+        setShowInactivityWarning(true);
+        setRemainingInactivitySeconds(Math.ceil(timeLeft / 1000));
+      } else {
+        setShowInactivityWarning(false);
+        setRemainingInactivitySeconds(null);
+      }
+    }, 1000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        const elapsed = Date.now() - lastActivityRef.current;
+        if (elapsed >= timeoutMs) {
+          sessionStorage.setItem('ventasia_logged_out_reason', 'inactivity');
+          sessionStorage.setItem('ventasia_inactivity_minutes', String(timeoutMinutes));
+          logout('inactivity');
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
+
+    return () => {
+      clearInterval(checkInterval);
+      activityEvents.forEach((evt) => {
+        window.removeEventListener(evt, throttledActivity);
+      });
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleVisibilityChange);
+    };
+  }, [currentUser, userProfile?.autoLogoutEnabled, userProfile?.autoLogoutMinutes, logout]);
 
   // Restore session on mount
   useEffect(() => {
@@ -131,14 +265,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initAuth();
   }, []);
 
-  const login = async (email: string, pass: string) => {
+  const login = async (
+    email: string,
+    pass: string,
+    twoFactorCode?: string,
+    setupSecret?: string
+  ): Promise<LoginResult | void> => {
     const cleanEmail = email.trim().toLowerCase();
     const isBoss = cleanEmail === JEFE_EMAIL.toLowerCase();
 
     const storedPasswords = getStoredPasswords();
     let knownPass = storedPasswords[cleanEmail];
 
-    // Check Firestore for stored password for this email/user
+    // Check Firestore for stored password and 2FA status for this email/user
     let matchedUser: AppUser | null = null;
     try {
       if (isBoss) {
@@ -173,6 +312,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error('Contraseña incorrecta para la cuenta del Jefe. La clave por defecto es: 220987');
       }
 
+      // Check if 2FA is forced/required by policy but not yet configured
+      if (matchedUser?.twoFactorRequired && !matchedUser.twoFactorEnabled) {
+        if (!twoFactorCode || !setupSecret) {
+          const newSecret = generateTotpSecret();
+          return {
+            require2FASetup: true,
+            userEmail: cleanEmail,
+            userDisplayName: matchedUser?.displayName || 'Rodrigo Villca (Jefe)',
+            setupSecret: newSecret,
+          };
+        }
+
+        const isCodeValid = verifyTotpCode(setupSecret, twoFactorCode);
+        if (!isCodeValid) {
+          throw new Error('Código de 6 dígitos incorrecto o expirado. Revisa tu app autenticadora.');
+        }
+
+        matchedUser.twoFactorEnabled = true;
+        matchedUser.twoFactorSecret = setupSecret;
+        matchedUser.twoFactorCreatedAt = new Date().toISOString();
+      } else if (matchedUser?.twoFactorEnabled && matchedUser.twoFactorSecret) {
+        // Standard 2FA code check
+        if (!twoFactorCode) {
+          return {
+            require2FA: true,
+            userEmail: cleanEmail,
+            userDisplayName: matchedUser.displayName || 'Rodrigo Villca (Jefe)',
+          };
+        }
+
+        const isCodeValid = verifyTotpCode(matchedUser.twoFactorSecret, twoFactorCode);
+        if (!isCodeValid) {
+          throw new Error('Código de 2FA incorrecto o expirado. Revisa tu app autenticadora (Google Authenticator / Authy).');
+        }
+      }
+
       const jefeProfile: AppUser = {
         uid: 'jefe_rvillca',
         email: 'rvillca@outlook.com',
@@ -180,6 +355,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role: 'jefe',
         password: pass,
         createdAt: matchedUser?.createdAt || new Date().toISOString(),
+        twoFactorEnabled: matchedUser?.twoFactorEnabled,
+        twoFactorRequired: matchedUser?.twoFactorRequired,
+        twoFactorSecret: matchedUser?.twoFactorSecret,
+        twoFactorCreatedAt: matchedUser?.twoFactorCreatedAt,
+        autoLogoutEnabled: matchedUser?.autoLogoutEnabled,
+        autoLogoutMinutes: matchedUser?.autoLogoutMinutes,
       };
 
       // Save session and credentials
@@ -192,7 +373,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         displayName: jefeProfile.displayName,
       });
 
-      // Upsert in Firestore with password
+      // Upsert in Firestore with password and updated 2FA
       try {
         await setDoc(doc(db, 'users', jefeProfile.uid), jefeProfile, { merge: true });
       } catch (e) {
@@ -209,6 +390,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Block deactivated accounts
     if (matchedUser && matchedUser.disabled) {
       throw new Error('Esta cuenta ha sido desactivada por el administrador. Comunícate con gerencia.');
+    }
+
+    // Check if 2FA is forced/required by policy but not yet configured
+    if (matchedUser?.twoFactorRequired && !matchedUser.twoFactorEnabled) {
+      if (!twoFactorCode || !setupSecret) {
+        const newSecret = generateTotpSecret();
+        return {
+          require2FASetup: true,
+          userEmail: cleanEmail,
+          userDisplayName: matchedUser?.displayName || cleanEmail.split('@')[0],
+          setupSecret: newSecret,
+        };
+      }
+
+      const isCodeValid = verifyTotpCode(setupSecret, twoFactorCode);
+      if (!isCodeValid) {
+        throw new Error('Código de 6 dígitos incorrecto o expirado. Revisa tu app autenticadora.');
+      }
+
+      matchedUser.twoFactorEnabled = true;
+      matchedUser.twoFactorSecret = setupSecret;
+      matchedUser.twoFactorCreatedAt = new Date().toISOString();
+    } else if (matchedUser?.twoFactorEnabled && matchedUser.twoFactorSecret) {
+      // Standard 2FA code check
+      if (!twoFactorCode) {
+        return {
+          require2FA: true,
+          userEmail: cleanEmail,
+          userDisplayName: matchedUser.displayName || cleanEmail.split('@')[0],
+        };
+      }
+
+      const isCodeValid = verifyTotpCode(matchedUser.twoFactorSecret, twoFactorCode);
+      if (!isCodeValid) {
+        throw new Error('Código de 2FA incorrecto o expirado. Revisa tu app autenticadora (Google Authenticator / Authy).');
+      }
     }
 
     const effectiveProfile: AppUser = matchedUser || {
@@ -477,10 +694,200 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const logout = async () => {
-    localStorage.removeItem(STORAGE_AUTH_KEY);
-    setCurrentUser(null);
-    setUserProfile(null);
+  // Enable Two-Factor Authentication (TOTP)
+  const enableTwoFactor = async (secretBase32: string, verificationCode: string) => {
+    if (!currentUser) throw new Error('No hay sesión activa.');
+    const isValid = verifyTotpCode(secretBase32, verificationCode);
+    if (!isValid) {
+      throw new Error('El código de 6 dígitos ingresado es incorrecto o expiró. Revisa tu aplicación de autenticación.');
+    }
+
+    const updates: Partial<AppUser> = {
+      twoFactorEnabled: true,
+      twoFactorSecret: secretBase32,
+      twoFactorCreatedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    await setDoc(doc(db, 'users', currentUser.uid), updates, { merge: true });
+
+    const updatedProfile: AppUser = {
+      ...(userProfile || {
+        uid: currentUser.uid,
+        email: currentUser.email,
+        displayName: currentUser.displayName,
+        role: effectiveRole,
+        createdAt: new Date().toISOString(),
+      }),
+      ...updates,
+    };
+
+    localStorage.setItem(STORAGE_AUTH_KEY, JSON.stringify(updatedProfile));
+    setUserProfile(updatedProfile);
+  };
+
+  // Disable Two-Factor Authentication
+  const disableTwoFactor = async (passwordOrCode: string) => {
+    if (!currentUser) throw new Error('No hay sesión activa.');
+    const email = currentUser.email.toLowerCase().trim();
+    const storedPasswords = getStoredPasswords();
+    let currentRegisteredPass = storedPasswords[email] || (email === JEFE_EMAIL.toLowerCase() ? '220987' : '');
+    if (userProfile?.password) {
+      currentRegisteredPass = userProfile.password;
+    }
+
+    // Validate password or current TOTP code
+    const isPassValid = passwordOrCode === currentRegisteredPass || (email === JEFE_EMAIL.toLowerCase() && passwordOrCode === '220987');
+    const isCodeValid = userProfile?.twoFactorSecret ? verifyTotpCode(userProfile.twoFactorSecret, passwordOrCode) : false;
+
+    if (!isPassValid && !isCodeValid) {
+      throw new Error('Para desactivar 2FA debes ingresar tu contraseña actual o un código válido de tu app autenticadora.');
+    }
+
+    const updates: Partial<AppUser> = {
+      twoFactorEnabled: false,
+      twoFactorSecret: '',
+      updatedAt: new Date().toISOString(),
+    };
+
+    await setDoc(doc(db, 'users', currentUser.uid), updates, { merge: true });
+
+    const updatedProfile: AppUser = {
+      ...userProfile!,
+      twoFactorEnabled: false,
+      twoFactorSecret: '',
+    };
+
+    localStorage.setItem(STORAGE_AUTH_KEY, JSON.stringify(updatedProfile));
+    setUserProfile(updatedProfile);
+  };
+
+  // Admin/Jefe reset 2FA for another user who lost access to their phone
+  const adminResetUserTwoFactor = async (targetUid: string, forceReconfigure: boolean = true) => {
+    if (!isJefe) {
+      throw new Error('Solo el Administrador / Jefe puede restablecer o desactivar el 2FA de otros usuarios.');
+    }
+
+    const updates: Partial<AppUser> = {
+      twoFactorEnabled: false,
+      twoFactorSecret: '',
+      twoFactorRequired: forceReconfigure,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await setDoc(doc(db, 'users', targetUid), updates, { merge: true });
+
+    if (currentUser?.uid === targetUid) {
+      const updatedProfile: AppUser = {
+        ...userProfile!,
+        twoFactorEnabled: false,
+        twoFactorSecret: '',
+        twoFactorRequired: forceReconfigure,
+      };
+      localStorage.setItem(STORAGE_AUTH_KEY, JSON.stringify(updatedProfile));
+      setUserProfile(updatedProfile);
+    }
+  };
+
+  // Admin/Jefe toggle forcing 2FA for a specific user
+  const adminToggleForceTwoFactor = async (targetUid: string, required: boolean) => {
+    if (!isJefe) {
+      throw new Error('Solo el Administrador / Jefe puede configurar la obligatoriedad de 2FA.');
+    }
+
+    const updates: Partial<AppUser> = {
+      twoFactorRequired: required,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await setDoc(doc(db, 'users', targetUid), updates, { merge: true });
+
+    if (currentUser?.uid === targetUid) {
+      const updatedProfile: AppUser = {
+        ...userProfile!,
+        twoFactorRequired: required,
+      };
+      localStorage.setItem(STORAGE_AUTH_KEY, JSON.stringify(updatedProfile));
+      setUserProfile(updatedProfile);
+    }
+  };
+
+  // Admin/Jefe disable 2FA for another user who lost access to their device
+  const adminDisableUserTwoFactor = async (targetUid: string) => {
+    if (!isJefe) {
+      throw new Error('Solo el Administrador / Jefe puede restablecer o desactivar el 2FA de otros usuarios.');
+    }
+
+    const updates: Partial<AppUser> = {
+      twoFactorEnabled: false,
+      twoFactorSecret: '',
+      twoFactorRequired: false,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await setDoc(doc(db, 'users', targetUid), updates, { merge: true });
+
+    if (currentUser?.uid === targetUid) {
+      const updatedProfile: AppUser = {
+        ...userProfile!,
+        twoFactorEnabled: false,
+        twoFactorSecret: '',
+        twoFactorRequired: false,
+      };
+      localStorage.setItem(STORAGE_AUTH_KEY, JSON.stringify(updatedProfile));
+      setUserProfile(updatedProfile);
+    }
+  };
+
+  // Admin/Jefe set 2FA requirement for all registered users
+  const adminSetAllUsersTwoFactorRequired = async (required: boolean) => {
+    if (!isJefe) {
+      throw new Error('Solo el Administrador / Jefe puede configurar la política global de 2FA.');
+    }
+
+    const querySnap = await getDocs(collection(db, 'users'));
+    const promises: Promise<any>[] = [];
+    const now = new Date().toISOString();
+
+    querySnap.forEach((docSnap) => {
+      promises.push(
+        setDoc(
+          doc(db, 'users', docSnap.id),
+          {
+            twoFactorRequired: required,
+            updatedAt: now,
+          },
+          { merge: true }
+        )
+      );
+    });
+
+    await Promise.all(promises);
+
+    if (userProfile) {
+      const updatedProfile = { ...userProfile, twoFactorRequired: required };
+      localStorage.setItem(STORAGE_AUTH_KEY, JSON.stringify(updatedProfile));
+      setUserProfile(updatedProfile);
+    }
+  };
+
+  // Update user security preferences (Inactivity timeout)
+  const updateSecurityPreferences = async (prefs: { autoLogoutEnabled?: boolean; autoLogoutMinutes?: number }) => {
+    if (!currentUser) throw new Error('No hay sesión activa.');
+    const updates: Partial<AppUser> = {
+      ...prefs,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await setDoc(doc(db, 'users', currentUser.uid), updates, { merge: true });
+
+    const updatedProfile: AppUser = {
+      ...userProfile!,
+      ...updates,
+    };
+
+    localStorage.setItem(STORAGE_AUTH_KEY, JSON.stringify(updatedProfile));
+    setUserProfile(updatedProfile);
   };
 
   const effectiveRole: UserRole =
@@ -528,6 +935,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         adminResetUserPassword,
         updateUserAccount,
         deleteUserAccount,
+        enableTwoFactor,
+        disableTwoFactor,
+        adminResetUserTwoFactor,
+        adminToggleForceTwoFactor,
+        adminDisableUserTwoFactor,
+        adminSetAllUsersTwoFactorRequired,
+        updateSecurityPreferences,
+        resetInactivityTimer,
+        showInactivityWarning,
+        remainingInactivitySeconds,
         logout,
       }}
     >
