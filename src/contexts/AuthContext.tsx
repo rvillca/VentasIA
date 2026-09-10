@@ -1006,18 +1006,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Enable Passkey / Biometrics for the current user and save credential
-  const enableBiometricOnDevice = async (credential: { id: string; deviceName: string; createdAt: string }) => {
+  const enableBiometricOnDevice = async (credential: { id?: string; credentialId?: string; deviceName?: string; createdAt?: string }) => {
     if (!currentUser) throw new Error('No hay sesión activa.');
 
-    const currentCreds = userProfile?.webAuthnCredentials || [];
-    const filteredCreds = currentCreds.filter((c) => c.id !== credential.id);
+    const credId = credential.id || credential.credentialId || ('cred_' + Date.now().toString(36));
+    const deviceName = credential.deviceName || 'Dispositivo Biométrico';
+    const createdAt = credential.createdAt || new Date().toISOString();
+
+    const currentCreds = (userProfile?.webAuthnCredentials || []).filter(
+      (c) => c && typeof c.id === 'string' && c.id !== credId
+    );
     const newCreds = [
-      ...filteredCreds,
+      ...currentCreds,
       {
-        id: credential.id,
-        deviceName: credential.deviceName,
-        createdAt: credential.createdAt,
-        lastUsedAt: credential.createdAt,
+        id: credId,
+        deviceName: deviceName,
+        createdAt: createdAt,
+        lastUsedAt: createdAt,
       },
     ];
 
@@ -1027,7 +1032,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updatedAt: new Date().toISOString(),
     };
 
-    await setDoc(doc(db, 'users', currentUser.uid), updates, { merge: true });
+    // Clean up any undefined values before writing to Firestore
+    const cleanUpdates: Record<string, any> = {};
+    for (const [key, value] of Object.entries(updates)) {
+      if (value !== undefined) {
+        cleanUpdates[key] = value;
+      }
+    }
+
+    await setDoc(doc(db, 'users', currentUser.uid), cleanUpdates, { merge: true });
 
     const updatedProfile: AppUser = {
       ...(userProfile || {
@@ -1091,10 +1104,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const canDeleteOrders = isJefe;
   const canAdminResetPasswords = isSupervisor || isJefe;
 
-  // Admin/Jefe toggle forcing WebAuthn (Huella Digital) for a specific user
+  // Admin toggle forcing WebAuthn (Huella Digital) for a specific user
   const adminToggleForceWebAuthn = async (targetUid: string, required: boolean) => {
-    if (!isJefe) {
-      throw new Error('Solo el Administrador / Jefe puede configurar la obligatoriedad de Huella Digital.');
+    if (!canAdminResetPasswords) {
+      throw new Error('Solo los Administradores (Jefe o Supervisor) pueden configurar la obligatoriedad de Huella Digital.');
     }
 
     const updates: Partial<AppUser> = {
@@ -1114,10 +1127,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Admin/Jefe reset WebAuthn credentials for a user who lost/changed their device
+  // Admin reset WebAuthn credentials for a user who lost/changed their device
   const adminResetUserWebAuthn = async (targetUid: string, forceReconfigure: boolean = true) => {
-    if (!isJefe) {
-      throw new Error('Solo el Administrador / Jefe puede restablecer los dispositivos biométricos de otros usuarios.');
+    if (!canAdminResetPasswords) {
+      throw new Error('Solo los Administradores (Jefe o Supervisor) pueden restablecer los dispositivos biométricos de otros usuarios.');
     }
 
     const updates: Partial<AppUser> = {
@@ -1142,10 +1155,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Admin/Jefe delete a specific biometric credential of a user
+  // Admin delete a specific biometric credential of a user
   const adminDeleteUserWebAuthnCredential = async (targetUid: string, credentialId: string) => {
-    if (!isJefe) {
-      throw new Error('Solo el Administrador / Jefe puede revocar dispositivos biométricos.');
+    if (!canAdminResetPasswords) {
+      throw new Error('Solo los Administradores (Jefe o Supervisor) pueden revocar dispositivos biométricos.');
     }
 
     const userDocRef = doc(db, 'users', targetUid);
@@ -1153,7 +1166,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!snap.exists()) return;
 
     const data = snap.data() as AppUser;
-    const creds = (data.webAuthnCredentials || []).filter((c) => c.id !== credentialId);
+    const creds = (data.webAuthnCredentials || []).filter((c) => c && c.id !== credentialId);
 
     const updates: Partial<AppUser> = {
       webAuthnCredentials: creds,
@@ -1161,7 +1174,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updatedAt: new Date().toISOString(),
     };
 
-    await updateDoc(userDocRef, updates);
+    await setDoc(userDocRef, updates, { merge: true });
 
     if (currentUser?.uid === targetUid) {
       const saved = getSavedBiometricDevice();
@@ -1177,10 +1190,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Admin/Jefe enforce or relax WebAuthn policy globally for all users
+  // Admin enforce or relax WebAuthn policy globally for all users
   const adminSetAllUsersWebAuthnRequired = async (required: boolean) => {
-    if (!isJefe) {
-      throw new Error('Solo el Administrador / Jefe puede configurar la política global de Huella Digital.');
+    if (!canAdminResetPasswords) {
+      throw new Error('Solo los Administradores (Jefe o Supervisor) pueden configurar la política global de Huella Digital.');
     }
 
     const querySnap = await getDocs(collection(db, 'users'));

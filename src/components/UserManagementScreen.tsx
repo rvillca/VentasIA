@@ -1087,49 +1087,96 @@ export const UserManagementScreen: React.FC = () => {
             )}
           </div>
 
-          {/* Global MFA Policy & Quick Overview for Jefe */}
-          {isJefe && (
-            <div
-              className={`p-3.5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                isDark ? 'bg-[#0F1B3C]/90 border-purple-500/30' : 'bg-purple-50/70 border-purple-200'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
-                  <ShieldCheck className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`text-xs font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
-                      Doble Factor de Autenticación (MFA / TOTP)
-                    </span>
-                    <span className="text-[10px] bg-purple-500/20 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full font-bold">
-                      {users.filter((u) => u.twoFactorEnabled).length} de {users.length} vinculados
-                    </span>
-                    {users.filter((u) => u.twoFactorRequired).length > 0 && (
-                      <span className="text-[10px] bg-amber-500/20 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full font-bold">
-                        ⚡ {users.filter((u) => u.twoFactorRequired).length} obligatorios
-                      </span>
-                    )}
-                  </div>
-                  <p className={`text-[11px] ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
-                    Gestiona individualmente o define la política de seguridad para toda la empresa.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowGlobalMfaModal(true)}
-                className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
-                  isDark
-                    ? 'bg-purple-500/20 hover:bg-purple-500/30 border-purple-500/40 text-purple-200'
-                    : 'bg-white hover:bg-purple-100 border-purple-300 text-purple-900 shadow-sm'
+          {/* Global Security Policies (2FA & Biometrics) for Admin */}
+          {canAdminResetPasswords && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {/* Card 1: 2FA */}
+              <div
+                className={`p-3.5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                  isDark ? 'bg-[#0F1B3C]/90 border-purple-500/30' : 'bg-purple-50/70 border-purple-200'
                 }`}
               >
-                <Sliders className="w-3.5 h-3.5" />
-                <span>Política Global 2FA</span>
-              </button>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-xs font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                        Doble Factor (2FA / TOTP)
+                      </span>
+                      <span className="text-[10px] bg-purple-500/20 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full font-bold">
+                        {users.filter((u) => u.twoFactorEnabled).length} de {users.length}
+                      </span>
+                      {users.filter((u) => u.twoFactorRequired).length > 0 && (
+                        <span className="text-[10px] bg-amber-500/20 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full font-bold">
+                          ⚡ {users.filter((u) => u.twoFactorRequired).length} obligatorios
+                        </span>
+                      )}
+                    </div>
+                    <p className={`text-[11px] ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                      Exigir o resetear códigos de 6 dígitos.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowGlobalMfaModal(true)}
+                  className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
+                    isDark
+                      ? 'bg-purple-500/20 hover:bg-purple-500/30 border-purple-500/40 text-purple-200'
+                      : 'bg-white hover:bg-purple-100 border-purple-300 text-purple-900 shadow-sm'
+                  }`}
+                >
+                  <Sliders className="w-3.5 h-3.5" />
+                  <span>Política 2FA</span>
+                </button>
+              </div>
+
+              {/* Card 2: Huella Digital (WebAuthn) */}
+              <div
+                className={`p-3.5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                  isDark ? 'bg-[#0F1B3C]/90 border-blue-500/30' : 'bg-blue-50/70 border-blue-200'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                    <Fingerprint className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-xs font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                        Huella Digital (Biometría)
+                      </span>
+                      <span className="text-[10px] bg-blue-500/20 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full font-bold">
+                        {users.filter((u) => u.webAuthnEnabled).length} activos
+                      </span>
+                      {users.filter((u) => u.webAuthnRequired).length > 0 && (
+                        <span className="text-[10px] bg-amber-500/20 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full font-bold">
+                          ⚡ {users.filter((u) => u.webAuthnRequired).length} obligatorios
+                        </span>
+                      )}
+                    </div>
+                    <p className={`text-[11px] ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                      Exigir huella obligatoria o resetear sensores.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowGlobalWebAuthnModal(true)}
+                  className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
+                    isDark
+                      ? 'bg-blue-500/20 hover:bg-blue-500/30 border-blue-500/40 text-blue-200'
+                      : 'bg-white hover:bg-blue-100 border-blue-300 text-blue-900 shadow-sm'
+                  }`}
+                >
+                  <Fingerprint className="w-3.5 h-3.5" />
+                  <span>Política Huella</span>
+                </button>
+              </div>
             </div>
           )}
 
@@ -1273,6 +1320,25 @@ export const UserManagementScreen: React.FC = () => {
                               ⚡ Obligatorio
                             </span>
                           )}
+
+                          {/* Huella Digital (Biometría) Badge */}
+                          {u.webAuthnEnabled ? (
+                            <span
+                              className="text-[9px] bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1"
+                              title={`Huella Digital activa con ${u.webAuthnCredentials?.length || 1} dispositivo(s) vinculado(s)`}
+                            >
+                              <Fingerprint className="w-3 h-3 text-blue-500" />
+                              Huella Activa ({u.webAuthnCredentials?.length || 1})
+                            </span>
+                          ) : u.webAuthnRequired ? (
+                            <span
+                              className="text-[9px] bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1"
+                              title="Huella Digital Obligatoria: Pendiente de vinculación al iniciar sesión"
+                            >
+                              <Fingerprint className="w-3 h-3 text-amber-500" />
+                              Huella Obligatoria (Pendiente)
+                            </span>
+                          ) : null}
 
                           {/* Auto-logout Inactivity Badge */}
                           {u.autoLogoutEnabled !== false ? (
@@ -1440,8 +1506,8 @@ export const UserManagementScreen: React.FC = () => {
                           <span>Clave</span>
                         </button>
 
-                        {/* 3.1 Gestión MFA / 2FA (Only Jefe) */}
-                        {isJefe && (
+                        {/* 3.1 Gestión MFA / 2FA (Admin) */}
+                        {canAdminResetPasswords && (
                           <button
                             type="button"
                             onClick={() => handleOpenMfaModal(u)}
@@ -1462,6 +1528,34 @@ export const UserManagementScreen: React.FC = () => {
                           >
                             <ShieldCheck className="w-3.5 h-3.5 text-purple-500" />
                             <span>MFA / 2FA</span>
+                          </button>
+                        )}
+
+                        {/* 3.2 Gestión Huella Digital / Biometría (Admin) */}
+                        {canAdminResetPasswords && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenWebAuthnModal(u)}
+                            className={`px-2.5 py-1 border text-xs font-bold rounded-xl flex items-center gap-1 transition cursor-pointer ${
+                              u.webAuthnEnabled
+                                ? isDark
+                                  ? 'bg-blue-950/40 hover:bg-blue-900/60 border-blue-500/40 text-blue-300'
+                                  : 'bg-blue-50 hover:bg-blue-100 border-blue-300 text-blue-800'
+                                : u.webAuthnRequired
+                                ? isDark
+                                  ? 'bg-amber-950/40 hover:bg-amber-900/60 border-amber-500/40 text-amber-300'
+                                  : 'bg-amber-50 hover:bg-amber-100 border-amber-300 text-amber-800'
+                                : isDark
+                                ? 'bg-[#16234F] hover:bg-[#1E2D5A] border-[#223368] text-[#9AA6C9] hover:text-white'
+                                : 'bg-white hover:bg-[#F5EFE0] border-[#E8DFC8] text-[#78716C] hover:text-[#1A2B5C]'
+                            }`}
+                            title="Gestionar Huella Digital: Forzar obligatoriedad, ver equipos o resetear"
+                          >
+                            <Fingerprint className="w-3.5 h-3.5 text-blue-500" />
+                            <span>Huella</span>
+                            {u.webAuthnEnabled && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                            )}
                           </button>
                         )}
 
@@ -2525,6 +2619,380 @@ export const UserManagementScreen: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowGlobalMfaModal(false)}
+                className={`w-full py-2.5 rounded-xl border font-bold text-xs transition cursor-pointer ${
+                  isDark
+                    ? 'border-[#223368] text-[#9AA6C9] hover:bg-[#0F1B3C]'
+                    : 'border-[#E8DFC8] text-[#78716C] hover:bg-[#FBF7EF]'
+                }`}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Dedicated WebAuthn / Huella Digital Management for Admin */}
+      {selectedUserForWebAuthn && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div
+            className={`w-full max-w-lg rounded-3xl border shadow-2xl p-6 space-y-5 max-h-[92vh] overflow-y-auto ${
+              isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+            }`}
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                  <Fingerprint className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className={`text-base font-black ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                    Gestión de Huella Digital y Biometría
+                  </h3>
+                  <p className={`text-xs mt-0.5 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                    {selectedUserForWebAuthn.displayName || selectedUserForWebAuthn.email} ({selectedUserForWebAuthn.role})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedUserForWebAuthn(null)}
+                className={`p-1.5 rounded-xl cursor-pointer transition ${
+                  isDark ? 'text-[#9AA6C9] hover:text-white hover:bg-[#16234F]' : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#F5EFE0]'
+                }`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Notifications */}
+            {webAuthnActionError && (
+              <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-2xl text-xs text-rose-600 dark:text-rose-300 flex items-start gap-2 font-medium">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
+                <span>{webAuthnActionError}</span>
+              </div>
+            )}
+
+            {webAuthnActionSuccess && (
+              <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-xs text-emerald-600 dark:text-emerald-300 flex items-start gap-2 font-medium">
+                <Check className="w-4 h-4 shrink-0 text-emerald-500 mt-0.5" />
+                <span>{webAuthnActionSuccess}</span>
+              </div>
+            )}
+
+            {/* Current Biometrics Status */}
+            <div
+              className={`p-4 rounded-2xl border space-y-2.5 ${
+                selectedUserForWebAuthn.webAuthnEnabled
+                  ? isDark
+                    ? 'bg-blue-950/30 border-blue-500/40'
+                    : 'bg-blue-50/70 border-blue-300'
+                  : isDark
+                  ? 'bg-[#16234F] border-[#223368]'
+                  : 'bg-[#FAF8F5] border-[#E8DFC8]'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className={`text-xs font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                  Estado de Huella en Cuenta
+                </span>
+                {selectedUserForWebAuthn.webAuthnEnabled ? (
+                  <span className="text-[10px] bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                    <Check className="w-3 h-3" />
+                    Huella Digital Activa
+                  </span>
+                ) : (
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border border-dashed ${
+                    isDark ? 'border-[#223368] text-[#9AA6C9]' : 'border-[#E8DFC8] text-[#78716C]'
+                  }`}>
+                    Sin Huella Vinculada
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                  Política asignada:
+                </span>
+                {selectedUserForWebAuthn.webAuthnRequired ? (
+                  <span className="text-[10px] bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold">
+                    ⚡ Obligatoria (Exigida al iniciar sesión)
+                  </span>
+                ) : (
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                    isDark ? 'bg-[#0F1B3C] text-[#9AA6C9]' : 'bg-white text-[#78716C]'
+                  }`}>
+                    Opcional
+                  </span>
+                )}
+              </div>
+
+              {/* Enrolled credentials list */}
+              {selectedUserForWebAuthn.webAuthnCredentials && selectedUserForWebAuthn.webAuthnCredentials.length > 0 && (
+                <div className="pt-2 border-t border-dashed border-current/20 space-y-2">
+                  <span className={`text-[11px] font-bold block ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                    Dispositivos Biométricos Registrados ({selectedUserForWebAuthn.webAuthnCredentials.length}):
+                  </span>
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                    {selectedUserForWebAuthn.webAuthnCredentials.map((cred) => (
+                      <div
+                        key={cred.id}
+                        className={`p-2 rounded-xl border flex items-center justify-between text-xs ${
+                          isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Laptop className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                          <div className="min-w-0">
+                            <p className={`font-semibold truncate text-[11px] ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                              {cred.deviceName || 'Dispositivo biométrico'}
+                            </p>
+                            <p className={`text-[9px] opacity-75 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                              Registrado: {cred.createdAt ? new Date(cred.createdAt).toLocaleDateString() : 'N/D'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={webAuthnActionLoading}
+                          onClick={() => handleDeleteUserWebAuthnCredential(cred.id)}
+                          className="p-1 rounded-lg text-rose-500 hover:bg-rose-500/10 transition cursor-pointer shrink-0"
+                          title="Revocar este sensor o equipo"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Actions Section */}
+            <div className="space-y-3">
+              <h4 className={`text-xs font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                Acciones de Administración
+              </h4>
+
+              {/* Action 1: Toggle Force Requirement */}
+              <div
+                className={`p-3.5 rounded-2xl border space-y-2.5 ${
+                  isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-[#FAF8F5] border-[#E8DFC8]'
+                }`}
+              >
+                <div>
+                  <h5 className={`text-xs font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                    {selectedUserForWebAuthn.webAuthnRequired
+                      ? '🔓 Quitar Exigencia de Huella'
+                      : '⚡ Forzar Huella Digital Obligatoria'}
+                  </h5>
+                  <p className={`text-[11px] mt-0.5 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                    {selectedUserForWebAuthn.webAuthnRequired
+                      ? 'El usuario ya no estará obligado a usar huella digital. El uso de biometría será voluntario.'
+                      : 'Al iniciar sesión, el sistema exigirá que el usuario toque su sensor de huella para vincular su equipo antes de ingresar.'}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={webAuthnActionLoading}
+                  onClick={() => handleToggleUserWebAuthnRequired(!selectedUserForWebAuthn.webAuthnRequired)}
+                  className={`w-full py-2 px-3 rounded-xl font-bold text-xs transition cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 ${
+                    selectedUserForWebAuthn.webAuthnRequired
+                      ? isDark
+                        ? 'bg-[#0F1B3C] hover:bg-[#1E2D5A] border border-[#223368] text-[#9AA6C9]'
+                        : 'bg-white hover:bg-[#F5EFE0] border border-[#E8DFC8] text-[#78716C]'
+                      : 'bg-amber-600 hover:bg-amber-700 text-white shadow-sm'
+                  }`}
+                >
+                  <Fingerprint className="w-3.5 h-3.5" />
+                  <span>
+                    {selectedUserForWebAuthn.webAuthnRequired
+                      ? 'Hacer Huella Digital Opcional'
+                      : 'Establecer Huella como Obligatoria'}
+                  </span>
+                </button>
+              </div>
+
+              {/* Action 2: Reset / Revoke Biometrics */}
+              <div
+                className={`p-3.5 rounded-2xl border space-y-2.5 ${
+                  isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-[#FAF8F5] border-[#E8DFC8]'
+                }`}
+              >
+                <div>
+                  <h5 className={`text-xs font-bold text-rose-500 dark:text-rose-400`}>
+                    Restablecer / Dispositivo Cambiado o Extraviado
+                  </h5>
+                  <p className={`text-[11px] mt-0.5 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                    Elimina todos los registros de huella vinculados a este usuario para que pueda reconfigurar un nuevo sensor o teléfono.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    disabled={webAuthnActionLoading}
+                    onClick={handleResetWebAuthnForce}
+                    className="py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 shadow-sm"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Resetear y Exigir Nueva</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={webAuthnActionLoading}
+                    onClick={handleResetWebAuthnOptional}
+                    className={`py-2 px-3 rounded-xl border font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 ${
+                      isDark
+                        ? 'border-rose-900/60 hover:bg-rose-950/50 text-rose-300'
+                        : 'border-rose-300 hover:bg-rose-50 text-rose-700'
+                    }`}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>Resetear y Desactivar</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Close */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setSelectedUserForWebAuthn(null)}
+                className={`w-full py-2.5 rounded-xl border font-bold text-xs transition cursor-pointer ${
+                  isDark
+                    ? 'border-[#223368] text-[#9AA6C9] hover:bg-[#16234F]'
+                    : 'border-[#E8DFC8] text-[#78716C] hover:bg-[#F5EFE0]'
+                }`}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Global WebAuthn / Huella Digital Policy for Admin */}
+      {showGlobalWebAuthnModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div
+            className={`w-full max-w-md rounded-3xl border shadow-2xl p-6 space-y-4 max-h-[92vh] overflow-y-auto ${
+              isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+            }`}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                  <Fingerprint className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className={`text-base font-black ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                    Política Global de Huella Digital
+                  </h3>
+                  <p className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                    Configuración biométrica para toda la empresa
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowGlobalWebAuthnModal(false)}
+                className={`p-1.5 rounded-lg cursor-pointer ${
+                  isDark ? 'text-[#9AA6C9] hover:text-white hover:bg-[#0F1B3C]' : 'text-[#78716C] hover:text-[#1A2B5C] hover:bg-[#FBF7EF]'
+                }`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Metrics summary */}
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className={`p-3 rounded-xl border ${isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'}`}>
+                <span className="text-base font-black block">{users.length}</span>
+                <span className={`text-[10px] font-bold ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>Usuarios</span>
+              </div>
+              <div className="p-3 rounded-xl border bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400">
+                <span className="text-base font-black block">{users.filter((u) => u.webAuthnEnabled).length}</span>
+                <span className="text-[10px] font-bold">Huella Activa</span>
+              </div>
+              <div className="p-3 rounded-xl border bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400">
+                <span className="text-base font-black block">{users.filter((u) => u.webAuthnRequired).length}</span>
+                <span className="text-[10px] font-bold">Obligatorios</span>
+              </div>
+            </div>
+
+            {/* Option 1: Force all */}
+            <div
+              className={`p-4 rounded-2xl border space-y-3 ${
+                isDark ? 'bg-[#0F1B3C] border-blue-500/40' : 'bg-blue-50/60 border-blue-300'
+              }`}
+            >
+              <div>
+                <h4 className={`text-xs font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                  ⚡ Exigir Huella Digital Obligatoria a Todo el Personal
+                </h4>
+                <p className={`text-[11px] mt-1 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                  Todo usuario que inicie sesión en un equipo compatible con sensor biométrico (Touch ID, Windows Hello o sensor de smartphone) deberá vincular su huella para mayor seguridad.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                disabled={globalWebAuthnLoading}
+                onClick={() => handleSetGlobalWebAuthnPolicy(true)}
+                className="w-full py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
+              >
+                {globalWebAuthnLoading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Fingerprint className="w-4 h-4" />
+                    <span>Aplicar Huella Obligatoria a Todos</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Option 2: Make optional for all */}
+            <div
+              className={`p-4 rounded-2xl border space-y-3 ${
+                isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+              }`}
+            >
+              <div>
+                <h4 className={`text-xs font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                  🔓 Hacer Huella Digital Opcional para Todo el Personal
+                </h4>
+                <p className={`text-[11px] mt-1 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                  Quita la exigencia forzada. Los usuarios podrán seguir activando o usando su huella voluntariamente desde la configuración de su perfil.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                disabled={globalWebAuthnLoading}
+                onClick={() => handleSetGlobalWebAuthnPolicy(false)}
+                className={`w-full py-2.5 px-3 rounded-xl border font-bold text-xs transition cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 ${
+                  isDark
+                    ? 'border-[#223368] text-[#9AA6C9] hover:bg-[#16234F] hover:text-white'
+                    : 'border-[#E8DFC8] text-[#78716C] hover:bg-white hover:text-[#1A2B5C]'
+                }`}
+              >
+                <span>Hacer Huella Opcional General</span>
+              </button>
+            </div>
+
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => setShowGlobalWebAuthnModal(false)}
                 className={`w-full py-2.5 rounded-xl border font-bold text-xs transition cursor-pointer ${
                   isDark
                     ? 'border-[#223368] text-[#9AA6C9] hover:bg-[#0F1B3C]'

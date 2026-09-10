@@ -20,6 +20,7 @@ import {
   Laptop,
   Trash2,
   CheckCircle2,
+  ExternalLink,
 } from 'lucide-react';
 import { generateTotpSecret, buildTotpUri, generateQrCodeDataUrl } from '../lib/totp';
 import {
@@ -146,7 +147,11 @@ export const UserSecurityModal: React.FC<UserSecurityModalProps> = ({
         displayName: userProfile?.displayName || currentUser.displayName || currentUser.email,
       });
 
-      await enableBiometricOnDevice(res);
+      await enableBiometricOnDevice({
+        id: res.credentialId,
+        deviceName: res.deviceName,
+        createdAt: res.createdAt,
+      });
       setSavedBioDevice(getSavedBiometricDevice());
       setBioSuccess(
         '¡Acceso con huella digital activado exitosamente en este dispositivo! La próxima vez que inicies sesión desde este equipo, podrás tocar tu sensor biométrico para acceder al instante.'
@@ -819,7 +824,23 @@ export const UserSecurityModal: React.FC<UserSecurityModalProps> = ({
             {bioError && (
               <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-2xl text-xs text-rose-600 dark:text-rose-300 flex items-start gap-2.5 font-medium">
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
-                <span className="leading-snug">{bioError}</span>
+                <div className="flex-1 space-y-2">
+                  <span className="leading-snug block">{bioError}</span>
+                  {(bioError.includes('iframe') ||
+                    bioError.includes('pestaña') ||
+                    bioError.includes('visores') ||
+                    bioError.includes('Permissions Policy') ||
+                    bioError.includes('publickey-credentials')) && (
+                    <button
+                      type="button"
+                      onClick={() => window.open(window.location.href, '_blank')}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Abrir aplicación en nueva pestaña</span>
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 

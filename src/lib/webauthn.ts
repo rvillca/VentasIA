@@ -185,6 +185,17 @@ export async function registerBiometricPasskey(user: {
   } catch (err: any) {
     console.error('WebAuthn creation error:', err);
     if (err.name === 'NotAllowedError') {
+      const msg = err.message || '';
+      if (
+        msg.includes('publickey-credentials') ||
+        msg.includes('Permissions Policy') ||
+        msg.includes('cross-origin') ||
+        msg.includes('feature is not enabled')
+      ) {
+        throw new Error(
+          'Por restricciones de seguridad del navegador en visores (iframe), abre la app en una nueva pestaña directa para usar el sensor de huella.'
+        );
+      }
       throw new Error('Verificación biométrica cancelada o sensor no reconocido.');
     }
     if (err.name === 'InvalidStateError') {
@@ -260,6 +271,17 @@ export async function verifyBiometricPasskey(
   } catch (err: any) {
     console.error('WebAuthn get error:', err);
     if (err.name === 'NotAllowedError') {
+      const msg = err.message || '';
+      if (
+        msg.includes('publickey-credentials') ||
+        msg.includes('Permissions Policy') ||
+        msg.includes('cross-origin') ||
+        msg.includes('feature is not enabled')
+      ) {
+        throw new Error(
+          'Por restricciones de seguridad del navegador en visores (iframe), abre la app en una nueva pestaña directa para usar el sensor de huella.'
+        );
+      }
       throw new Error('Verificación biométrica cancelada o huella no reconocida.');
     }
     if (err.name === 'SecurityError') {

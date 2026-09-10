@@ -23,6 +23,7 @@ import {
   QrCode,
   Fingerprint,
   Laptop,
+  ExternalLink,
 } from 'lucide-react';
 import { buildTotpUri, generateQrCodeDataUrl } from '../lib/totp';
 import {
@@ -681,7 +682,23 @@ export const LoginScreen: React.FC = () => {
                 }`}
               >
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
-                <span>{webAuthnSetupError}</span>
+                <div className="flex-1 space-y-1.5">
+                  <span className="block">{webAuthnSetupError}</span>
+                  {(webAuthnSetupError.includes('iframe') ||
+                    webAuthnSetupError.includes('pestaña') ||
+                    webAuthnSetupError.includes('visores') ||
+                    webAuthnSetupError.includes('Permissions Policy') ||
+                    webAuthnSetupError.includes('publickey-credentials')) && (
+                    <button
+                      type="button"
+                      onClick={() => window.open(window.location.href, '_blank')}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] shadow-sm transition cursor-pointer"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Abrir aplicación en nueva pestaña</span>
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -830,7 +847,23 @@ export const LoginScreen: React.FC = () => {
                 {biometricError && (
                   <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 text-xs font-medium text-left flex items-start gap-1.5">
                     <AlertCircle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
-                    <span>{biometricError}</span>
+                    <div className="flex-1 space-y-1">
+                      <span className="block">{biometricError}</span>
+                      {(biometricError.includes('iframe') ||
+                        biometricError.includes('pestaña') ||
+                        biometricError.includes('visores') ||
+                        biometricError.includes('Permissions Policy') ||
+                        biometricError.includes('publickey-credentials')) && (
+                        <button
+                          type="button"
+                          onClick={() => window.open(window.location.href, '_blank')}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10px] transition cursor-pointer mt-1"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          <span>Abrir aplicación en nueva pestaña</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
 
