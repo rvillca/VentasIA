@@ -11,14 +11,17 @@ import {
   where,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { AppUser, UserRole } from '../types';
+import { AppUser, UserRole, SavedBiometricDevice } from '../types';
 import { verifyTotpCode, generateTotpSecret } from '../lib/totp';
+import { removeSavedBiometricDevice, getSavedBiometricDevice } from '../lib/webauthn';
 
 export interface LoginResult {
   require2FA?: boolean;
   require2FASetup?: boolean;
+  requireWebAuthnSetup?: boolean;
   userEmail?: string;
   userDisplayName?: string;
+  userUid?: string;
   setupSecret?: string;
 }
 
@@ -37,7 +40,13 @@ interface AuthContextType {
   canAccessCompras: boolean;
   canDeleteOrders: boolean;
   canAdminResetPasswords: boolean;
-  login: (email: string, pass: string, twoFactorCode?: string, setupSecret?: string) => Promise<LoginResult | void>;
+  login: (
+    email: string,
+    pass: string,
+    twoFactorCode?: string,
+    setupSecret?: string,
+    skipWebAuthnCheck?: boolean
+  ) => Promise<LoginResult | void>;
   loginAsJefe: () => Promise<LoginResult | void>;
   resetJefePassword: (newPass: string) => Promise<void>;
   register: (email: string, pass: string, name?: string) => Promise<void>;
@@ -53,6 +62,14 @@ interface AuthContextType {
   adminDisableUserTwoFactor: (targetUid: string) => Promise<void>;
   adminSetAllUsersTwoFactorRequired: (required: boolean) => Promise<void>;
   updateSecurityPreferences: (prefs: { autoLogoutEnabled?: boolean; autoLogoutMinutes?: number }) => Promise<void>;
+  // WebAuthn / Passkeys (Huella Digital & Biometría)
+  loginWithBiometrics: (savedDevice: SavedBiometricDevice) => Promise<void>;
+  enableBiometricOnDevice: (credential: { id: string; deviceName: string; createdAt: string }) => Promise<void>;
+  disableBiometricOnDevice: (credentialId?: string) => Promise<void>;
+  adminToggleForceWebAuthn: (targetUid: string, required: boolean) => Promise<void>;
+  adminResetUserWebAuthn: (targetUid: string, forceReconfigure?: boolean) => Promise<void>;
+  adminDeleteUserWebAuthnCredential: (targetUid: string, credentialId: string) => Promise<void>;
+  adminSetAllUsersWebAuthnRequired: (required: boolean) => Promise<void>;
   resetInactivityTimer: () => void;
   showInactivityWarning: boolean;
   remainingInactivitySeconds: number | null;
@@ -269,7 +286,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     email: string,
     pass: string,
     twoFactorCode?: string,
-    setupSecret?: string
+    setupSecret?: string,
+    skipWebAuthnCheck?: boolean
   ): Promise<LoginResult | void> => {
     const cleanEmail = email.trim().toLowerCase();
     const isBoss = cleanEmail === JEFE_EMAIL.toLowerCase();
@@ -348,6 +366,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
+      // Check if WebAuthn (Huella Digital) is required/forced
+      if (matchedUser?.webAuthnRequired && !skipWebAuthnCheck) {
+        const savedBio = getSavedBiometricDevice();
+        const hasBioOnThisDevice = savedBio && savedBio.uid === 'jefe_rvillca';
+        const hasAnyCredentials = (matchedUser.webAuthnCredentials?.length ?? 0) > 0;
+
+        if (!hasBioOnThisDevice || !hasAnyCredentials) {
+          return {
+            requireWebAuthnSetup: true,
+            userUid: 'jefe_rvillca',
+            userEmail: cleanEmail,
+            userDisplayName: matchedUser?.displayName || 'Rodrigo Villca (Jefe)',
+          };
+        }
+      }
+
       const jefeProfile: AppUser = {
         uid: 'jefe_rvillca',
         email: 'rvillca@outlook.com',
@@ -361,6 +395,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         twoFactorCreatedAt: matchedUser?.twoFactorCreatedAt,
         autoLogoutEnabled: matchedUser?.autoLogoutEnabled,
         autoLogoutMinutes: matchedUser?.autoLogoutMinutes,
+        webAuthnEnabled: matchedUser?.webAuthnEnabled,
+        webAuthnRequired: matchedUser?.webAuthnRequired,
+        webAuthnCredentials: matchedUser?.webAuthnCredentials,
       };
 
       // Save session and credentials
@@ -425,6 +462,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const isCodeValid = verifyTotpCode(matchedUser.twoFactorSecret, twoFactorCode);
       if (!isCodeValid) {
         throw new Error('Código de 2FA incorrecto o expirado. Revisa tu app autenticadora (Google Authenticator / Authy).');
+      }
+    }
+
+    // Check if WebAuthn (Huella Digital) is required/forced
+    if (matchedUser?.webAuthnRequired && !skipWebAuthnCheck) {
+      const savedBio = getSavedBiometricDevice();
+      const hasBioOnThisDevice = savedBio && savedBio.uid === matchedUser.uid;
+      const hasAnyCredentials = (matchedUser.webAuthnCredentials?.length ?? 0) > 0;
+
+      if (!hasBioOnThisDevice || !hasAnyCredentials) {
+        return {
+          requireWebAuthnSetup: true,
+          userUid: matchedUser.uid,
+          userEmail: cleanEmail,
+          userDisplayName: matchedUser.displayName || cleanEmail.split('@')[0],
+        };
       }
     }
 
@@ -890,6 +943,135 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUserProfile(updatedProfile);
   };
 
+  // Login with verified Passkey / Biometrics (fingerprint / Face ID / Windows Hello)
+  const loginWithBiometrics = async (savedDevice: SavedBiometricDevice) => {
+    // Check if account is disabled or fetch updated profile from Firestore
+    let effectiveProfile: AppUser | null = null;
+    try {
+      const userDocRef = doc(db, 'users', savedDevice.uid);
+      const userSnap = await getDoc(userDocRef);
+      if (userSnap.exists()) {
+        effectiveProfile = userSnap.data() as AppUser;
+      }
+    } catch (e) {
+      console.warn('Error fetching user on biometric login:', e);
+    }
+
+    if (!effectiveProfile) {
+      // Fallback search by email
+      try {
+        const q = query(collection(db, 'users'), where('email', '==', savedDevice.email.toLowerCase().trim()));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          effectiveProfile = snap.docs[0].data() as AppUser;
+        }
+      } catch {}
+    }
+
+    if (!effectiveProfile) {
+      // Build profile from saved device data
+      effectiveProfile = {
+        uid: savedDevice.uid,
+        email: savedDevice.email,
+        displayName: savedDevice.displayName,
+        role: savedDevice.email.toLowerCase() === JEFE_EMAIL.toLowerCase() ? 'jefe' : 'vendedor',
+        createdAt: new Date().toISOString(),
+      };
+    }
+
+    if (effectiveProfile.disabled) {
+      throw new Error('Esta cuenta ha sido desactivada por el administrador. Comunícate con gerencia.');
+    }
+
+    // Update lastUsedAt for this credential in Firestore
+    try {
+      const now = new Date().toISOString();
+      const updatedCreds = (effectiveProfile.webAuthnCredentials || []).map((c) =>
+        c.id === savedDevice.credentialId ? { ...c, lastUsedAt: now } : c
+      );
+      effectiveProfile.webAuthnCredentials = updatedCreds;
+      await updateDoc(doc(db, 'users', effectiveProfile.uid), {
+        webAuthnCredentials: updatedCreds,
+        updatedAt: now,
+      });
+    } catch {}
+
+    localStorage.setItem(STORAGE_AUTH_KEY, JSON.stringify(effectiveProfile));
+    setUserProfile(effectiveProfile);
+    setCurrentUser({
+      uid: effectiveProfile.uid,
+      email: effectiveProfile.email,
+      displayName: effectiveProfile.displayName,
+    });
+  };
+
+  // Enable Passkey / Biometrics for the current user and save credential
+  const enableBiometricOnDevice = async (credential: { id: string; deviceName: string; createdAt: string }) => {
+    if (!currentUser) throw new Error('No hay sesión activa.');
+
+    const currentCreds = userProfile?.webAuthnCredentials || [];
+    const filteredCreds = currentCreds.filter((c) => c.id !== credential.id);
+    const newCreds = [
+      ...filteredCreds,
+      {
+        id: credential.id,
+        deviceName: credential.deviceName,
+        createdAt: credential.createdAt,
+        lastUsedAt: credential.createdAt,
+      },
+    ];
+
+    const updates: Partial<AppUser> = {
+      webAuthnEnabled: true,
+      webAuthnCredentials: newCreds,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await setDoc(doc(db, 'users', currentUser.uid), updates, { merge: true });
+
+    const updatedProfile: AppUser = {
+      ...(userProfile || {
+        uid: currentUser.uid,
+        email: currentUser.email,
+        displayName: currentUser.displayName,
+        role: effectiveRole,
+        createdAt: new Date().toISOString(),
+      }),
+      ...updates,
+    } as AppUser;
+
+    localStorage.setItem(STORAGE_AUTH_KEY, JSON.stringify(updatedProfile));
+    setUserProfile(updatedProfile);
+  };
+
+  // Disable Passkey / Biometrics on device or specific credential
+  const disableBiometricOnDevice = async (credentialId?: string) => {
+    removeSavedBiometricDevice();
+
+    if (!currentUser) return;
+
+    let updatedCreds = userProfile?.webAuthnCredentials || [];
+    if (credentialId) {
+      updatedCreds = updatedCreds.filter((c) => c.id !== credentialId);
+    }
+
+    const updates: Partial<AppUser> = {
+      webAuthnEnabled: updatedCreds.length > 0,
+      webAuthnCredentials: updatedCreds,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await setDoc(doc(db, 'users', currentUser.uid), updates, { merge: true });
+
+    const updatedProfile: AppUser = {
+      ...userProfile!,
+      ...updates,
+    };
+
+    localStorage.setItem(STORAGE_AUTH_KEY, JSON.stringify(updatedProfile));
+    setUserProfile(updatedProfile);
+  };
+
   const effectiveRole: UserRole =
     currentUser?.email?.toLowerCase() === JEFE_EMAIL.toLowerCase()
       ? 'jefe'
@@ -908,6 +1090,124 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const canAccessCompras = isJefe || effectiveRole === 'supervisor' || isComprador || !!userProfile?.comprasAccess;
   const canDeleteOrders = isJefe;
   const canAdminResetPasswords = isSupervisor || isJefe;
+
+  // Admin/Jefe toggle forcing WebAuthn (Huella Digital) for a specific user
+  const adminToggleForceWebAuthn = async (targetUid: string, required: boolean) => {
+    if (!isJefe) {
+      throw new Error('Solo el Administrador / Jefe puede configurar la obligatoriedad de Huella Digital.');
+    }
+
+    const updates: Partial<AppUser> = {
+      webAuthnRequired: required,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await setDoc(doc(db, 'users', targetUid), updates, { merge: true });
+
+    if (currentUser?.uid === targetUid) {
+      const updatedProfile: AppUser = {
+        ...userProfile!,
+        webAuthnRequired: required,
+      };
+      localStorage.setItem(STORAGE_AUTH_KEY, JSON.stringify(updatedProfile));
+      setUserProfile(updatedProfile);
+    }
+  };
+
+  // Admin/Jefe reset WebAuthn credentials for a user who lost/changed their device
+  const adminResetUserWebAuthn = async (targetUid: string, forceReconfigure: boolean = true) => {
+    if (!isJefe) {
+      throw new Error('Solo el Administrador / Jefe puede restablecer los dispositivos biométricos de otros usuarios.');
+    }
+
+    const updates: Partial<AppUser> = {
+      webAuthnEnabled: false,
+      webAuthnCredentials: [],
+      webAuthnRequired: forceReconfigure,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await setDoc(doc(db, 'users', targetUid), updates, { merge: true });
+
+    if (currentUser?.uid === targetUid) {
+      removeSavedBiometricDevice();
+      const updatedProfile: AppUser = {
+        ...userProfile!,
+        webAuthnEnabled: false,
+        webAuthnCredentials: [],
+        webAuthnRequired: forceReconfigure,
+      };
+      localStorage.setItem(STORAGE_AUTH_KEY, JSON.stringify(updatedProfile));
+      setUserProfile(updatedProfile);
+    }
+  };
+
+  // Admin/Jefe delete a specific biometric credential of a user
+  const adminDeleteUserWebAuthnCredential = async (targetUid: string, credentialId: string) => {
+    if (!isJefe) {
+      throw new Error('Solo el Administrador / Jefe puede revocar dispositivos biométricos.');
+    }
+
+    const userDocRef = doc(db, 'users', targetUid);
+    const snap = await getDoc(userDocRef);
+    if (!snap.exists()) return;
+
+    const data = snap.data() as AppUser;
+    const creds = (data.webAuthnCredentials || []).filter((c) => c.id !== credentialId);
+
+    const updates: Partial<AppUser> = {
+      webAuthnCredentials: creds,
+      webAuthnEnabled: creds.length > 0,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await updateDoc(userDocRef, updates);
+
+    if (currentUser?.uid === targetUid) {
+      const saved = getSavedBiometricDevice();
+      if (saved?.credentialId === credentialId) {
+        removeSavedBiometricDevice();
+      }
+      const updatedProfile: AppUser = {
+        ...userProfile!,
+        ...updates,
+      };
+      localStorage.setItem(STORAGE_AUTH_KEY, JSON.stringify(updatedProfile));
+      setUserProfile(updatedProfile);
+    }
+  };
+
+  // Admin/Jefe enforce or relax WebAuthn policy globally for all users
+  const adminSetAllUsersWebAuthnRequired = async (required: boolean) => {
+    if (!isJefe) {
+      throw new Error('Solo el Administrador / Jefe puede configurar la política global de Huella Digital.');
+    }
+
+    const querySnap = await getDocs(collection(db, 'users'));
+    const promises: Promise<any>[] = [];
+    const now = new Date().toISOString();
+
+    querySnap.forEach((docSnap) => {
+      promises.push(
+        setDoc(
+          doc(db, 'users', docSnap.id),
+          {
+            webAuthnRequired: required,
+            updatedAt: now,
+          },
+          { merge: true }
+        )
+      );
+    });
+
+    await Promise.all(promises);
+
+    if (userProfile) {
+      const updatedProfile = { ...userProfile, webAuthnRequired: required };
+      localStorage.setItem(STORAGE_AUTH_KEY, JSON.stringify(updatedProfile));
+      setUserProfile(updatedProfile);
+    }
+  };
 
   return (
     <AuthContext.Provider
@@ -942,6 +1242,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         adminDisableUserTwoFactor,
         adminSetAllUsersTwoFactorRequired,
         updateSecurityPreferences,
+        loginWithBiometrics,
+        enableBiometricOnDevice,
+        disableBiometricOnDevice,
+        adminToggleForceWebAuthn,
+        adminResetUserWebAuthn,
+        adminDeleteUserWebAuthnCredential,
+        adminSetAllUsersWebAuthnRequired,
         resetInactivityTimer,
         showInactivityWarning,
         remainingInactivitySeconds,

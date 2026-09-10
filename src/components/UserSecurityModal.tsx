@@ -16,13 +16,26 @@ import {
   CheckCheck,
   Smartphone,
   RefreshCw,
+  Fingerprint,
+  Laptop,
+  Trash2,
+  CheckCircle2,
 } from 'lucide-react';
 import { generateTotpSecret, buildTotpUri, generateQrCodeDataUrl } from '../lib/totp';
+import {
+  isWebAuthnSupported,
+  isPlatformAuthenticatorAvailable,
+  registerBiometricPasskey,
+  verifyBiometricPasskey,
+  getSavedBiometricDevice,
+  removeSavedBiometricDevice,
+} from '../lib/webauthn';
+import { SavedBiometricDevice } from '../types';
 
 interface UserSecurityModalProps {
   isOpen: boolean;
   onClose: () => void;
-  defaultTab?: '2fa' | 'inactivity' | 'password';
+  defaultTab?: '2fa' | 'biometrics' | 'inactivity' | 'password';
 }
 
 export const UserSecurityModal: React.FC<UserSecurityModalProps> = ({
@@ -37,10 +50,21 @@ export const UserSecurityModal: React.FC<UserSecurityModalProps> = ({
     enableTwoFactor,
     disableTwoFactor,
     updateSecurityPreferences,
+    enableBiometricOnDevice,
+    disableBiometricOnDevice,
   } = useAuth();
   const { isDark } = useTheme();
 
-  const [activeTab, setActiveTab] = useState<'2fa' | 'inactivity' | 'password'>(defaultTab);
+  const [activeTab, setActiveTab] = useState<'2fa' | 'biometrics' | 'inactivity' | 'password'>(defaultTab);
+
+  // Biometrics (WebAuthn / Passkeys) State
+  const [isBioSupported, setIsBioSupported] = useState(false);
+  const [isPlatformAvailable, setIsPlatformAvailable] = useState(false);
+  const [savedBioDevice, setSavedBioDevice] = useState<SavedBiometricDevice | null>(null);
+  const [bioLoading, setBioLoading] = useState(false);
+  const [bioError, setBioError] = useState<string | null>(null);
+  const [bioSuccess, setBioSuccess] = useState<string | null>(null);
+  const [testBioSuccess, setTestBioSuccess] = useState<string | null>(null);
 
   // 2FA Setup State
   const [isConfiguring2FA, setIsConfiguring2FA] = useState(false);
@@ -90,6 +114,82 @@ export const UserSecurityModal: React.FC<UserSecurityModalProps> = ({
   useEffect(() => {
     setActiveTab(defaultTab);
   }, [defaultTab, isOpen]);
+
+  // Sync biometric availability and saved device on this browser
+  useEffect(() => {
+    if (isOpen) {
+      const supported = isWebAuthnSupported();
+      setIsBioSupported(supported);
+      if (supported) {
+        isPlatformAuthenticatorAvailable()
+          .then(setIsPlatformAvailable)
+          .catch(() => setIsPlatformAvailable(false));
+      }
+      setSavedBioDevice(getSavedBiometricDevice());
+      setBioError(null);
+      setBioSuccess(null);
+      setTestBioSuccess(null);
+    }
+  }, [isOpen, userProfile]);
+
+  const handleRegisterBiometrics = async () => {
+    if (!currentUser) return;
+    try {
+      setBioLoading(true);
+      setBioError(null);
+      setBioSuccess(null);
+      setTestBioSuccess(null);
+
+      const res = await registerBiometricPasskey({
+        uid: currentUser.uid,
+        email: currentUser.email,
+        displayName: userProfile?.displayName || currentUser.displayName || currentUser.email,
+      });
+
+      await enableBiometricOnDevice(res);
+      setSavedBioDevice(getSavedBiometricDevice());
+      setBioSuccess(
+        '¡Acceso con huella digital activado exitosamente en este dispositivo! La próxima vez que inicies sesión desde este equipo, podrás tocar tu sensor biométrico para acceder al instante.'
+      );
+    } catch (err: any) {
+      console.error('Biometric registration error:', err);
+      setBioError(err.message || 'No se pudo vincular la huella digital en este dispositivo.');
+    } finally {
+      setBioLoading(false);
+    }
+  };
+
+  const handleTestBiometrics = async () => {
+    try {
+      setBioLoading(true);
+      setBioError(null);
+      setTestBioSuccess(null);
+
+      await verifyBiometricPasskey(savedBioDevice?.credentialId);
+      setTestBioSuccess('¡Huella verificada correctamente! El sensor biométrico funciona con total precisión.');
+    } catch (err: any) {
+      setBioError(err.message || 'No se pudo verificar la huella.');
+    } finally {
+      setBioLoading(false);
+    }
+  };
+
+  const handleRemoveBiometrics = async () => {
+    try {
+      setBioLoading(true);
+      setBioError(null);
+      setBioSuccess(null);
+      setTestBioSuccess(null);
+
+      await disableBiometricOnDevice(savedBioDevice?.credentialId);
+      setSavedBioDevice(null);
+      setBioSuccess('Se desvinculó el acceso con huella digital de este equipo.');
+    } catch (err: any) {
+      setBioError(err.message || 'Error al desvincular el sensor de este dispositivo.');
+    } finally {
+      setBioLoading(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -277,7 +377,7 @@ export const UserSecurityModal: React.FC<UserSecurityModalProps> = ({
 
         {/* Tab Navigation */}
         <div
-          className={`grid grid-cols-3 gap-1 p-1 rounded-2xl border text-xs font-bold ${
+          className={`grid grid-cols-2 sm:grid-cols-4 gap-1 p-1 rounded-2xl border text-xs font-bold ${
             isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#F5EFE0] border-[#E8DFC8]'
           }`}
         >
@@ -289,7 +389,7 @@ export const UserSecurityModal: React.FC<UserSecurityModalProps> = ({
               setTotpError(null);
               setTotpSuccess(null);
             }}
-            className={`py-2 px-2 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            className={`py-2 px-1.5 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               activeTab === '2fa'
                 ? isDark
                   ? 'bg-[#FF6FA5] text-[#0F1B3C] font-black shadow-sm'
@@ -300,7 +400,30 @@ export const UserSecurityModal: React.FC<UserSecurityModalProps> = ({
             }`}
           >
             <Smartphone className="w-3.5 h-3.5 shrink-0" />
-            <span>2FA (TOTP)</span>
+            <span className="truncate">2FA (TOTP)</span>
+          </button>
+
+          <button
+            id="tab-security-biometrics"
+            type="button"
+            onClick={() => {
+              setActiveTab('biometrics');
+              setBioError(null);
+              setBioSuccess(null);
+              setTestBioSuccess(null);
+            }}
+            className={`py-2 px-1.5 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              activeTab === 'biometrics'
+                ? isDark
+                  ? 'bg-[#FF6FA5] text-[#0F1B3C] font-black shadow-sm'
+                  : 'bg-[#1A2B5C] text-white shadow-sm'
+                : isDark
+                ? 'text-[#9AA6C9] hover:text-white'
+                : 'text-[#78716C] hover:text-[#1A2B5C]'
+            }`}
+          >
+            <Fingerprint className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Huella Digital</span>
           </button>
 
           <button
@@ -311,7 +434,7 @@ export const UserSecurityModal: React.FC<UserSecurityModalProps> = ({
               setInactivityError(null);
               setInactivitySuccess(null);
             }}
-            className={`py-2 px-2 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            className={`py-2 px-1.5 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'inactivity'
                 ? isDark
                   ? 'bg-[#FF6FA5] text-[#0F1B3C] font-black shadow-sm'
@@ -322,7 +445,7 @@ export const UserSecurityModal: React.FC<UserSecurityModalProps> = ({
             }`}
           >
             <Clock className="w-3.5 h-3.5 shrink-0" />
-            <span>Inactividad</span>
+            <span className="truncate">Inactividad</span>
           </button>
 
           <button
@@ -333,7 +456,7 @@ export const UserSecurityModal: React.FC<UserSecurityModalProps> = ({
               setPasswordError(null);
               setPasswordSuccess(null);
             }}
-            className={`py-2 px-2 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            className={`py-2 px-1.5 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'password'
                 ? isDark
                   ? 'bg-[#FF6FA5] text-[#0F1B3C] font-black shadow-sm'
@@ -344,7 +467,7 @@ export const UserSecurityModal: React.FC<UserSecurityModalProps> = ({
             }`}
           >
             <KeyRound className="w-3.5 h-3.5 shrink-0" />
-            <span>Contraseña</span>
+            <span className="truncate">Contraseña</span>
           </button>
         </div>
 
@@ -653,6 +776,238 @@ export const UserSecurityModal: React.FC<UserSecurityModalProps> = ({
                     </div>
                   </form>
                 )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB: HUELLA DIGITAL / BIOMETRÍA (WebAuthn / Passkeys) */}
+        {activeTab === 'biometrics' && (
+          <div className="space-y-4">
+            {/* Overview Banner */}
+            <div
+              className={`p-4 rounded-2xl border text-xs space-y-2 leading-relaxed ${
+                isDark ? 'bg-[#0F1B3C]/70 border-[#223368] text-[#CBD5E1]' : 'bg-[#FAF8F5] border-[#E8DFC8] text-[#57534E]'
+              }`}
+            >
+              <div className="font-bold text-sm text-[#1A2B5C] dark:text-white flex items-center gap-2">
+                <Fingerprint className="w-5 h-5 text-[#FF6FA5]" />
+                Acceso con Huella Digital / Biometría (Passkeys)
+              </div>
+              <p>
+                Permite iniciar sesión rápidamente tocando el lector de huella dactilar o reconocimiento facial de tu celular, tablet o computadora (Touch ID, Windows Hello, Huella Android).
+              </p>
+              <p className="text-[11px] opacity-85">
+                🔒 <strong>Seguridad nativa WebAuthn:</strong> Tus datos biométricos nunca se transmiten ni salen de tu equipo. El estándar criptográfico valida tu identidad de forma local y sin costo alguno.
+              </p>
+            </div>
+
+            {bioSuccess && (
+              <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-xs text-emerald-600 dark:text-emerald-300 flex items-start gap-2.5 font-medium">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500 mt-0.5" />
+                <span className="leading-snug">{bioSuccess}</span>
+              </div>
+            )}
+
+            {testBioSuccess && (
+              <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-xs text-emerald-600 dark:text-emerald-300 flex items-start gap-2.5 font-medium">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500 mt-0.5" />
+                <span className="leading-snug">{testBioSuccess}</span>
+              </div>
+            )}
+
+            {bioError && (
+              <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-2xl text-xs text-rose-600 dark:text-rose-300 flex items-start gap-2.5 font-medium">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
+                <span className="leading-snug">{bioError}</span>
+              </div>
+            )}
+
+            {/* Current Device Status */}
+            <div
+              className={`p-4 rounded-2xl border space-y-3.5 ${
+                savedBioDevice
+                  ? isDark
+                    ? 'bg-emerald-950/20 border-emerald-500/30'
+                    : 'bg-emerald-50/50 border-emerald-200'
+                  : isDark
+                  ? 'bg-[#0F1B3C] border-[#223368]'
+                  : 'bg-[#FBF7EF] border-[#E8DFC8]'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className={`p-2.5 rounded-xl ${
+                      savedBioDevice
+                        ? 'bg-emerald-500/15 text-emerald-500'
+                        : isDark
+                        ? 'bg-[#223368] text-[#9AA6C9]'
+                        : 'bg-[#E8DFC8] text-[#78716C]'
+                    }`}
+                  >
+                    <Fingerprint className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold flex items-center gap-1.5">
+                      <span className={isDark ? 'text-white' : 'text-[#1A2B5C]'}>
+                        Estado en este equipo:
+                      </span>
+                      {savedBioDevice ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/15 text-emerald-500 border border-emerald-500/30">
+                          ACTIVO
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-neutral-500/15 text-neutral-400 border border-neutral-500/30">
+                          NO VINCULADO
+                        </span>
+                      )}
+                    </div>
+                    <p className={`text-[11px] mt-0.5 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                      {savedBioDevice
+                        ? `Vinculado como: ${savedBioDevice.deviceName}`
+                        : `Este dispositivo aún no tiene vinculada tu huella.`}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {savedBioDevice ? (
+                <div className="space-y-3 pt-2 border-t border-current/10">
+                  <div className={`text-[11px] space-y-1 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                    <p>
+                      <strong>Vinculado el:</strong>{' '}
+                      {new Date(savedBioDevice.registeredAt).toLocaleString('es-BO')}
+                    </p>
+                    <p>
+                      <strong>Usuario:</strong> {savedBioDevice.displayName} ({savedBioDevice.email})
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                    <button
+                      id="test-biometrics-btn"
+                      type="button"
+                      onClick={handleTestBiometrics}
+                      disabled={bioLoading}
+                      className={`flex-1 py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                        isDark
+                          ? 'border-[#223368] text-white hover:bg-[#1A2B5C]'
+                          : 'border-[#E8DFC8] text-[#1A2B5C] hover:bg-white'
+                      }`}
+                    >
+                      <Fingerprint className="w-4 h-4 text-[#FF6FA5]" />
+                      <span>Probar Sensor de Huella</span>
+                    </button>
+
+                    <button
+                      id="remove-biometrics-btn"
+                      type="button"
+                      onClick={handleRemoveBiometrics}
+                      disabled={bioLoading}
+                      className={`py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                        isDark
+                          ? 'border-rose-500/30 text-rose-300 hover:bg-rose-950/40'
+                          : 'border-rose-200 text-rose-700 hover:bg-rose-50'
+                      }`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>Desvincular de este equipo</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3 pt-1">
+                  {!isBioSupported && (
+                    <p className="text-xs text-amber-500 font-medium">
+                      ⚠️ Tu navegador actual no tiene habilitada la API WebAuthn. Te recomendamos usar Chrome, Edge o Safari en una pestaña normal.
+                    </p>
+                  )}
+
+                  <button
+                    id="register-biometrics-btn"
+                    type="button"
+                    onClick={handleRegisterBiometrics}
+                    disabled={bioLoading}
+                    className={`w-full py-3 px-4 rounded-xl font-black text-xs active:scale-95 shadow-md flex items-center justify-center gap-2 transition cursor-pointer ${
+                      isDark
+                        ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C] shadow-[#FF6FA5]/20'
+                        : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white shadow-[#1A2B5C]/20'
+                    }`}
+                  >
+                    {bioLoading ? (
+                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <Fingerprint className="w-4 h-4" />
+                        <span>Activar acceso con huella digital en este dispositivo</span>
+                      </>
+                    )}
+                  </button>
+                  <p className={`text-[11px] text-center ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                    Al hacer clic, el navegador te pedirá tocar tu sensor de huella o presionar el botón de Touch ID / Windows Hello.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Other Devices registered list (from userProfile) */}
+            {userProfile?.webAuthnCredentials && userProfile.webAuthnCredentials.length > 0 && (
+              <div
+                className={`p-3.5 rounded-2xl border text-xs space-y-2.5 ${
+                  isDark ? 'bg-[#0F1B3C]/50 border-[#223368]' : 'bg-white border-[#E8DFC8]'
+                }`}
+              >
+                <div className={`font-bold text-[11px] uppercase tracking-wider ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                  Equipos con huella vinculada ({userProfile.webAuthnCredentials.length})
+                </div>
+                <div className="space-y-2">
+                  {userProfile.webAuthnCredentials.map((cred, idx) => (
+                    <div
+                      key={cred.id || idx}
+                      className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 ${
+                        savedBioDevice?.credentialId === cred.id
+                          ? isDark
+                            ? 'border-emerald-500/30 bg-emerald-500/5'
+                            : 'border-emerald-200 bg-emerald-50/50'
+                          : isDark
+                          ? 'border-[#223368] bg-[#0A1229]'
+                          : 'border-[#E8DFC8] bg-[#FAF8F5]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Laptop className="w-4 h-4 shrink-0 text-[#FF6FA5]" />
+                        <div className="min-w-0">
+                          <p className={`text-xs font-bold truncate ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
+                            {cred.deviceName || 'Dispositivo'}
+                            {savedBioDevice?.credentialId === cred.id && (
+                              <span className="ml-1.5 text-[10px] text-emerald-500 font-black">
+                                (Este dispositivo)
+                              </span>
+                            )}
+                          </p>
+                          <p className={`text-[10px] ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                            Registrado: {new Date(cred.createdAt).toLocaleDateString('es-BO')}
+                            {cred.lastUsedAt && ` • Último uso: ${new Date(cred.lastUsedAt).toLocaleDateString('es-BO')}`}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => disableBiometricOnDevice(cred.id)}
+                        title="Eliminar este dispositivo"
+                        className={`p-1.5 rounded-lg border text-rose-500 transition cursor-pointer ${
+                          isDark
+                            ? 'border-[#223368] hover:bg-rose-950/40'
+                            : 'border-[#E8DFC8] hover:bg-rose-50'
+                        }`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

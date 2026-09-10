@@ -29,6 +29,8 @@ import {
   RefreshCw,
   Sliders,
   Sparkles,
+  Fingerprint,
+  Laptop,
 } from 'lucide-react';
 import { AppUser, UserRole } from '../types';
 import { subscribeToUsers } from '../lib/storage';
@@ -46,6 +48,10 @@ export const UserManagementScreen: React.FC = () => {
     adminToggleForceTwoFactor,
     adminDisableUserTwoFactor,
     adminSetAllUsersTwoFactorRequired,
+    adminToggleForceWebAuthn,
+    adminResetUserWebAuthn,
+    adminDeleteUserWebAuthnCredential,
+    adminSetAllUsersWebAuthnRequired,
     userProfile,
   } = useAuth();
   const { isDark } = useTheme();
@@ -105,6 +111,16 @@ export const UserManagementScreen: React.FC = () => {
   // Global MFA Policy Modal State
   const [showGlobalMfaModal, setShowGlobalMfaModal] = useState(false);
   const [globalMfaLoading, setGlobalMfaLoading] = useState(false);
+
+  // Dedicated WebAuthn / Huella Digital Management Modal State (for Jefe)
+  const [selectedUserForWebAuthn, setSelectedUserForWebAuthn] = useState<AppUser | null>(null);
+  const [webAuthnActionLoading, setWebAuthnActionLoading] = useState(false);
+  const [webAuthnActionSuccess, setWebAuthnActionSuccess] = useState<string | null>(null);
+  const [webAuthnActionError, setWebAuthnActionError] = useState<string | null>(null);
+
+  // Global WebAuthn Policy Modal State
+  const [showGlobalWebAuthnModal, setShowGlobalWebAuthnModal] = useState(false);
+  const [globalWebAuthnLoading, setGlobalWebAuthnLoading] = useState(false);
 
   // Global action notification
   const [actionNotice, setActionNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -467,6 +483,143 @@ export const UserManagementScreen: React.FC = () => {
       showNotice('error', err.message || 'No se pudo aplicar la política global.');
     } finally {
       setGlobalMfaLoading(false);
+    }
+  };
+
+  const handleOpenWebAuthnModal = (u: AppUser) => {
+    setSelectedUserForWebAuthn(u);
+    setWebAuthnActionError(null);
+    setWebAuthnActionSuccess(null);
+  };
+
+  // 1a. Reset WebAuthn credentials + force re-enrollment on next login
+  const handleResetWebAuthnForce = async () => {
+    if (!selectedUserForWebAuthn) return;
+    try {
+      setWebAuthnActionLoading(true);
+      setWebAuthnActionError(null);
+      await adminResetUserWebAuthn(selectedUserForWebAuthn.uid, true);
+      const name = selectedUserForWebAuthn.displayName || selectedUserForWebAuthn.email;
+      setWebAuthnActionSuccess(`¡Dispositivos biométricos reseteados! ${name} deberá registrar su huella al iniciar sesión.`);
+      showNotice('success', `Dispositivos biométricos reseteados para ${name}.`);
+      setSelectedUserForWebAuthn((prev) =>
+        prev
+          ? {
+              ...prev,
+              webAuthnEnabled: false,
+              webAuthnCredentials: [],
+              webAuthnRequired: true,
+            }
+          : null
+      );
+    } catch (err: any) {
+      console.error('Error resetting WebAuthn:', err);
+      setWebAuthnActionError(err.message || 'No se pudo resetear la huella digital');
+    } finally {
+      setWebAuthnActionLoading(false);
+    }
+  };
+
+  // 1b. Reset WebAuthn + make optional
+  const handleResetWebAuthnOptional = async () => {
+    if (!selectedUserForWebAuthn) return;
+    try {
+      setWebAuthnActionLoading(true);
+      setWebAuthnActionError(null);
+      await adminResetUserWebAuthn(selectedUserForWebAuthn.uid, false);
+      const name = selectedUserForWebAuthn.displayName || selectedUserForWebAuthn.email;
+      setWebAuthnActionSuccess(`¡Huella digital desactivada! El acceso biométrico es ahora opcional para ${name}.`);
+      showNotice('success', `Huella digital reseteada a modo opcional para ${name}.`);
+      setSelectedUserForWebAuthn((prev) =>
+        prev
+          ? {
+              ...prev,
+              webAuthnEnabled: false,
+              webAuthnCredentials: [],
+              webAuthnRequired: false,
+            }
+          : null
+      );
+    } catch (err: any) {
+      console.error('Error resetting WebAuthn:', err);
+      setWebAuthnActionError(err.message || 'No se pudo resetear la huella digital');
+    } finally {
+      setWebAuthnActionLoading(false);
+    }
+  };
+
+  // 2. Toggle forcing WebAuthn for user
+  const handleToggleUserWebAuthnRequired = async (required: boolean) => {
+    if (!selectedUserForWebAuthn) return;
+    try {
+      setWebAuthnActionLoading(true);
+      setWebAuthnActionError(null);
+      await adminToggleForceWebAuthn(selectedUserForWebAuthn.uid, required);
+      const name = selectedUserForWebAuthn.displayName || selectedUserForWebAuthn.email;
+      setWebAuthnActionSuccess(
+        required
+          ? `¡Huella digital marcada como OBLIGATORIA para ${name}! Se le exigirá al iniciar sesión.`
+          : `Huella digital configurada como OPCIONAL para ${name}.`
+      );
+      showNotice(
+        'success',
+        required ? `Huella ahora es OBLIGATORIA para ${name}.` : `Huella ahora es OPCIONAL para ${name}.`
+      );
+      setSelectedUserForWebAuthn((prev) => (prev ? { ...prev, webAuthnRequired: required } : null));
+    } catch (err: any) {
+      console.error('Error toggling force WebAuthn:', err);
+      setWebAuthnActionError(err.message || 'No se pudo cambiar la obligatoriedad de la huella');
+    } finally {
+      setWebAuthnActionLoading(false);
+    }
+  };
+
+  // 3. Delete specific credential from user
+  const handleDeleteUserWebAuthnCredential = async (credentialId: string) => {
+    if (!selectedUserForWebAuthn) return;
+    try {
+      setWebAuthnActionLoading(true);
+      setWebAuthnActionError(null);
+      await adminDeleteUserWebAuthnCredential(selectedUserForWebAuthn.uid, credentialId);
+      const updatedCreds = (selectedUserForWebAuthn.webAuthnCredentials || []).filter(
+        (c) => c.id !== credentialId
+      );
+      setWebAuthnActionSuccess('Dispositivo biométrico revocado exitosamente.');
+      showNotice('success', 'Dispositivo biométrico revocado.');
+      setSelectedUserForWebAuthn((prev) =>
+        prev
+          ? {
+              ...prev,
+              webAuthnCredentials: updatedCreds,
+              webAuthnEnabled: updatedCreds.length > 0,
+            }
+          : null
+      );
+    } catch (err: any) {
+      console.error('Error deleting credential:', err);
+      setWebAuthnActionError(err.message || 'No se pudo revocar el dispositivo biométrico');
+    } finally {
+      setWebAuthnActionLoading(false);
+    }
+  };
+
+  // 4. Set global WebAuthn policy for all users
+  const handleSetGlobalWebAuthnPolicy = async (required: boolean) => {
+    try {
+      setGlobalWebAuthnLoading(true);
+      await adminSetAllUsersWebAuthnRequired(required);
+      showNotice(
+        'success',
+        required
+          ? '¡Política aplicada! Huella Digital es ahora OBLIGATORIA para todo el personal.'
+          : 'Política actualizada: Huella Digital es ahora OPCIONAL para todo el personal.'
+      );
+      setShowGlobalWebAuthnModal(false);
+    } catch (err: any) {
+      console.error('Error applying global WebAuthn policy:', err);
+      showNotice('error', err.message || 'No se pudo aplicar la política global.');
+    } finally {
+      setGlobalWebAuthnLoading(false);
     }
   };
 

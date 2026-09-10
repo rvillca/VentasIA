@@ -12,6 +12,7 @@ import {
   Clock,
   ShieldCheck,
   Shield,
+  Fingerprint,
 } from 'lucide-react';
 import { ActiveTab, Order } from '../types';
 import { formatCurrency } from '../lib/storage';
@@ -141,6 +142,9 @@ export const Header: React.FC<HeaderProps> = ({
                     <span className="font-bold leading-tight truncate max-w-[100px] sm:max-w-[130px] group-hover:text-[#FF6FA5] transition">
                       {userProfile?.displayName || 'Usuario'}
                     </span>
+                    {userProfile?.webAuthnEnabled && (
+                      <Fingerprint className="w-3.5 h-3.5 text-[#FF6FA5] shrink-0" title="Acceso con Huella / Passkeys Activo" />
+                    )}
                     {userProfile?.twoFactorEnabled && (
                       <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" title="2FA Activo con App Autenticadora" />
                     )}
@@ -161,6 +165,8 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
                 {userProfile?.twoFactorEnabled ? (
                   <ShieldCheck className="w-4 h-4 text-emerald-500 group-hover:scale-110 transition shrink-0" />
+                ) : userProfile?.webAuthnEnabled ? (
+                  <Fingerprint className="w-4 h-4 text-[#FF6FA5] group-hover:scale-110 transition shrink-0" />
                 ) : (
                   <KeyRound className="w-3.5 h-3.5 text-[#FF6FA5] group-hover:scale-110 transition shrink-0" />
                 )}

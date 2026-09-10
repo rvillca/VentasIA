@@ -31,6 +31,27 @@ export interface AppUser {
   // Inactivity Auto-Logout preferences
   autoLogoutEnabled?: boolean; // default true
   autoLogoutMinutes?: number; // default 20
+
+  // WebAuthn / Passkeys (Huella Digital & Biometría)
+  webAuthnEnabled?: boolean;
+  webAuthnRequired?: boolean; // Forzado u obligatorio por el Administrador
+  webAuthnCredentials?: WebAuthnCredentialRecord[];
+}
+
+export interface WebAuthnCredentialRecord {
+  id: string; // Base64URL string of credentialId
+  deviceName: string;
+  createdAt: string;
+  lastUsedAt?: string;
+}
+
+export interface SavedBiometricDevice {
+  uid: string;
+  email: string;
+  displayName: string;
+  credentialId: string;
+  deviceName: string;
+  registeredAt: string;
 }
 
 export interface Order {

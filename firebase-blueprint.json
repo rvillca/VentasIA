@@ -63,6 +63,9 @@
         "twoFactorCreatedAt": { "type": "string" },
         "autoLogoutEnabled": { "type": "boolean" },
         "autoLogoutMinutes": { "type": "number" },
+        "webAuthnEnabled": { "type": "boolean" },
+        "webAuthnRequired": { "type": "boolean" },
+        "webAuthnCredentials": { "type": "array" },
         "createdAt": { "type": "string" },
         "updatedAt": { "type": "string" }
       },
