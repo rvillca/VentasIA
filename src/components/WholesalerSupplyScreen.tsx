@@ -41,9 +41,9 @@ export const WholesalerSupplyScreen: React.FC<WholesalerSupplyScreenProps> = ({
     const map = new Map<string, ConsolidatedItem>();
 
     targetOrders.forEach((order) => {
-      order.productos.forEach((prod) => {
-        const cleanName = prod.nombre.trim() || 'Artículo Varios';
-        const cleanVar = prod.variante.trim();
+      (order.productos || []).forEach((prod) => {
+        const cleanName = (prod?.nombre || '').trim() || 'Artículo Varios';
+        const cleanVar = (prod?.variante || '').trim();
         const key = `${cleanName.toLowerCase()}_||_${cleanVar.toLowerCase()}`;
 
         if (!map.has(key)) {

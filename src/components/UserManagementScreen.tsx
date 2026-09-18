@@ -141,7 +141,7 @@ export const UserManagementScreen: React.FC = () => {
   // Filtered users list
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
-      const q = searchQuery.toLowerCase().trim();
+      const q = (searchQuery || '').toLowerCase().trim();
       const matchesSearch =
         !q ||
         (u.displayName || '').toLowerCase().includes(q) ||

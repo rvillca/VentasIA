@@ -15,7 +15,7 @@ export function generateTotpSecret(): string {
  * Build the standard otpauth:// URI for QR code generation
  */
 export function buildTotpUri(email: string, secretBase32: string): string {
-  const cleanEmail = email.trim().toLowerCase();
+  const cleanEmail = (email || '').trim().toLowerCase();
   const totp = new OTPAuth.TOTP({
     issuer: ISSUER,
     label: cleanEmail,

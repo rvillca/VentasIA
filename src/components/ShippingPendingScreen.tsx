@@ -163,15 +163,15 @@ export const ShippingPendingScreen: React.FC<ShippingPendingScreenProps> = ({
         return true;
       })
       .filter((o) => {
-        if (!searchTerm.trim()) return true;
-        const term = searchTerm.toLowerCase();
+        if (!searchTerm || !searchTerm.trim()) return true;
+        const term = (searchTerm || '').toLowerCase().trim();
         return (
-          o.cliente.toLowerCase().includes(term) ||
-          o.lugarEntrega.toLowerCase().includes(term) ||
-          o.telefono.includes(term) ||
+          (o.cliente || '').toLowerCase().includes(term) ||
+          (o.lugarEntrega || '').toLowerCase().includes(term) ||
+          (o.telefono || '').includes(term) ||
           `#${o.orderNumber}`.includes(term) ||
           (o.vendedorNombre && o.vendedorNombre.toLowerCase().includes(term)) ||
-          o.productos.some((p) => p.nombre.toLowerCase().includes(term))
+          (o.productos || []).some((p) => (p?.nombre || '').toLowerCase().includes(term))
         );
       })
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());

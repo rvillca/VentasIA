@@ -173,12 +173,12 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
         shippingStatusFilter === 'all' || order.estado === shippingStatusFilter;
 
       let matchSearch = true;
-      if (shippingSearch.trim()) {
-        const term = shippingSearch.toLowerCase();
+      if (shippingSearch && shippingSearch.trim()) {
+        const term = shippingSearch.toLowerCase().trim();
         matchSearch =
-          order.cliente.toLowerCase().includes(term) ||
-          order.lugarEntrega.toLowerCase().includes(term) ||
-          order.telefono.includes(term) ||
+          (order.cliente || '').toLowerCase().includes(term) ||
+          (order.lugarEntrega || '').toLowerCase().includes(term) ||
+          (order.telefono || '').includes(term) ||
           `#${order.orderNumber}`.includes(term) ||
           (order.vendedorNombre && order.vendedorNombre.toLowerCase().includes(term)) ||
           (order.enviadoPorNombre && order.enviadoPorNombre.toLowerCase().includes(term)) ||
@@ -450,7 +450,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
       let csv = 'Numero,Cliente,Telefono,Lugar,Total_Bs,Pagado_Bs,Saldo_Bs,Estado,Vendedor_Registro,Fecha_Venta\n';
       filteredOrders.forEach((o) => {
         const dateStr = new Date(o.createdAt).toLocaleDateString('es-BO');
-        csv += `"${o.orderNumber}","${o.cliente.replace(/"/g, '""')}","${o.telefono}","${o.lugarEntrega.replace(/"/g, '""')}",${o.total},${o.pagado},${o.saldo},"${o.estado}","${o.vendedorNombre || ''}","${dateStr}"\n`;
+        csv += `"${o.orderNumber}","${(o.cliente || '').replace(/"/g, '""')}","${o.telefono || ''}","${(o.lugarEntrega || '').replace(/"/g, '""')}",${o.total || 0},${o.pagado || 0},${o.saldo || 0},"${o.estado || ''}","${o.vendedorNombre || ''}","${dateStr}"\n`;
       });
       downloadFile(csv, `reporte_ventas_${range}.csv`);
     } else if (activeReportView === 'clientes') {

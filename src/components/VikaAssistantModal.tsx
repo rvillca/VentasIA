@@ -247,7 +247,7 @@ export const VikaAssistantModal: React.FC<VikaAssistantModalProps> = ({
 
   // Local fallback parser
   const generateLocalVikaResponse = (text: string, currentOrders: Order[]) => {
-    const lower = text.toLowerCase();
+    const lower = (text || '').toLowerCase();
 
     // Check if asking for cash stats
     if (lower.includes('caja') || lower.includes('cobrar') || lower.includes('dinero') || lower.includes('cuanto')) {

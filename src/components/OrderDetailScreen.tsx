@@ -122,7 +122,7 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
             }`}
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Volver a Ventas</span>
+            <span>Volver a Registros</span>
           </button>
 
           <div className="flex flex-wrap items-center gap-2">

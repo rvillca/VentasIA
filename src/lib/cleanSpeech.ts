@@ -16,7 +16,7 @@ export function cleanVoiceTranscript(rawText: string): string {
   for (let i = 0; i < words.length; i++) {
     const current = words[i];
     const prev = dedupedWords[dedupedWords.length - 1];
-    if (prev && prev.toLowerCase() === current.toLowerCase()) {
+    if (prev && current && String(prev).toLowerCase() === String(current).toLowerCase()) {
       continue;
     }
     dedupedWords.push(current);
@@ -29,7 +29,7 @@ export function cleanVoiceTranscript(rawText: string): string {
     const half = words.length / 2;
     const firstHalf = words.slice(0, half).join(' ');
     const secondHalf = words.slice(half).join(' ');
-    if (firstHalf.toLowerCase() === secondHalf.toLowerCase()) {
+    if (firstHalf && secondHalf && String(firstHalf).toLowerCase() === String(secondHalf).toLowerCase()) {
       return firstHalf;
     }
   }

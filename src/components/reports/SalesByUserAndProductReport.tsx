@@ -225,9 +225,9 @@ export const SalesByUserAndProductReport: React.FC<SalesByUserAndProductReportPr
 
   // Filtered products list for search
   const displayedProducts = useMemo(() => {
-    if (!productSearch.trim()) return productsStats;
-    const term = productSearch.toLowerCase();
-    return productsStats.filter((p) => p.nombre.toLowerCase().includes(term));
+    if (!productSearch || !productSearch.trim()) return productsStats;
+    const term = (productSearch || '').toLowerCase().trim();
+    return productsStats.filter((p) => (p?.nombre || '').toLowerCase().includes(term));
   }, [productsStats, productSearch]);
 
   const totalUnitsSold = useMemo(() => {
@@ -482,7 +482,7 @@ export const SalesByUserAndProductReport: React.FC<SalesByUserAndProductReportPr
                     1. Rendimiento y Ventas por Vendedora / Usuario
                   </h3>
                   <p className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
-                    Ranking ordenado por volumen total vendido en {periodLabel.toLowerCase()}.
+                    Ranking ordenado por volumen total vendido en {(periodLabel || '').toLowerCase()}.
                   </p>
                 </div>
               </div>
@@ -626,7 +626,7 @@ export const SalesByUserAndProductReport: React.FC<SalesByUserAndProductReportPr
                   2. Ranking de Artículos & Productos Más Vendidos
                 </h3>
                 <p className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
-                  Productos ordenados por rotación de unidades y recaudación en {periodLabel.toLowerCase()}.
+                  Productos ordenados por rotación de unidades y recaudación en {(periodLabel || '').toLowerCase()}.
                 </p>
               </div>
             </div>

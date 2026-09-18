@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   Shield,
   Fingerprint,
+  Layers,
 } from 'lucide-react';
 import { ActiveTab, Order } from '../types';
 import { formatCurrency } from '../lib/storage';
@@ -194,15 +195,15 @@ export const Header: React.FC<HeaderProps> = ({
               isDark ? 'border-[#223368]' : 'border-[#E8DFC8]'
             }`}
           >
-            {/* VENDEDOR ROLE ONLY: Only "Ventas" and "Pendientes de Envío" */}
+            {/* VENDEDOR ROLE ONLY: "Ventas" (Ventas y Registros unificados) and "Envíos" */}
             {isVendedor && (
               <>
-                {/* Tab 1: Ventas */}
+                {/* Tab Unificado: Ventas (Ventas y Registros juntos) */}
                 <button
                   id="tab-orders-list"
                   onClick={() => setActiveTab('list')}
-                  className={`flex-1 min-w-[100px] flex items-center justify-center gap-1.5 py-2 px-3 rounded-2xl font-bold text-xs sm:text-sm transition-all duration-200 ${
-                    activeTab === 'list' || activeTab === 'new' || activeTab === 'detail' || activeTab === 'edit'
+                  className={`flex-1 min-w-[110px] flex items-center justify-center gap-1.5 py-2 px-3 rounded-2xl font-bold text-xs sm:text-sm transition-all duration-200 cursor-pointer ${
+                    activeTab === 'list' || activeTab === 'new' || activeTab === 'detail' || activeTab === 'edit' || activeTab === 'registros'
                       ? isDark
                         ? 'bg-[#FF6FA5] text-[#0F1B3C] font-black shadow-md shadow-[#FF6FA5]/20'
                         : 'bg-[#1A2B5C] text-white shadow-md shadow-[#1A2B5C]/20'
@@ -210,8 +211,9 @@ export const Header: React.FC<HeaderProps> = ({
                       ? 'bg-[#16234F] text-[#9AA6C9] hover:text-white border border-[#223368]'
                       : 'bg-[#F5EFE0] text-[#1A2B5C] hover:bg-[#EBE2CF] border border-[#E8DFC8]'
                   }`}
+                  title="Ventas y Registros de Pedidos"
                 >
-                  <ListOrdered className="w-4 h-4 shrink-0" />
+                  <ShoppingBag className="w-4 h-4 shrink-0" />
                   <span className="truncate">Ventas</span>
                 </button>
 
@@ -219,7 +221,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   id="tab-shipping-list"
                   onClick={() => setActiveTab('shipping')}
-                  className={`flex-1 min-w-[120px] flex items-center justify-center gap-1.5 py-2 px-3 rounded-2xl font-bold text-xs sm:text-sm transition-all duration-200 ${
+                  className={`flex-1 min-w-[100px] flex items-center justify-center gap-1.5 py-2 px-3 rounded-2xl font-bold text-xs sm:text-sm transition-all duration-200 cursor-pointer ${
                     activeTab === 'shipping'
                       ? isDark
                         ? 'bg-[#B39DDB] text-[#2E1065] font-black shadow-md shadow-[#B39DDB]/20'
@@ -230,7 +232,7 @@ export const Header: React.FC<HeaderProps> = ({
                   }`}
                 >
                   <Truck className="w-4 h-4 shrink-0" />
-                  <span className="truncate">Pendientes de Envío</span>
+                  <span className="truncate">Envíos</span>
                   {pendingOrdersCount > 0 && (
                     <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
                       isDark ? 'bg-[#FF6FA5] text-[#0F1B3C]' : 'bg-[#FF6FA5] text-[#1A2B5C]'
@@ -245,12 +247,12 @@ export const Header: React.FC<HeaderProps> = ({
             {/* SUPERVISOR / JEFE: Full Access to all Modules */}
             {(isJefe || isSupervisor) && (
               <>
-                {/* Tab 1: Ventas */}
+                {/* Tab Unificado: Ventas (Ventas y Registros juntos) */}
                 <button
                   id="tab-orders-list"
                   onClick={() => setActiveTab('list')}
-                  className={`flex-1 min-w-[75px] sm:min-w-0 flex items-center justify-center gap-1 sm:gap-1.5 py-2 px-1.5 sm:px-3 rounded-2xl font-bold text-xs sm:text-sm transition-all duration-200 ${
-                    activeTab === 'list' || activeTab === 'new' || activeTab === 'detail' || activeTab === 'edit'
+                  className={`flex-1 min-w-[75px] sm:min-w-0 flex items-center justify-center gap-1 sm:gap-1.5 py-2 px-1.5 sm:px-3 rounded-2xl font-bold text-xs sm:text-sm transition-all duration-200 cursor-pointer ${
+                    activeTab === 'list' || activeTab === 'new' || activeTab === 'detail' || activeTab === 'edit' || activeTab === 'registros'
                       ? isDark
                         ? 'bg-[#FF6FA5] text-[#0F1B3C] font-black shadow-md shadow-[#FF6FA5]/20'
                         : 'bg-[#1A2B5C] text-white shadow-md shadow-[#1A2B5C]/20'
@@ -258,8 +260,9 @@ export const Header: React.FC<HeaderProps> = ({
                       ? 'bg-[#16234F] text-[#9AA6C9] hover:text-white border border-[#223368]'
                       : 'bg-[#F5EFE0] text-[#1A2B5C] hover:bg-[#EBE2CF] border border-[#E8DFC8]'
                   }`}
+                  title="Ventas y Registros de Pedidos"
                 >
-                  <ListOrdered className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                  <ShoppingBag className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                   <span className="truncate">Ventas</span>
                 </button>
 
@@ -267,7 +270,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   id="tab-shipping-list"
                   onClick={() => setActiveTab('shipping')}
-                  className={`flex-1 min-w-[85px] sm:min-w-0 flex items-center justify-center gap-1 sm:gap-1.5 py-2 px-1.5 sm:px-3 rounded-2xl font-bold text-xs sm:text-sm transition-all duration-200 ${
+                  className={`flex-1 min-w-[70px] sm:min-w-0 flex items-center justify-center gap-1 sm:gap-1.5 py-2 px-1.5 sm:px-3 rounded-2xl font-bold text-xs sm:text-sm transition-all duration-200 cursor-pointer ${
                     activeTab === 'shipping'
                       ? isDark
                         ? 'bg-[#B39DDB] text-[#2E1065] font-black shadow-md shadow-[#B39DDB]/20'

@@ -111,7 +111,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const saveStoredPassword = (email: string, pass: string) => {
     try {
       const current = getStoredPasswords();
-      current[email.toLowerCase().trim()] = pass;
+      current[(email || '').toLowerCase().trim()] = pass;
       localStorage.setItem(STORAGE_CREDENTIALS_KEY, JSON.stringify(current));
     } catch (err) {
       console.warn('Could not save password to storage:', err);
@@ -170,6 +170,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       'touchstart',
       'scroll',
       'click',
+      'input',
+      'change',
+      'focusin',
     ];
 
     let throttleTimer: any = null;
@@ -189,13 +192,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const checkInterval = setInterval(() => {
       const elapsed = Date.now() - lastActivityRef.current;
       const timeLeft = timeoutMs - elapsed;
+      const isDrafting = !!localStorage.getItem('ventasia_new_order_draft');
 
       if (timeLeft <= 0) {
+        if (isDrafting) {
+          // Keep session active while user is drafting a long order
+          lastActivityRef.current = Date.now();
+          return;
+        }
         clearInterval(checkInterval);
         sessionStorage.setItem('ventasia_logged_out_reason', 'inactivity');
         sessionStorage.setItem('ventasia_inactivity_minutes', String(timeoutMinutes));
         logout('inactivity');
-      } else if (timeLeft <= warningMs) {
+      } else if (timeLeft <= warningMs && !isDrafting) {
         setShowInactivityWarning(true);
         setRemainingInactivitySeconds(Math.ceil(timeLeft / 1000));
       } else {
@@ -207,10 +216,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         const elapsed = Date.now() - lastActivityRef.current;
-        if (elapsed >= timeoutMs) {
+        const isDrafting = !!localStorage.getItem('ventasia_new_order_draft');
+        if (elapsed >= timeoutMs && !isDrafting) {
           sessionStorage.setItem('ventasia_logged_out_reason', 'inactivity');
           sessionStorage.setItem('ventasia_inactivity_minutes', String(timeoutMinutes));
           logout('inactivity');
+        } else if (isDrafting) {
+          lastActivityRef.current = Date.now();
         }
       }
     };
@@ -235,9 +247,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const savedSession = localStorage.getItem(STORAGE_AUTH_KEY);
         if (savedSession) {
           const profile: AppUser = JSON.parse(savedSession);
-          const isBoss = profile.email.toLowerCase() === JEFE_EMAIL.toLowerCase();
+          const emailLower = (profile?.email || '').toLowerCase().trim();
+          const isBoss = emailLower === JEFE_EMAIL.toLowerCase() || profile?.uid === 'jefe_rvillca';
           const cleanProfile: AppUser = {
             ...profile,
+            email: profile?.email || '',
+            displayName: profile?.displayName || profile?.email || 'Usuario',
             role: isBoss ? 'jefe' : profile.role || 'vendedor',
           };
           setUserProfile(cleanProfile);
@@ -266,7 +281,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 role: isBoss ? 'jefe' : liveData.role || 'vendedor',
               });
             } else {
-              await setDoc(docRef, cleanProfile, { merge: true });
+              if (isBoss) {
+                await setDoc(docRef, cleanProfile, { merge: true });
+              } else {
+                // Account was deleted by admin! Invalidate session immediately
+                console.warn('Sesión cerrada: la cuenta de usuario fue eliminada de la base de datos.');
+                localStorage.removeItem(STORAGE_AUTH_KEY);
+                setUserProfile(null);
+                setCurrentUser(null);
+                setLoading(false);
+                return;
+              }
             }
           } catch (fireErr) {
             console.warn('Firestore sync note:', fireErr);
@@ -289,7 +314,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setupSecret?: string,
     skipWebAuthnCheck?: boolean
   ): Promise<LoginResult | void> => {
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanEmail = (email || '').trim().toLowerCase();
     const isBoss = cleanEmail === JEFE_EMAIL.toLowerCase();
 
     const storedPasswords = getStoredPasswords();
@@ -420,12 +445,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     // Check other registered team members
-    if (knownPass && knownPass !== pass) {
+    if (!matchedUser) {
+      throw new Error(
+        'Esta cuenta no existe en el sistema o fue eliminada por la administración. Solicita al Administrador que registre tu acceso.'
+      );
+    }
+
+    const expectedPass = matchedUser.password || knownPass;
+    if (expectedPass && expectedPass !== pass) {
       throw new Error('Contraseña incorrecta.');
     }
 
     // Block deactivated accounts
-    if (matchedUser && matchedUser.disabled) {
+    if (matchedUser.disabled) {
       throw new Error('Esta cuenta ha sido desactivada por el administrador. Comunícate con gerencia.');
     }
 
@@ -481,13 +513,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    const effectiveProfile: AppUser = matchedUser || {
-      uid: 'user_' + Math.random().toString(36).substring(2, 9),
-      email: cleanEmail,
-      displayName: cleanEmail.split('@')[0] || 'Vendedor',
-      role: 'vendedor',
+    const effectiveProfile: AppUser = {
+      ...matchedUser,
       password: pass,
-      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
     localStorage.setItem(STORAGE_AUTH_KEY, JSON.stringify(effectiveProfile));
@@ -500,7 +529,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     try {
-      await setDoc(doc(db, 'users', effectiveProfile.uid), { ...effectiveProfile, password: pass }, { merge: true });
+      await setDoc(doc(db, 'users', effectiveProfile.uid), { password: pass, updatedAt: new Date().toISOString() }, { merge: true });
     } catch {}
   };
 
@@ -532,7 +561,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const register = async (email: string, pass: string, name?: string) => {
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanEmail = (email || '').trim().toLowerCase();
     const isBoss = cleanEmail === JEFE_EMAIL.toLowerCase();
     const displayName = name?.trim() || (isBoss ? 'Rodrigo Villca (Jefe)' : cleanEmail.split('@')[0] || 'Vendedor');
     const role: UserRole = isBoss ? 'jefe' : 'vendedor';
@@ -568,7 +597,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     targetName: string,
     targetRole: UserRole
   ) => {
-    const cleanEmail = targetEmail.trim().toLowerCase();
+    const cleanEmail = (targetEmail || '').trim().toLowerCase();
     const uid = 'usr_' + Date.now().toString(36);
 
     const newMember: AppUser = {
@@ -592,7 +621,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Change own password
   const changeMyPassword = async (oldPass: string, newPass: string) => {
     if (!currentUser) throw new Error('No hay una sesión activa.');
-    const email = currentUser.email.toLowerCase().trim();
+    const email = (currentUser?.email || '').toLowerCase().trim();
     const storedPasswords = getStoredPasswords();
     let currentRegisteredPass = storedPasswords[email] || (email === JEFE_EMAIL.toLowerCase() ? '220987' : '');
 
@@ -640,7 +669,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('La contraseña debe tener al menos 4 caracteres.');
     }
 
-    const cleanEmail = targetEmail.toLowerCase().trim();
+    const cleanEmail = (targetEmail || '').toLowerCase().trim();
     saveStoredPassword(cleanEmail, newPass);
 
     try {
@@ -668,8 +697,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const isTargetBoss =
       targetUid === 'jefe_rvillca' ||
-      updates.email?.toLowerCase() === JEFE_EMAIL.toLowerCase() ||
-      (userProfile?.uid === targetUid && userProfile.email.toLowerCase() === JEFE_EMAIL.toLowerCase());
+      (updates.email || '').toLowerCase() === JEFE_EMAIL.toLowerCase() ||
+      (userProfile?.uid === targetUid && (userProfile?.email || '').toLowerCase() === JEFE_EMAIL.toLowerCase());
 
     if (isTargetBoss) {
       if (firestoreUpdates.role && firestoreUpdates.role !== 'jefe') {
@@ -725,7 +754,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('Solo el Jefe / Administrador tiene permiso para eliminar cuentas.');
     }
 
-    const cleanTargetEmail = targetEmail.toLowerCase().trim();
+    const cleanTargetEmail = (targetEmail || '').toLowerCase().trim();
     if (cleanTargetEmail === JEFE_EMAIL.toLowerCase() || targetUid === 'jefe_rvillca') {
       throw new Error('No es posible eliminar la cuenta principal del Jefe.');
     }
@@ -744,6 +773,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(STORAGE_CREDENTIALS_KEY, JSON.stringify(stored));
     } catch (e) {
       console.warn('Could not clean stored passwords:', e);
+    }
+
+    // Clean up biometric device if linked to deleted account
+    try {
+      const savedBio = getSavedBiometricDevice();
+      if (savedBio && (savedBio.uid === targetUid || (savedBio.email || '').toLowerCase() === cleanTargetEmail)) {
+        removeSavedBiometricDevice();
+      }
+    } catch (e) {
+      console.warn('Could not clean biometric device:', e);
     }
   };
 
@@ -782,7 +821,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Disable Two-Factor Authentication
   const disableTwoFactor = async (passwordOrCode: string) => {
     if (!currentUser) throw new Error('No hay sesión activa.');
-    const email = currentUser.email.toLowerCase().trim();
+    const email = (currentUser?.email || '').toLowerCase().trim();
     const storedPasswords = getStoredPasswords();
     let currentRegisteredPass = storedPasswords[email] || (email === JEFE_EMAIL.toLowerCase() ? '220987' : '');
     if (userProfile?.password) {
@@ -957,10 +996,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.warn('Error fetching user on biometric login:', e);
     }
 
-    if (!effectiveProfile) {
+    const bioEmail = (savedDevice?.email || '').toLowerCase().trim();
+    if (!effectiveProfile && bioEmail) {
       // Fallback search by email
       try {
-        const q = query(collection(db, 'users'), where('email', '==', savedDevice.email.toLowerCase().trim()));
+        const q = query(collection(db, 'users'), where('email', '==', bioEmail));
         const snap = await getDocs(q);
         if (!snap.empty) {
           effectiveProfile = snap.docs[0].data() as AppUser;
@@ -969,14 +1009,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     if (!effectiveProfile) {
-      // Build profile from saved device data
-      effectiveProfile = {
-        uid: savedDevice.uid,
-        email: savedDevice.email,
-        displayName: savedDevice.displayName,
-        role: savedDevice.email.toLowerCase() === JEFE_EMAIL.toLowerCase() ? 'jefe' : 'vendedor',
-        createdAt: new Date().toISOString(),
-      };
+      removeSavedBiometricDevice();
+      throw new Error('Esta cuenta fue eliminada del sistema. No es posible iniciar sesión.');
     }
 
     if (effectiveProfile.disabled) {
@@ -1086,7 +1120,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const effectiveRole: UserRole =
-    currentUser?.email?.toLowerCase() === JEFE_EMAIL.toLowerCase()
+    (currentUser?.email || '').toLowerCase() === JEFE_EMAIL.toLowerCase()
       ? 'jefe'
       : userProfile?.role || 'vendedor';
 

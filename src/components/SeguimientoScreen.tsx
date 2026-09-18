@@ -125,25 +125,25 @@ export const SeguimientoScreen: React.FC<SeguimientoScreenProps> = ({
 
   // Search filtering
   const filteredVentas = useMemo(() => {
-    if (!searchTerm.trim()) return ventasPendientes;
-    const term = searchTerm.toLowerCase();
+    if (!searchTerm || !searchTerm.trim()) return ventasPendientes;
+    const term = (searchTerm || '').toLowerCase().trim();
     return ventasPendientes.filter(
       (v) =>
-        v.cliente.toLowerCase().includes(term) ||
-        v.telefono.includes(term) ||
-        String(v.orderNumber).includes(term) ||
-        v.destino.toLowerCase().includes(term)
+        (v.cliente || '').toLowerCase().includes(term) ||
+        (v.telefono || '').includes(term) ||
+        String(v.orderNumber ?? '').includes(term) ||
+        (v.destino || '').toLowerCase().includes(term)
     );
   }, [ventasPendientes, searchTerm]);
 
   const filteredCompras = useMemo(() => {
-    if (!searchTerm.trim()) return comprasPendientes;
-    const term = searchTerm.toLowerCase();
+    if (!searchTerm || !searchTerm.trim()) return comprasPendientes;
+    const term = (searchTerm || '').toLowerCase().trim();
     return comprasPendientes.filter(
       (c) =>
-        c.proveedor.toLowerCase().includes(term) ||
+        (c.proveedor || '').toLowerCase().includes(term) ||
         (c.telefonoProveedor && c.telefonoProveedor.includes(term)) ||
-        String(c.purchaseNumber).includes(term) ||
+        String(c.purchaseNumber ?? '').includes(term) ||
         (c.numeroFacturaRecibo && c.numeroFacturaRecibo.toLowerCase().includes(term))
     );
   }, [comprasPendientes, searchTerm]);
@@ -151,7 +151,7 @@ export const SeguimientoScreen: React.FC<SeguimientoScreenProps> = ({
   // WhatsApp reminder generator for client
   const generateWhatsAppReminderUrl = (order: Order): string => {
     const rawDigits = formatBoliviaWhatsAppDigits(order.telefono);
-    const firstName = order.cliente.split(' ')[0] || order.cliente;
+    const firstName = (order.cliente || '').split(' ')[0] || order.cliente || 'Cliente';
     const msg =
       `¡Hola ${firstName}! Te saludamos de Importadora Chiquiminisos ✨\n\n` +
       `Te recordamos cordialmente que tienes un saldo pendiente de *${formatCurrency(order.saldo)}* correspondiente a tu pedido *#${order.orderNumber}* (Total: ${formatCurrency(order.total)}).\n\n` +

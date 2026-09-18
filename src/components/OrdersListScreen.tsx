@@ -20,6 +20,11 @@ import {
   Truck,
   Calendar,
   Archive,
+  Pencil,
+  Layers,
+  List,
+  LayoutGrid,
+  Eye,
 } from 'lucide-react';
 import { Order, OrderStatus } from '../types';
 import {
@@ -30,6 +35,7 @@ import {
 } from '../lib/storage';
 import { ThermalPrintModal } from './ThermalPrintModal';
 import { OrderPreparationCardModal } from './OrderPreparationCardModal';
+import { OrdersReportTable } from './OrdersReportTable';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useFinancialPrivacy } from '../contexts/FinancialPrivacyContext';
@@ -39,18 +45,23 @@ import { computeMonthlySalesStats } from '../lib/roleMetrics';
 interface OrdersListScreenProps {
   orders: Order[];
   onSelectOrder: (order: Order) => void;
+  onEditOrder?: (order: Order) => void;
   onNewOrder: () => void;
   onToggleStatus: (orderId: string, e: React.MouseEvent) => void;
+  onSwitchToRegistros?: () => void;
+  lastViewedOrderId?: string | null;
 }
 
 type FilterType = 'all' | 'Abierto' | 'Entregado' | 'with_balance' | 'Anulado';
-type SalesDateFilter = 'today' | 'this_week' | 'this_month' | 'all' | 'archivados';
+type SalesDateFilter = 'today' | 'yesterday' | 'specific_date' | 'this_week' | 'this_month' | 'all' | 'archivados';
 
 export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
   orders = [],
   onSelectOrder,
+  onEditOrder,
   onNewOrder,
   onToggleStatus,
+  lastViewedOrderId,
 }) => {
   const { userProfile, role, isJefe, isSupervisor, isVendedor } = useAuth();
   const { isDark } = useTheme();
@@ -61,6 +72,22 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
   const [filter, setFilter] = useState<FilterType>('all');
   // Default: Mostrar solo los pedidos registrados EL DÍA DE HOY
   const [dateFilter, setDateFilter] = useState<SalesDateFilter>('today');
+  const [selectedCustomDate, setSelectedCustomDate] = useState<string>(() => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
+  const [viewMode, setViewMode] = useState<'report' | 'cards'>(() => {
+    return (localStorage.getItem('orders_view_mode') as 'report' | 'cards') || 'report';
+  });
+
+  const handleSetViewMode = (mode: 'report' | 'cards') => {
+    setViewMode(mode);
+    localStorage.setItem('orders_view_mode', mode);
+  };
+
   const [printOrder, setPrintOrder] = useState<Order | null>(null);
   const [prepOrder, setPrepOrder] = useState<Order | null>(null);
   const [completingId, setCompletingId] = useState<string | null>(null);
@@ -86,6 +113,27 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
         d.getDate() === now.getDate() &&
         d.getMonth() === now.getMonth() &&
         d.getFullYear() === now.getFullYear()
+      );
+    }).length;
+  }, [orders]);
+
+  // Total orders yesterday count
+  const yesterdayOrdersCount = useMemo(() => {
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    return orders.filter((o) => {
+      if (o.archivado) return false;
+      const isOpen = o.estado === 'Abierto';
+      const hasPendingBalance = o.saldo > 0 && o.estado !== 'Anulado';
+      if (isOpen || hasPendingBalance) return true;
+
+      const d = new Date(o.createdAt);
+      return (
+        !isNaN(d.getTime()) &&
+        d.getDate() === yesterday.getDate() &&
+        d.getMonth() === yesterday.getMonth() &&
+        d.getFullYear() === yesterday.getFullYear()
       );
     }).length;
   }, [orders]);
@@ -143,9 +191,14 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
       return false;
     }
 
+    // When user types a search term, search across all active orders so they always find any sale
+    if (searchTerm.trim().length > 0 && dateFilter !== 'archivados') {
+      return !order.archivado;
+    }
+
     if (dateFilter === 'all') return true;
 
-    // Regla de negocio solicitada: En los filtros de 'today', 'this_week' y 'this_month',
+    // Regla de negocio solicitada: En los filtros de 'today', 'yesterday', 'specific_date', 'this_week' y 'this_month',
     // SIEMPRE deben estar los datos de las ventas que aún están con saldo pendiente (> 0) o abiertas ('Abierto')
     const hasPendingBalance = order.saldo > 0 && order.estado !== 'Anulado';
     const isOpen = order.estado === 'Abierto';
@@ -162,6 +215,25 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
         d.getDate() === now.getDate() &&
         d.getMonth() === now.getMonth() &&
         d.getFullYear() === now.getFullYear()
+      );
+    }
+
+    if (dateFilter === 'yesterday') {
+      const yesterday = new Date(now);
+      yesterday.setDate(now.getDate() - 1);
+      return (
+        d.getDate() === yesterday.getDate() &&
+        d.getMonth() === yesterday.getMonth() &&
+        d.getFullYear() === yesterday.getFullYear()
+      );
+    }
+
+    if (dateFilter === 'specific_date' && selectedCustomDate) {
+      const [y, m, dayNum] = selectedCustomDate.split('-').map((v) => parseInt(v, 10));
+      return (
+        d.getDate() === dayNum &&
+        d.getMonth() === m - 1 &&
+        d.getFullYear() === y
       );
     }
 
@@ -214,16 +286,16 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
   const filteredOrders = useMemo(() => {
     return dateScopedOrders.filter((order) => {
       // Text search match
-      const term = searchTerm.toLowerCase().trim();
+      const term = (searchTerm || '').toLowerCase().trim();
       const matchSearch =
         !term ||
-        order.cliente.toLowerCase().includes(term) ||
-        order.telefono.includes(term) ||
-        order.lugarEntrega.toLowerCase().includes(term) ||
-        order.observaciones.toLowerCase().includes(term) ||
+        (order.cliente || '').toLowerCase().includes(term) ||
+        (order.telefono || '').includes(term) ||
+        (order.lugarEntrega || '').toLowerCase().includes(term) ||
+        (order.observaciones || '').toLowerCase().includes(term) ||
         (order.vendedorNombre && order.vendedorNombre.toLowerCase().includes(term)) ||
-        String(order.orderNumber).includes(term) ||
-        order.productos.some((p) => p.nombre.toLowerCase().includes(term));
+        String(order.orderNumber ?? '').includes(term) ||
+        (order.productos || []).some((p) => (p?.nombre || '').toLowerCase().includes(term));
 
       // Status chip match
       let matchFilter = true;
@@ -247,7 +319,7 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
                 isDark ? 'text-white' : 'text-[#1A2B5C]'
               }`}
             >
-              <span>Ventas y Pedidos</span>
+              <span>Ventas y Registros</span>
               <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
                 isDark
                   ? 'text-[#FF6FA5] bg-[#FF6FA5]/10 border-[#FF6FA5]/30'
@@ -257,7 +329,7 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
               </span>
             </h1>
             <p className={`text-xs sm:text-sm ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
-              Registros en vivo, liquidación rápida de saldos y preparación para empaque
+              Registra nuevas ventas, revisa pedidos, filtra por fecha y despacha
             </p>
           </div>
 
@@ -271,7 +343,7 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
             }`}
           >
             <Plus className="w-4 h-4 stroke-[3]" />
-            <span>+ Nueva Venta</span>
+            <span>Nueva Venta</span>
           </button>
         </div>
 
@@ -528,6 +600,77 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
                   {todayOrdersCount}
                 </span>
               </button>
+
+              {/* Botón: Ayer */}
+              <button
+                type="button"
+                id="filter-date-yesterday"
+                onClick={() => setDateFilter('yesterday')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                  dateFilter === 'yesterday'
+                    ? isDark
+                      ? 'bg-[#FF6FA5] text-[#0F1B3C] font-black shadow-sm'
+                      : 'bg-[#1A2B5C] text-white font-black shadow-sm'
+                    : isDark
+                    ? 'bg-[#0F1B3C] text-[#9AA6C9] hover:text-white border border-[#223368]'
+                    : 'bg-[#FBF7EF] text-[#78716C] hover:text-[#1A2B5C] border border-[#E8DFC8]'
+                }`}
+              >
+                <span>📅 Ayer</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                    dateFilter === 'yesterday'
+                      ? isDark
+                        ? 'bg-[#0F1B3C]/30 text-[#0F1B3C]'
+                        : 'bg-white/25 text-white'
+                      : isDark
+                      ? 'bg-[#16234F] text-[#FF6FA5]'
+                      : 'bg-[#E8DFC8] text-[#1A2B5C]'
+                  }`}
+                >
+                  {yesterdayOrdersCount}
+                </span>
+              </button>
+
+              {/* Botón & Selector: Fecha Específica */}
+              <div
+                className={`px-2 py-1 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 border ${
+                  dateFilter === 'specific_date'
+                    ? isDark
+                      ? 'bg-[#FF6FA5] text-[#0F1B3C] border-[#FF6FA5]'
+                      : 'bg-[#1A2B5C] text-white border-[#1A2B5C]'
+                    : isDark
+                    ? 'bg-[#0F1B3C] text-[#9AA6C9] border-[#223368]'
+                    : 'bg-[#FBF7EF] text-[#78716C] border-[#E8DFC8]'
+                }`}
+              >
+                <button
+                  type="button"
+                  id="filter-date-specific"
+                  onClick={() => setDateFilter('specific_date')}
+                  className="flex items-center gap-1 cursor-pointer focus:outline-none"
+                  title="Filtrar por una fecha específica"
+                >
+                  <span>📆 Fecha:</span>
+                </button>
+                <input
+                  type="date"
+                  value={selectedCustomDate}
+                  onChange={(e) => {
+                    setSelectedCustomDate(e.target.value);
+                    setDateFilter('specific_date');
+                  }}
+                  className={`text-xs font-bold rounded px-1 py-0.5 border cursor-pointer ${
+                    dateFilter === 'specific_date'
+                      ? isDark
+                        ? 'bg-white text-slate-900 border-white/50'
+                        : 'bg-white text-[#1A2B5C] border-[#1A2B5C]'
+                      : isDark
+                      ? 'bg-[#16234F] text-white border-[#223368]'
+                      : 'bg-white text-[#1A2B5C] border-[#E8DFC8]'
+                  }`}
+                />
+              </div>
 
               {/* Botón: Esta Semana */}
               <button
@@ -804,6 +947,65 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
           </div>
         </div>
 
+        {/* View Mode Switcher and Records Count */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 pb-0.5">
+          <div className="flex items-center gap-2">
+            <span className={`text-xs font-bold ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+              Mostrando <strong className={isDark ? 'text-white' : 'text-[#1A2B5C]'}>{filteredOrders.length}</strong> {filteredOrders.length === 1 ? 'registro' : 'registros'}
+            </span>
+            {searchTerm && (
+              <span className={`text-[11px] px-2 py-0.5 rounded-lg border font-medium ${
+                isDark ? 'bg-[#0F1B3C] text-[#FF6FA5] border-[#223368]' : 'bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]'
+              }`}>
+                Filtro: "{searchTerm}"
+              </span>
+            )}
+          </div>
+
+          {/* Toggle buttons: Lista Reporte vs Tarjetas */}
+          <div className={`flex items-center p-1 rounded-2xl border ${
+            isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
+          }`}>
+            <button
+              type="button"
+              id="toggle-view-report"
+              onClick={() => handleSetViewMode('report')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                viewMode === 'report'
+                  ? isDark
+                    ? 'bg-[#FF6FA5] text-[#0F1B3C] font-black shadow-sm'
+                    : 'bg-[#1A2B5C] text-white font-black shadow-sm'
+                  : isDark
+                  ? 'text-[#9AA6C9] hover:text-white'
+                  : 'text-[#78716C] hover:text-[#1A2B5C]'
+              }`}
+              title="Vista de Reporte (Tabla compacta para ver muchas más filas en pantalla)"
+            >
+              <List className="w-3.5 h-3.5" />
+              <span>Lista Reporte</span>
+            </button>
+
+            <button
+              type="button"
+              id="toggle-view-cards"
+              onClick={() => handleSetViewMode('cards')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                viewMode === 'cards'
+                  ? isDark
+                    ? 'bg-[#FF6FA5] text-[#0F1B3C] font-black shadow-sm'
+                    : 'bg-[#1A2B5C] text-white font-black shadow-sm'
+                  : isDark
+                  ? 'text-[#9AA6C9] hover:text-white'
+                  : 'text-[#78716C] hover:text-[#1A2B5C]'
+              }`}
+              title="Vista de Tarjetas individuales"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Tarjetas</span>
+            </button>
+          </div>
+        </div>
+
         {/* Orders Cards List */}
         <div className="space-y-3">
           {filteredOrders.length === 0 ? (
@@ -867,10 +1069,22 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
                   }`}
                 >
                   <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                  <span>+ Nueva Venta</span>
+                  <span>Nueva Venta</span>
                 </button>
               </div>
             </div>
+          ) : viewMode === 'report' ? (
+            <OrdersReportTable
+              orders={filteredOrders}
+              onSelectOrder={onSelectOrder}
+              onEditOrder={onEditOrder}
+              onToggleStatus={onToggleStatus}
+              onPrintOrder={(order) => setPrintOrder(order)}
+              onPrepOrder={(order) => setPrepOrder(order)}
+              onQuickCompleteBalance={handleQuickCompleteBalance}
+              completingId={completingId}
+              lastViewedOrderId={lastViewedOrderId}
+            />
           ) : (
             filteredOrders.map((order) => {
               const isDelivered = order.estado === 'Entregado';
@@ -896,6 +1110,12 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
                   id={`order-card-${order.id}`}
                   onClick={() => onSelectOrder(order)}
                   className={`group relative border rounded-2xl p-4 sm:p-5 shadow-sm transition-all duration-200 cursor-pointer active:scale-[0.99] ${
+                    lastViewedOrderId === order.id
+                      ? isDark
+                        ? 'ring-2 ring-[#FF6FA5] bg-[#16234F]'
+                        : 'ring-2 ring-[#1A2B5C] bg-[#FCF9F3]'
+                      : ''
+                  } ${
                     isAnulado
                       ? isDark
                         ? 'bg-[#16234F]/40 border-rose-950/40 opacity-70'
@@ -1169,6 +1389,28 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
 
                     {/* Actions Toolbar */}
                     <div className="flex items-center gap-1.5">
+                      {/* Direct Edit Button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onEditOrder) {
+                            onEditOrder(order);
+                          } else {
+                            onSelectOrder(order);
+                          }
+                        }}
+                        className={`py-1.5 px-2.5 rounded-xl text-xs font-black flex items-center gap-1 transition shadow-sm active:scale-95 border cursor-pointer ${
+                          isDark
+                            ? 'bg-[#1E2D5A] hover:bg-[#283C75] text-[#FF6FA5] border-[#223368]'
+                            : 'bg-[#F5EFE0] hover:bg-[#EBE2CF] text-[#1A2B5C] border-[#E8DFC8]'
+                        }`}
+                        title="Editar venta directamente sin perder tu posición"
+                      >
+                        <Pencil className="w-3.5 h-3.5 text-[#FF6FA5]" />
+                        <span>Editar</span>
+                      </button>
+
                       {/* 1-Click Quick Complete Balance (Boss / Supervisor only) */}
                       {!isVendedorRole && hasPendingBalance && (
                         <button
@@ -1277,7 +1519,7 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
             <Plus className="w-4 h-4 stroke-[3]" />
           </div>
           <span className="font-['Outfit',sans-serif] tracking-tight font-black">
-            + Nueva Venta
+            Nueva Venta
           </span>
         </button>
       </div>

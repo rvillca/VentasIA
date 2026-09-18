@@ -136,5 +136,5 @@ export interface AiParsedOrderData {
   rawTranscription?: string;
 }
 
-export type ActiveTab = 'list' | 'new' | 'detail' | 'edit' | 'shipping' | 'compras' | 'reports' | 'users' | 'seguimiento';
+export type ActiveTab = 'list' | 'registros' | 'new' | 'detail' | 'edit' | 'shipping' | 'compras' | 'reports' | 'users' | 'seguimiento';
 

@@ -579,7 +579,7 @@ export const OrderEditScreen: React.FC<OrderEditScreenProps> = ({
               }`}
             >
               <Plus className="w-4 h-4 stroke-[3]" />
-              <span>+ Agregar Otro Artículo / Producto</span>
+              <span>Agregar Otro Artículo / Producto</span>
             </button>
           </div>
         </div>

@@ -167,13 +167,13 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
       const matchStatus = statusFilter === 'all' || p.estado === statusFilter;
 
       // Search filter
-      const search = searchTerm.toLowerCase().trim();
+      const search = (searchTerm || '').toLowerCase().trim();
       const matchSearch =
         !search ||
-        p.proveedor.toLowerCase().includes(search) ||
+        (p.proveedor || '').toLowerCase().includes(search) ||
         (p.numeroFacturaRecibo && p.numeroFacturaRecibo.toLowerCase().includes(search)) ||
         (p.compradorNombre && p.compradorNombre.toLowerCase().includes(search)) ||
-        p.productos.some((item) => item.nombre.toLowerCase().includes(search));
+        (p.productos || []).some((item) => (item?.nombre || '').toLowerCase().includes(search));
 
       return matchDate && matchStatus && matchSearch;
     });
@@ -439,7 +439,7 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
             className="py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm text-white bg-amber-500 hover:bg-amber-600 active:scale-95 shadow-md flex items-center justify-center gap-2 transition cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Registrar Compra</span>
+            <span>Registrar Compra</span>
           </button>
         </div>
       </div>
@@ -1042,7 +1042,7 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                     className="px-2.5 py-1 rounded-xl text-xs font-bold flex items-center gap-1 transition cursor-pointer bg-amber-500 text-white hover:bg-amber-600"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>+ Añadir Producto</span>
+                    <span>Añadir Producto</span>
                   </button>
                 </div>
 
@@ -1551,8 +1551,9 @@ const ComprasReportsTab: React.FC<{ purchases: Purchase[] }> = ({ purchases }) =
   const topMaterials = useMemo(() => {
     const map: Record<string, { cantidad: number; totalBs: number }> = {};
     filtered.forEach((p) => {
-      p.productos.forEach((prod) => {
-        const name = prod.nombre.trim();
+      (p.productos || []).forEach((prod) => {
+        const name = (prod?.nombre || '').trim();
+        if (!name) return;
         if (!map[name]) map[name] = { cantidad: 0, totalBs: 0 };
         map[name].cantidad += prod.cantidad || 1;
         map[name].totalBs += (prod.cantidad || 1) * (prod.costoUnitario || 0);

@@ -45,13 +45,51 @@ export default function App() {
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
-  const [activeTab, setActiveTab] = useState<ActiveTab>('list');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('new');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [listScrollPos, setListScrollPos] = useState<number>(0);
+  const [lastViewedOrderId, setLastViewedOrderId] = useState<string | null>(null);
+
+  const handleSelectOrderFromList = (order: Order) => {
+    setListScrollPos(window.scrollY);
+    setLastViewedOrderId(order.id);
+    setSelectedOrderId(order.id);
+    setActiveTab('detail');
+  };
+
+  const handleEditOrderFromList = (order: Order) => {
+    setListScrollPos(window.scrollY);
+    setLastViewedOrderId(order.id);
+    setSelectedOrderId(order.id);
+    setActiveTab('edit');
+  };
+
+  const handleBackToList = () => {
+    setActiveTab('list');
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        if (lastViewedOrderId) {
+          const el =
+            document.getElementById(`order-row-${lastViewedOrderId}`) ||
+            document.getElementById(`order-card-${lastViewedOrderId}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.classList.add('ring-2', 'ring-[#FF6FA5]');
+            setTimeout(() => {
+              el.classList.remove('ring-2', 'ring-[#FF6FA5]');
+            }, 2500);
+            return;
+          }
+        }
+        window.scrollTo({ top: listScrollPos, behavior: 'instant' });
+      }, 50);
+    });
+  };
 
   // If the user is specifically a Comprador, set their default landing tab to 'compras'
   useEffect(() => {
-    if (isComprador && activeTab === 'list') {
+    if (isComprador && (activeTab === 'list' || activeTab === 'new')) {
       setActiveTab('compras');
     }
   }, [isComprador]);
@@ -120,8 +158,8 @@ export default function App() {
     isSavingOrderRef.current = true;
     try {
       await saveOrderToFirestore(newOrder);
-      setSelectedOrderId(newOrder.id);
-      setActiveTab('detail');
+      setLastViewedOrderId(newOrder.id);
+      setActiveTab('list');
       showToast(`¡Venta #${newOrder.orderNumber} registrada y guardada con éxito!`);
     } catch (err: any) {
       console.error('Error saving order:', err);
@@ -250,20 +288,19 @@ export default function App() {
 
       {/* Main Screen Content */}
       <main className="flex-1 w-full">
-        {/* Tab 1: Lista de Ventas */}
-        {activeTab === 'list' && (
+        {/* Tab 1: Registros de Ventas (Se mantiene montado para conservar filtros, búsqueda, vista reporte y posición exacta) */}
+        <div style={{ display: (activeTab === 'list' || activeTab === 'registros' || activeTab === 'new') ? 'block' : 'none' }}>
           <OrdersListScreen
             orders={orders}
-            onSelectOrder={(order) => {
-              setSelectedOrderId(order.id);
-              setActiveTab('detail');
-            }}
+            onSelectOrder={handleSelectOrderFromList}
+            onEditOrder={handleEditOrderFromList}
             onNewOrder={() => {
               setActiveTab('new');
             }}
             onToggleStatus={handleToggleStatus}
+            lastViewedOrderId={lastViewedOrderId}
           />
-        )}
+        </div>
 
         {/* Tab 2: Pendientes de Envío & Despacho */}
         {activeTab === 'shipping' && (
@@ -297,7 +334,7 @@ export default function App() {
         {activeTab === 'detail' && selectedOrder && (
           <OrderDetailScreen
             order={selectedOrder}
-            onBack={() => setActiveTab('list')}
+            onBack={handleBackToList}
             onEdit={(order) => {
               setSelectedOrderId(order.id);
               setActiveTab('edit');
@@ -312,8 +349,11 @@ export default function App() {
         {activeTab === 'edit' && selectedOrder && (
           <OrderEditScreen
             order={selectedOrder}
-            onSave={handleUpdateOrder}
-            onCancel={() => setActiveTab('detail')}
+            onSave={(updatedOrder) => {
+              handleUpdateOrder(updatedOrder);
+              handleBackToList();
+            }}
+            onCancel={handleBackToList}
           />
         )}
 

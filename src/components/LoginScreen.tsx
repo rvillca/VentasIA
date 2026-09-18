@@ -295,7 +295,7 @@ export const LoginScreen: React.FC = () => {
     }
   };
 
-  const isJefeEmail = email.trim().toLowerCase() === 'rvillca@outlook.com';
+  const isJefeEmail = (email || '').trim().toLowerCase() === 'rvillca@outlook.com';
 
   return (
     <div

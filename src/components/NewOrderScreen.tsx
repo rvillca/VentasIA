@@ -9,14 +9,13 @@ import {
   Phone,
   User,
   Package,
-  ArrowLeft,
+  X,
   Bot,
   HelpCircle,
-  Layers,
-  Box,
   Pencil,
-  Check,
   Loader2,
+  AlertTriangle,
+  FileText,
 } from 'lucide-react';
 import { Order, OrderItem } from '../types';
 import { formatCurrency, getNextOrderNumber, formatBoliviaPhone } from '../lib/storage';
@@ -42,7 +41,7 @@ interface NewOrderScreenProps {
     cliente?: string;
     telefono?: string;
     lugarEntrega?: string;
-  } | null;
+  };
   onOpenVika?: () => void;
 }
 
@@ -61,6 +60,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
   const [telefono, setTelefono] = useState('');
   const [lugarEntrega, setLugarEntrega] = useState('');
   const [observaciones, setObservaciones] = useState('');
+  const [showObsInput, setShowObsInput] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [packagingModalItem, setPackagingModalItem] = useState<OrderItem | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(`item-init-0`);
@@ -76,29 +76,54 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
   const [pagado, setPagado] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const isSubmittingRef = useRef<boolean>(false);
+  const isDiscardingRef = useRef<boolean>(false);
+  const [confirmDiscard, setConfirmDiscard] = useState<boolean>(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  // Check if an item has all core fields completed (nombre, variante, cantidad > 0, precio > 0)
+  const DRAFT_STORAGE_KEY = 'ventasia_new_order_draft';
+  const [restoredDraftTime, setRestoredDraftTime] = useState<string | null>(null);
+  const [showDraftBanner, setShowDraftBanner] = useState(false);
+
+  // Close on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isSubmittingRef.current) {
+        onCancel();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onCancel]);
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
+
   const isItemComplete = (item: OrderItem): boolean => {
     return Boolean(
-      item.nombre && item.nombre.trim() !== '' &&
-      item.variante && item.variante.trim() !== '' &&
+      item.nombre &&
+      item.nombre.trim() !== '' &&
       (item.cantidad || 0) > 0 &&
       (item.precioUnitario || 0) > 0
     );
   };
 
-  // Helper to scroll and focus directly on an item card and input
   const focusAndCenterProduct = (id: string) => {
     setTimeout(() => {
       const cardEl = document.getElementById(`product-card-${id}`);
       if (cardEl) {
-        cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
       const inputEl = document.getElementById(`product-name-input-${id}`) as HTMLInputElement | null;
       if (inputEl) {
         inputEl.focus();
       }
-    }, 120);
+    }, 80);
   };
 
   // Auto-populate from initialDraft when VIKA prepares a list
@@ -113,19 +138,127 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
           precioUnitario: Math.max(0, item.precioUnitario || 0),
         }));
         setProductos(loadedItems);
-        // Find if any item is incomplete; if so, expand that one, otherwise keep all collapsed
         const firstIncomplete = loadedItems.find((it) => !isItemComplete(it));
         setEditingItemId(firstIncomplete ? firstIncomplete.id : null);
       }
       if (initialDraft.pagado !== undefined) setPagado(initialDraft.pagado);
-      if (initialDraft.observaciones) setObservaciones(initialDraft.observaciones);
+      if (initialDraft.observaciones) {
+        setObservaciones(initialDraft.observaciones);
+        setShowObsInput(true);
+      }
       if (initialDraft.cliente) setCliente(initialDraft.cliente);
       if (initialDraft.telefono) setTelefono(initialDraft.telefono);
       if (initialDraft.lugarEntrega) setLugarEntrega(initialDraft.lugarEntrega);
+    } else {
+      try {
+        const saved = localStorage.getItem(DRAFT_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          const hasContent =
+            (parsed.cliente && parsed.cliente.trim() !== '') ||
+            (parsed.telefono && parsed.telefono.trim() !== '') ||
+            (parsed.lugarEntrega && parsed.lugarEntrega.trim() !== '') ||
+            (parsed.observaciones && parsed.observaciones.trim() !== '') ||
+            (parsed.productos &&
+              parsed.productos.some((p: any) => (p.nombre && p.nombre.trim() !== '') || p.precioUnitario > 0));
+
+          if (hasContent) {
+            if (parsed.cliente) setCliente(parsed.cliente);
+            if (parsed.telefono) setTelefono(parsed.telefono);
+            if (parsed.lugarEntrega) setLugarEntrega(parsed.lugarEntrega);
+            if (parsed.observaciones) {
+              setObservaciones(parsed.observaciones);
+              setShowObsInput(true);
+            }
+            if (parsed.pagado !== undefined) setPagado(parsed.pagado);
+            if (parsed.productos && parsed.productos.length > 0) {
+              setProductos(parsed.productos);
+              setEditingItemId(parsed.productos[0]?.id || null);
+            }
+            if (parsed.savedAt) {
+              const d = new Date(parsed.savedAt);
+              setRestoredDraftTime(
+                d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              );
+            }
+            setShowDraftBanner(true);
+          }
+        }
+      } catch (e) {
+        console.warn('Could not restore order draft:', e);
+      }
     }
   }, [initialDraft]);
 
-  // Add a new empty product row, expand it, and center/focus view
+  // Continuously auto-save to localStorage
+  useEffect(() => {
+    if (isDiscardingRef.current || isSubmittingRef.current) return;
+
+    const hasMeaningfulData =
+      cliente.trim() !== '' ||
+      telefono.trim() !== '' ||
+      lugarEntrega.trim() !== '' ||
+      observaciones.trim() !== '' ||
+      productos.some((p) => p.nombre.trim() !== '' || p.precioUnitario > 0);
+
+    if (hasMeaningfulData) {
+      try {
+        localStorage.setItem(
+          DRAFT_STORAGE_KEY,
+          JSON.stringify({
+            cliente,
+            telefono,
+            lugarEntrega,
+            observaciones,
+            pagado,
+            productos,
+            savedAt: new Date().toISOString(),
+          })
+        );
+      } catch (e) {
+        console.warn('Could not auto-save order draft:', e);
+      }
+    }
+  }, [cliente, telefono, lugarEntrega, observaciones, pagado, productos]);
+
+  const handleDiscardDraft = () => {
+    isDiscardingRef.current = true;
+    try {
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+    } catch (e) {
+      console.warn('Could not remove order draft:', e);
+    }
+
+    setCliente('');
+    setTelefono('');
+    setLugarEntrega('');
+    setObservaciones('');
+    setShowObsInput(false);
+    setPagado(0);
+    const freshId = `item-${Date.now()}-0`;
+    setProductos([
+      {
+        id: freshId,
+        nombre: '',
+        variante: '',
+        cantidad: 1,
+        precioUnitario: 0,
+      },
+    ]);
+    setEditingItemId(freshId);
+    setShowDraftBanner(false);
+    setRestoredDraftTime(null);
+    setConfirmDiscard(false);
+
+    // Keep draft storage clean after reset settles
+    setTimeout(() => {
+      isDiscardingRef.current = false;
+      try {
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+      } catch {}
+    }, 400);
+  };
+
   const handleAddProduct = () => {
     const newId = `item-${Date.now()}-${productos.length}`;
     setProductos((prev) => [
@@ -142,13 +275,11 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
     focusAndCenterProduct(newId);
   };
 
-  // Start editing an item, expanding it and focusing input
   const handleStartEditing = (id: string) => {
     setEditingItemId(id);
     focusAndCenterProduct(id);
   };
 
-  // Remove a product row
   const handleRemoveProduct = (id: string) => {
     if (productos.length === 1) {
       const resetId = `item-${Date.now()}-0`;
@@ -170,7 +301,6 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
     }
   };
 
-  // Update product fields
   const handleUpdateProduct = (
     id: string,
     field: keyof OrderItem,
@@ -186,7 +316,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
     );
   };
 
-  // Quick payment presets
+  // Calculations
   const calculatedTotal = productos.reduce((sum, item) => {
     return sum + (item.cantidad || 0) * (item.precioUnitario || 0);
   }, 0);
@@ -199,13 +329,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
     else if (type === 'full') setPagado(calculatedTotal);
   };
 
-  // Save the order
   const handleSaveOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Prevent race conditions and double submission
     if (isSubmittingRef.current || isSubmitting) {
-      console.warn('Prevented duplicate order submission');
       return;
     }
 
@@ -218,11 +345,11 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
       }));
 
     if (cleanProductos.length === 0) {
-      alert('Por favor ingresa al menos un producto o pídele a VIKA que arme tu lista.');
+      setFormError('Por favor ingresa al menos un producto con nombre antes de guardar.');
+      setTimeout(() => setFormError(null), 4000);
       return;
     }
 
-    // Set atomic lock and visual loading state
     isSubmittingRef.current = true;
     setIsSubmitting(true);
 
@@ -247,926 +374,918 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
       };
 
       await onSaveOrder(newOrder);
+
+      try {
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+      } catch {}
     } catch (err) {
       console.error('Error in onSaveOrder:', err);
-      // Release lock on failure so user can retry
       isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };
 
+  const nextNumber = getNextOrderNumber(orders);
+
   return (
-    <div id="new-order-container" className="max-w-3xl mx-auto px-4 py-4 sm:py-6">
-      {/* Top Header */}
-      <div className="flex items-center justify-between gap-3 mb-5">
-        <div className="flex items-center gap-2.5">
-          <button
-            id="back-to-list-btn"
-            type="button"
-            onClick={onCancel}
-            className={`p-2.5 rounded-2xl transition-all border cursor-pointer ${
-              isDark
-                ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-white border-[#223368]'
-                : 'bg-white hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]'
-            }`}
-            title="Volver"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className={`text-xl sm:text-2xl font-black font-['Outfit',sans-serif] tracking-tight ${
-              isDark ? 'text-white' : 'text-[#1A2B5C]'
-            }`}>
-              Nuevo Pedido de Venta
-            </h1>
-            <p className={`text-xs sm:text-sm ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
-              Registra artículos, presentaciones y asigna precios en Bolivianos (Bs.)
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setIsGuideOpen(true)}
-            className={`px-3 py-2 rounded-2xl text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 border cursor-pointer ${
-              isDark
-                ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-[#B39DDB] border-[#223368]'
-                : 'bg-white hover:bg-[#F5EFE0] text-[#5B21B6] border-[#E8DFC8]'
-            }`}
-            title="Ver guía de dictado para VIKA"
-          >
-            <HelpCircle className="w-4 h-4 text-amber-400" />
-            <span className="hidden sm:inline">Guía de Dictado</span>
-          </button>
-
-          {onOpenVika && (
-            <button
-              id="new-order-ask-vika-btn"
-              type="button"
-              onClick={onOpenVika}
-              className={`px-3.5 py-2 rounded-2xl text-xs font-black flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer ${
-                isDark
-                  ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C] shadow-[#FF6FA5]/25 border border-[#FF6FA5]'
-                  : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white shadow-[#1A2B5C]/25'
-              }`}
-              title="Pedirle a VIKA que prepare el listado por ti"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Dictar a VIKA</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* VIKA Assistant Quick Banner */}
-      {onOpenVika && (
-        <div className={`mb-6 p-4 rounded-3xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm ${
+    <div
+      id="new-order-modal-backdrop"
+      className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto animate-fadeIn"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !isSubmitting) {
+          onCancel();
+        }
+      }}
+    >
+      {/* Ventana Emergente (Modal Dialog) Compacta para Móvil, Tablet y PC */}
+      <div
+        id="new-order-modal-dialog"
+        className={`relative w-full sm:max-w-2xl lg:max-w-3xl max-h-[94vh] sm:max-h-[90vh] flex flex-col rounded-t-3xl sm:rounded-3xl shadow-2xl border transition-all overflow-hidden ${
           isDark
-            ? 'bg-[#16234F] border-[#223368]'
-            : 'bg-white border-[#E8DFC8]'
-        }`}>
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
-              isDark ? 'bg-[#FF6FA5] text-[#0F1B3C]' : 'bg-[#1A2B5C] text-white'
-            }`}>
-              <Bot className="w-5 h-5" />
+            ? 'bg-[#16234F] border-[#223368] text-white'
+            : 'bg-white border-[#E8DFC8] text-[#1A2B5C]'
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Mobile Drag/Grab indicator */}
+        <div className="sm:hidden w-12 h-1 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto mt-2" />
+
+        {/* Modal Header (Fijo / Sticky) */}
+        <div
+          className={`shrink-0 px-4 sm:px-6 py-3.5 border-b flex items-center justify-between gap-3 ${
+            isDark
+              ? 'bg-[#0F1B3C]/90 border-[#223368]'
+              : 'bg-[#FBF7EF] border-[#E8DFC8]'
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            <div
+              className={`w-9 h-9 rounded-2xl flex items-center justify-center font-black ${
+                isDark
+                  ? 'bg-[#FF6FA5] text-[#0F1B3C]'
+                  : 'bg-[#1A2B5C] text-white'
+              }`}
+            >
+              <Package className="w-5 h-5" />
             </div>
             <div>
-              <p className={`text-xs font-bold font-['Outfit',sans-serif] flex items-center gap-2 ${
-                isDark ? 'text-white' : 'text-[#1A2B5C]'
-              }`}>
-                ¿Quieres armar el pedido dictando por voz o texto?
-                <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${
-                  isDark ? 'bg-[#FF6FA5]/20 text-[#FF6FA5]' : 'bg-[#E8DFC8] text-[#1A2B5C]'
-                }`}>
-                  Boxes · Docenas · Unidades
+              <div className="flex items-center gap-2">
+                <h2 className="text-base sm:text-lg font-black font-['Outfit',sans-serif] tracking-tight">
+                  Nueva Venta
+                </h2>
+                <span
+                  className={`text-[11px] font-mono font-black px-2 py-0.5 rounded-lg border ${
+                    isDark
+                      ? 'bg-[#16234F] text-[#FF6FA5] border-[#FF6FA5]/30'
+                      : 'bg-white text-[#1A2B5C] border-[#E8DFC8]'
+                  }`}
+                >
+                  #{String(nextNumber).padStart(3, '0')}
                 </span>
-              </p>
+              </div>
               <p className={`text-[11px] ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
-                Dicta: <em>«1 box de 48 de gomas Kitty más 1 docena de bolígrafos más 1 box de 24 de tajadores Kuromi»</em>.
+                Ingreso rápido de cliente, productos y cobro
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="flex items-center gap-1.5">
+            {onOpenVika && (
+              <button
+                type="button"
+                onClick={onOpenVika}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer border ${
+                  isDark
+                    ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C] border-[#FF6FA5]'
+                    : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white border-[#1A2B5C]'
+                }`}
+                title="Dictar a VIKA con voz o texto"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Dictar a VIKA</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => setIsGuideOpen(true)}
-              className={`px-3 py-2 text-xs font-semibold rounded-xl transition border cursor-pointer ${
+              className={`p-2 rounded-xl transition border cursor-pointer ${
                 isDark
-                  ? 'bg-[#0F1B3C] text-[#9AA6C9] hover:text-white border-[#223368]'
-                  : 'bg-[#F5EFE0] text-[#1A2B5C] hover:bg-[#EBE2CF] border-[#E8DFC8]'
+                  ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-amber-400 border-[#223368]'
+                  : 'bg-white hover:bg-[#F5EFE0] text-amber-600 border-[#E8DFC8]'
               }`}
+              title="Guía de ayuda"
             >
-              Ver ejemplos
+              <HelpCircle className="w-4 h-4" />
             </button>
+
             <button
               type="button"
-              onClick={onOpenVika}
-              className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-black rounded-xl flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer ${
+              id="close-new-order-modal-btn"
+              onClick={onCancel}
+              className={`p-2 rounded-xl transition border cursor-pointer ${
                 isDark
-                  ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C]'
-                  : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white'
+                  ? 'bg-[#16234F] hover:bg-rose-900/40 text-slate-300 hover:text-rose-300 border-[#223368]'
+                  : 'bg-white hover:bg-rose-50 text-slate-500 hover:text-rose-600 border-[#E8DFC8]'
               }`}
+              title="Cerrar ventana (Esc)"
             >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Abrir VIKA</span>
+              <X className="w-4 h-4 stroke-[2.5]" />
             </button>
           </div>
         </div>
-      )}
 
-      {/* Main Order Form */}
-      <form onSubmit={handleSaveOrder} className="space-y-6">
-        {/* Customer & Delivery Card */}
-        <div className={`border rounded-3xl p-4 sm:p-6 shadow-sm space-y-4 ${
-          isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
-        }`}>
-          <h2 className={`text-base font-bold font-['Outfit',sans-serif] flex items-center gap-2 border-b pb-3 ${
-            isDark ? 'text-white border-[#223368]' : 'text-[#1A2B5C] border-[#E8DFC8]'
-          }`}>
-            <User className={`w-5 h-5 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
-            Datos del Destinatario y Entrega
-          </h2>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Cliente */}
-            <div>
-              <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${
-                isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-              }`}>
-                Nombre del Cliente
-              </label>
-              <div className="relative">
-                <User className={`w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 ${
-                  isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-                }`} />
-                <input
-                  id="input-cliente-name"
-                  type="text"
-                  value={cliente}
-                  onChange={(e) => setCliente(e.target.value)}
-                  placeholder="Ej. Camila Rodriguez / TikTok Live"
-                  className={`w-full border rounded-xl py-2.5 pl-10 pr-3.5 text-sm focus:outline-none ${
-                    isDark
-                      ? 'bg-[#0F1B3C] border-[#223368] text-white placeholder-[#9AA6C9]/60 focus:ring-2 focus:ring-[#FF6FA5]'
-                      : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/60 focus:ring-2 focus:ring-[#1A2B5C]'
-                  }`}
-                />
-              </div>
-            </div>
-
-            {/* Teléfono */}
-            <div>
-              <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 flex items-center justify-between ${
-                isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-              }`}>
-                <span>Teléfono / WhatsApp</span>
-                <span className={`text-[10px] font-bold ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`}>🇧🇴 +591</span>
-              </label>
-              <div className="relative">
-                <Phone className={`w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 ${
-                  isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-                }`} />
-                <input
-                  id="input-cliente-phone"
-                  type="tel"
-                  value={telefono}
-                  onChange={(e) => setTelefono(e.target.value)}
-                  onBlur={() => {
-                    if (telefono.trim()) {
-                      setTelefono(formatBoliviaPhone(telefono));
-                    }
-                  }}
-                  placeholder="Ej. 71234567 o +591 71234567"
-                  className={`w-full border rounded-xl py-2.5 pl-10 pr-3.5 text-sm focus:outline-none ${
-                    isDark
-                      ? 'bg-[#0F1B3C] border-[#223368] text-white placeholder-[#9AA6C9]/60 focus:ring-2 focus:ring-[#FF6FA5]'
-                      : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/60 focus:ring-2 focus:ring-[#1A2B5C]'
-                  }`}
-                />
-              </div>
-            </div>
-
-            {/* Lugar de Entrega */}
-            <div className="sm:col-span-2">
-              <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${
-                isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-              }`}>
-                Lugar o Punto de Entrega
-              </label>
-              <div className="relative mb-2">
-                <MapPin className={`w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 ${
-                  isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-                }`} />
-                <input
-                  id="input-delivery-location"
-                  type="text"
-                  value={lugarEntrega}
-                  onChange={(e) => setLugarEntrega(e.target.value)}
-                  placeholder="Ej. Teleférico Morado Prado / Envío Cochabamba"
-                  className={`w-full border rounded-xl py-2.5 pl-10 pr-3.5 text-sm focus:outline-none ${
-                    isDark
-                      ? 'bg-[#0F1B3C] border-[#223368] text-white placeholder-[#9AA6C9]/60 focus:ring-2 focus:ring-[#FF6FA5]'
-                      : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/60 focus:ring-2 focus:ring-[#1A2B5C]'
-                  }`}
-                />
+        {/* Modal Scrollable Body */}
+        <form
+          id="new-order-form"
+          onSubmit={handleSaveOrder}
+          className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4"
+        >
+          {/* Borrador recuperado banner */}
+          {showDraftBanner && (
+            <div
+              className={`p-3 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs shadow-sm transition-all ${
+                isDark
+                  ? 'bg-[#16234F] border-[#4FD1B5]/40 text-[#4FD1B5]'
+                  : 'bg-[#E6FFFA] border-[#99F6E4] text-[#0F766E]'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <span>💾 Borrador activo {restoredDraftTime && `(${restoredDraftTime})`}</span>
               </div>
 
-              {/* Quick Delivery Shortcuts */}
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  'Envío a Domicilio',
-                  'Teleférico Morado',
-                  'Teleférico Rojo',
-                  'Ceja El Alto',
-                  'Plaza San Francisco',
-                  'Cochabamba - Centro',
-                  'Santa Cruz - 2do Anillo',
-                  'Retiro en Tienda',
-                ].map((loc) => (
+              {confirmDiscard ? (
+                <div className="flex items-center gap-2 bg-rose-500/10 border border-rose-500/30 rounded-xl px-2.5 py-1 text-rose-500 animate-fadeIn">
+                  <span className="text-[11px] font-bold">¿Borrar todo?</span>
                   <button
-                    key={loc}
+                    id="confirm-discard-draft-btn"
                     type="button"
-                    onClick={() => setLugarEntrega(loc)}
-                    className={`px-2.5 py-1 text-[11px] rounded-lg border transition-colors cursor-pointer ${
-                      isDark
-                        ? 'bg-[#0F1B3C] hover:bg-[#1E2D5A] text-[#9AA6C9] hover:text-white border-[#223368]'
-                        : 'bg-[#F5EFE0] hover:bg-[#EBE2CF] text-[#1A2B5C] border-[#E8DFC8]'
-                    }`}
+                    onClick={handleDiscardDraft}
+                    className="px-2.5 py-0.5 rounded-lg font-black bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition text-xs cursor-pointer"
                   >
-                    {loc}
+                    Sí, Vaciar
                   </button>
-                ))}
-              </div>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDiscard(false)}
+                    className="px-2 py-0.5 rounded-lg text-xs font-semibold opacity-70 hover:opacity-100 transition cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowDraftBanner(false)}
+                    className="px-2.5 py-1 rounded-lg font-bold bg-white/20 text-inherit hover:bg-white/30 transition cursor-pointer"
+                    title="Mantener borrador"
+                  >
+                    Mantener
+                  </button>
+                  <button
+                    id="discard-draft-btn"
+                    type="button"
+                    onClick={() => setConfirmDiscard(true)}
+                    className="px-2.5 py-1 rounded-lg font-bold text-rose-500 hover:bg-rose-500/10 border border-rose-400/30 transition cursor-pointer flex items-center gap-1"
+                    title="Descartar borrador y empezar de cero"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Descartar</span>
+                  </button>
+                </div>
+              )}
             </div>
+          )}
 
-            {/* Observaciones */}
-            <div className="sm:col-span-2">
-              <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${
-                isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-              }`}>
-                Observaciones / Notas Especiales
-              </label>
-              <textarea
-                id="input-observaciones"
-                rows={2}
-                value={observaciones}
-                onChange={(e) => setObservaciones(e.target.value)}
-                placeholder="Detalles de empaque, regalo, horario convenido o especificaciones..."
-                className={`w-full border rounded-xl p-3 text-sm focus:outline-none ${
-                  isDark
-                    ? 'bg-[#0F1B3C] border-[#223368] text-white placeholder-[#9AA6C9]/60 focus:ring-2 focus:ring-[#FF6FA5]'
-                    : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/60 focus:ring-2 focus:ring-[#1A2B5C]'
+          {/* Banner de error de validación en el formulario */}
+          {formError && (
+            <div className="p-3 rounded-2xl bg-rose-500/15 border border-rose-500/40 text-rose-500 text-xs font-bold flex items-center gap-2 animate-fadeIn shadow-sm">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>{formError}</span>
+            </div>
+          )}
+
+          {/* Bloque 1: Destinatario y Entrega (Compacto en Grid) */}
+          <div
+            className={`border rounded-2xl p-3.5 sm:p-4 space-y-3 shadow-sm ${
+              isDark ? 'bg-[#0F1B3C]/70 border-[#223368]' : 'bg-[#FBF7EF]/80 border-[#E8DFC8]'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span
+                className={`text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
+                  isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'
                 }`}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Products List Card */}
-        <div className={`border rounded-3xl p-4 sm:p-6 shadow-sm space-y-4 ${
-          isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
-        }`}>
-          <div className={`flex items-center justify-between border-b pb-3 ${
-            isDark ? 'border-[#223368]' : 'border-[#E8DFC8]'
-          }`}>
-            <div>
-              <h2 className={`text-base font-bold font-['Outfit',sans-serif] flex items-center gap-2 ${
-                isDark ? 'text-white' : 'text-[#1A2B5C]'
-              }`}>
-                <Package className={`w-5 h-5 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
-                Artículos del Pedido ({productos.length})
-              </h2>
-              <p className={`text-[11px] mt-0.5 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
-                Ingresa o ajusta el precio unitario en Bs. para cada artículo
-              </p>
+              >
+                <User className="w-3.5 h-3.5" />
+                <span>Cliente y Destino</span>
+              </span>
+              {!showObsInput && (
+                <button
+                  type="button"
+                  onClick={() => setShowObsInput(true)}
+                  className={`text-[11px] font-bold underline cursor-pointer ${
+                    isDark ? 'text-[#9AA6C9] hover:text-white' : 'text-[#78716C] hover:text-[#1A2B5C]'
+                  }`}
+                >
+                  + Observación
+                </button>
+              )}
             </div>
 
-            <button
-              id="add-product-btn"
-              type="button"
-              onClick={handleAddProduct}
-              className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1 transition-colors border cursor-pointer ${
-                isDark
-                  ? 'bg-[#0F1B3C] hover:bg-[#1E2D5A] text-[#FF6FA5] border-[#223368]'
-                  : 'bg-[#F5EFE0] hover:bg-[#EBE2CF] text-[#1A2B5C] border-[#E8DFC8]'
-              }`}
-            >
-              <Plus className="w-3.5 h-3.5 stroke-[3]" />
-              <span>Agregar Artículo</span>
-            </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {/* Cliente */}
+              <div>
+                <label
+                  className={`block text-[10px] font-bold uppercase tracking-wider mb-1 ${
+                    isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                  }`}
+                >
+                  Nombre Cliente
+                </label>
+                <div className="relative">
+                  <User
+                    className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${
+                      isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                    }`}
+                  />
+                  <input
+                    id="input-cliente-name"
+                    type="text"
+                    value={cliente}
+                    onChange={(e) => setCliente(e.target.value)}
+                    placeholder="Ej. Camila / TikTok Live"
+                    className={`w-full border rounded-xl py-2 pl-8 pr-3 text-xs sm:text-sm focus:outline-none ${
+                      isDark
+                        ? 'bg-[#16234F] border-[#223368] text-white placeholder-[#9AA6C9]/50 focus:ring-2 focus:ring-[#FF6FA5]'
+                        : 'bg-white border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/50 focus:ring-2 focus:ring-[#1A2B5C]'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              {/* Teléfono */}
+              <div>
+                <label
+                  className={`block text-[10px] font-bold uppercase tracking-wider mb-1 flex items-center justify-between ${
+                    isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                  }`}
+                >
+                  <span>WhatsApp / Teléfono</span>
+                  <span className="text-[10px] font-bold text-[#FF6FA5]">🇧🇴 +591</span>
+                </label>
+                <div className="relative">
+                  <Phone
+                    className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${
+                      isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                    }`}
+                  />
+                  <input
+                    id="input-cliente-phone"
+                    type="tel"
+                    value={telefono}
+                    onChange={(e) => setTelefono(e.target.value)}
+                    onBlur={() => {
+                      if (telefono.trim()) {
+                        setTelefono(formatBoliviaPhone(telefono));
+                      }
+                    }}
+                    placeholder="Ej. 71234567"
+                    className={`w-full border rounded-xl py-2 pl-8 pr-3 text-xs sm:text-sm focus:outline-none ${
+                      isDark
+                        ? 'bg-[#16234F] border-[#223368] text-white placeholder-[#9AA6C9]/50 focus:ring-2 focus:ring-[#FF6FA5]'
+                        : 'bg-white border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/50 focus:ring-2 focus:ring-[#1A2B5C]'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              {/* Punto de Entrega */}
+              <div className="sm:col-span-2">
+                <label
+                  className={`block text-[10px] font-bold uppercase tracking-wider mb-1 ${
+                    isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                  }`}
+                >
+                  Lugar o Punto de Entrega
+                </label>
+                <div className="relative mb-1.5">
+                  <MapPin
+                    className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${
+                      isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                    }`}
+                  />
+                  <input
+                    id="input-delivery-location"
+                    type="text"
+                    value={lugarEntrega}
+                    onChange={(e) => setLugarEntrega(e.target.value)}
+                    placeholder="Ej. Teleférico Morado / Envío Cochabamba..."
+                    className={`w-full border rounded-xl py-2 pl-8 pr-3 text-xs sm:text-sm focus:outline-none ${
+                      isDark
+                        ? 'bg-[#16234F] border-[#223368] text-white placeholder-[#9AA6C9]/50 focus:ring-2 focus:ring-[#FF6FA5]'
+                        : 'bg-white border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/50 focus:ring-2 focus:ring-[#1A2B5C]'
+                    }`}
+                  />
+                </div>
+
+                {/* Accesos rápidos de entrega */}
+                <div className="flex flex-wrap gap-1">
+                  {[
+                    'Retiro en Tienda',
+                    'Teleférico Morado',
+                    'Teleférico Rojo',
+                    'Ceja El Alto',
+                    'Envío a Domicilio',
+                    'Cochabamba',
+                    'Santa Cruz',
+                  ].map((loc) => (
+                    <button
+                      key={loc}
+                      type="button"
+                      onClick={() => setLugarEntrega(loc)}
+                      className={`px-2 py-0.5 text-[10px] rounded-lg border transition-colors cursor-pointer ${
+                        lugarEntrega === loc
+                          ? isDark
+                            ? 'bg-[#FF6FA5] text-[#0F1B3C] border-[#FF6FA5] font-bold'
+                            : 'bg-[#1A2B5C] text-white border-[#1A2B5C] font-bold'
+                          : isDark
+                          ? 'bg-[#16234F] text-[#9AA6C9] hover:text-white border-[#223368]'
+                          : 'bg-white text-[#1A2B5C] hover:bg-[#F5EFE0] border-[#E8DFC8]'
+                      }`}
+                    >
+                      {loc}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Observaciones (Opcional) */}
+              {showObsInput && (
+                <div className="sm:col-span-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <label
+                      className={`block text-[10px] font-bold uppercase tracking-wider ${
+                        isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                      }`}
+                    >
+                      Observaciones / Notas
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowObsInput(false);
+                        setObservaciones('');
+                      }}
+                      className="text-[10px] text-rose-400 hover:underline"
+                    >
+                      Ocultar
+                    </button>
+                  </div>
+                  <textarea
+                    id="input-observaciones"
+                    rows={1}
+                    value={observaciones}
+                    onChange={(e) => setObservaciones(e.target.value)}
+                    placeholder="Detalles de regalo, especificaciones o empaque..."
+                    className={`w-full border rounded-xl p-2 text-xs focus:outline-none ${
+                      isDark
+                        ? 'bg-[#16234F] border-[#223368] text-white placeholder-[#9AA6C9]/50 focus:ring-2 focus:ring-[#FF6FA5]'
+                        : 'bg-white border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/50 focus:ring-2 focus:ring-[#1A2B5C]'
+                    }`}
+                  />
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="space-y-3">
-            {productos.map((prod, index) => {
-              const subtotal = (prod.cantidad || 0) * (prod.precioUnitario || 0);
-              const complete = isItemComplete(prod);
-              const isExpanded = editingItemId === prod.id || (editingItemId === null && !complete);
+          {/* Bloque 2: Artículos del Pedido (Compacto, Ágil) */}
+          <div
+            className={`border rounded-2xl p-3.5 sm:p-4 space-y-3 shadow-sm ${
+              isDark ? 'bg-[#0F1B3C]/70 border-[#223368]' : 'bg-[#FBF7EF]/80 border-[#E8DFC8]'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span
+                className={`text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
+                  isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'
+                }`}
+              >
+                <Package className="w-3.5 h-3.5" />
+                <span>Artículos del Pedido ({productos.length})</span>
+              </span>
 
-              // Compact collapsed row for products that are completed or not currently being edited
-              if (!isExpanded) {
+              <button
+                id="add-product-modal-btn"
+                type="button"
+                onClick={handleAddProduct}
+                className={`px-2.5 py-1 text-xs font-bold rounded-xl flex items-center gap-1 transition active:scale-95 border cursor-pointer ${
+                  isDark
+                    ? 'bg-[#FF6FA5] text-[#0F1B3C] border-[#FF6FA5]'
+                    : 'bg-[#1A2B5C] text-white border-[#1A2B5C]'
+                }`}
+              >
+                <Plus className="w-3 h-3 stroke-[3]" />
+                <span>Agregar</span>
+              </button>
+            </div>
+
+            {/* Listado de Artículos */}
+            <div className="space-y-2.5">
+              {productos.map((prod, index) => {
+                const subtotal = (prod.cantidad || 0) * (prod.precioUnitario || 0);
+                const complete = isItemComplete(prod);
+                const isExpanded = editingItemId === prod.id || (editingItemId === null && !complete);
+
+                // Tarjeta contraída para rapidez
+                if (!isExpanded) {
+                  return (
+                    <div
+                      key={prod.id}
+                      id={`product-card-${prod.id}`}
+                      onClick={() => handleStartEditing(prod.id)}
+                      className={`p-2.5 border rounded-xl transition cursor-pointer flex items-center justify-between gap-2 group ${
+                        isDark
+                          ? 'bg-[#16234F] border-[#223368] hover:border-[#FF6FA5]/50 text-white'
+                          : 'bg-white border-[#E8DFC8] hover:border-[#1A2B5C]/30 text-[#1A2B5C]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 truncate flex-1">
+                        <span
+                          className={`text-[10px] font-black px-1.5 py-0.5 rounded ${
+                            isDark ? 'bg-[#0F1B3C] text-[#FF6FA5]' : 'bg-[#F5EFE0] text-[#1A2B5C]'
+                          }`}
+                        >
+                          #{index + 1}
+                        </span>
+                        <span className="font-bold text-xs truncate">
+                          {prod.nombre || 'Artículo sin nombre'}
+                        </span>
+                        <span className="text-[11px] opacity-70 shrink-0">
+                          · {prod.cantidad}x {prod.variante || 'Unidad'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="font-black text-xs font-['Outfit',sans-serif]">
+                          {formatCurrency(subtotal)}
+                        </span>
+                        <Pencil className="w-3 h-3 text-[#FF6FA5] opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveProduct(prod.id);
+                          }}
+                          className="p-1 text-rose-400 hover:text-rose-600 transition"
+                          title="Eliminar artículo"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Tarjeta expandida para edición directa
                 return (
                   <div
                     key={prod.id}
                     id={`product-card-${prod.id}`}
-                    onClick={() => handleStartEditing(prod.id)}
-                    className={`p-3 sm:py-2.5 sm:px-3.5 border rounded-2xl transition-all cursor-pointer flex items-center justify-between gap-2.5 group ${
+                    className={`p-3 border-2 rounded-2xl space-y-2.5 transition-all ${
                       isDark
-                        ? 'bg-[#0F1B3C]/75 border-[#223368] hover:bg-[#16234F] hover:border-[#FF6FA5]/40 text-white'
-                        : 'bg-[#FBF7EF] border-[#E8DFC8] hover:bg-[#F5EFE0] hover:border-[#1A2B5C]/30 text-[#1A2B5C]'
+                        ? 'bg-[#16234F] border-[#FF6FA5]/60 text-white shadow-md shadow-black/20'
+                        : 'bg-white border-[#1A2B5C]/40 text-[#1A2B5C] shadow-md shadow-slate-200/50'
                     }`}
-                    title="Toca para editar este artículo"
                   >
-                    {/* Left: Product index and summary */}
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                    {/* Fila 1: Número, Nombre y Botón Eliminar */}
+                    <div className="flex items-center gap-2">
                       <span
-                        className={`text-[10px] font-black px-2 py-0.5 rounded-lg shrink-0 ${
-                          isDark ? 'bg-[#16234F] text-[#FF6FA5]' : 'bg-[#EAE0D0] text-[#1A2B5C]'
+                        className={`text-[10px] font-black px-2 py-1 rounded-lg shrink-0 ${
+                          isDark ? 'bg-[#FF6FA5] text-[#0F1B3C]' : 'bg-[#1A2B5C] text-white'
                         }`}
                       >
                         #{index + 1}
                       </span>
-
-                      <div className="flex flex-wrap sm:flex-nowrap items-baseline sm:items-center gap-x-2 gap-y-0.5 min-w-0 flex-1 text-xs sm:text-sm">
-                        <span className="font-bold truncate max-w-[180px] sm:max-w-xs md:max-w-md">
-                          {prod.nombre || 'Artículo sin nombre'}
-                        </span>
-
-                        {complete ? (
-                          <>
-                            <span className={`hidden sm:inline ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>·</span>
-                            <span className={`text-[11px] sm:text-xs font-semibold shrink-0 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
-                              {prod.cantidad}x {prod.variante || 'Unidad'}
-                            </span>
-                            <span className={`hidden sm:inline ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>·</span>
-                            <span className={`font-black text-xs sm:text-sm shrink-0 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`}>
-                              {formatCurrency(subtotal)}
-                            </span>
-                          </>
-                        ) : (
-                          <span className="text-[11px] font-bold text-amber-500 flex items-center gap-1">
-                            ⚠️ Faltan datos (toca para completar)
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Right: Actions (Edit & Delete) */}
-                    <div className="flex items-center gap-1 shrink-0">
+                      <input
+                        id={`product-name-input-${prod.id}`}
+                        type="text"
+                        value={prod.nombre}
+                        onChange={(e) => handleUpdateProduct(prod.id, 'nombre', e.target.value)}
+                        placeholder="Nombre del artículo (ej. Bolígrafo Kuromi)"
+                        className={`flex-1 border rounded-xl py-1.5 px-3 text-xs sm:text-sm font-semibold focus:outline-none ${
+                          isDark
+                            ? 'bg-[#0F1B3C] border-[#223368] text-white placeholder-[#9AA6C9]/50 focus:ring-2 focus:ring-[#FF6FA5]'
+                            : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/50 focus:ring-2 focus:ring-[#1A2B5C]'
+                        }`}
+                      />
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleStartEditing(prod.id);
-                        }}
-                        className={`p-1.5 rounded-xl transition-colors cursor-pointer ${
-                          isDark
-                            ? 'text-[#9AA6C9] group-hover:text-[#FF6FA5] hover:bg-[#16234F]'
-                            : 'text-[#78716C] group-hover:text-[#1A2B5C] hover:bg-white'
-                        }`}
-                        title="Editar artículo"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemoveProduct(prod.id);
-                        }}
-                        className={`p-1.5 rounded-xl transition-colors cursor-pointer ${
-                          isDark
-                            ? 'text-[#9AA6C9] hover:text-rose-400 hover:bg-[#16234F]'
-                            : 'text-[#78716C] hover:text-rose-600 hover:bg-white'
-                        }`}
-                        title="Eliminar artículo"
+                        onClick={() => handleRemoveProduct(prod.id)}
+                        className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/10 transition cursor-pointer shrink-0"
+                        title="Eliminar este artículo"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
-                  </div>
-                );
-              }
 
-              // Expanded full editing card
-              return (
-                <div
-                  key={prod.id}
-                  id={`product-card-${prod.id}`}
-                  className={`p-3.5 sm:p-4 border-2 rounded-2xl space-y-3 transition-all ${
-                    isDark
-                      ? 'bg-[#0F1B3C] border-[#FF6FA5]/60 shadow-lg shadow-[#FF6FA5]/5'
-                      : 'bg-[#FBF7EF] border-[#1A2B5C]/50 shadow-md shadow-[#1A2B5C]/5'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 space-y-2">
-                      {/* Product Name & Header */}
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <label
-                            htmlFor={`product-name-input-${prod.id}`}
-                            className={`block text-[11px] font-bold uppercase tracking-wider ${
-                              isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'
+                    {/* Fila 2: Selector Rápido de Presentación / Empaque */}
+                    <div>
+                      <PackagingQuickSelector
+                        value={prod.variante}
+                        onChange={(val) => handleUpdateProduct(prod.id, 'variante', val)}
+                        onOpenCustomModal={() => setPackagingModalItem(prod)}
+                      />
+                    </div>
+
+                    {/* Fila 3: Cantidad, Precio Unitario en Bs. y Subtotal */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-dashed dark:border-[#223368] border-[#E8DFC8]">
+                      {/* Stepper de Cantidad */}
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-[10px] font-bold uppercase ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                          Cant:
+                        </span>
+                        <div className="flex items-center border rounded-xl overflow-hidden dark:border-[#223368] border-[#E8DFC8]">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleUpdateProduct(
+                                prod.id,
+                                'cantidad',
+                                Math.max(1, (prod.cantidad || 1) - 1)
+                              )
+                            }
+                            className={`px-2 py-1 text-xs font-black cursor-pointer transition ${
+                              isDark ? 'bg-[#0F1B3C] hover:bg-[#1E2D5A]' : 'bg-[#F5EFE0] hover:bg-[#EBE2CF]'
                             }`}
                           >
-                            Producto #{index + 1} (En edición)
-                          </label>
-
-                          {complete && (
-                            <button
-                              type="button"
-                              onClick={() => setEditingItemId(null)}
-                              className={`px-2.5 py-0.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer border ${
-                                isDark
-                                  ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-[#4FD1B5] border-[#4FD1B5]/30'
-                                  : 'bg-white hover:bg-[#EAE0D0] text-[#0F766E] border-[#99F6E4]'
-                              }`}
-                              title="Listo / Colapsar este artículo"
-                            >
-                              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                              <span>Listo</span>
-                            </button>
-                          )}
-                        </div>
-
-                        <input
-                          id={`product-name-input-${prod.id}`}
-                          type="text"
-                          value={prod.nombre}
-                          onChange={(e) =>
-                            handleUpdateProduct(prod.id, 'nombre', e.target.value)
-                          }
-                          placeholder="Ej. Gomas Kitty, Bolígrafos Sanrio, Tajadores Kuromi..."
-                          className={`w-full border rounded-xl px-3 py-2 text-sm font-semibold focus:outline-none ${
-                            isDark
-                              ? 'bg-[#16234F] border-[#223368] text-white placeholder-[#9AA6C9]/60 focus:ring-2 focus:ring-[#FF6FA5]'
-                              : 'bg-white border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/60 focus:ring-2 focus:ring-[#1A2B5C]'
-                          }`}
-                        />
-                      </div>
-
-                      {/* Variant / Presentation */}
-                      <div>
-                        <label className={`block text-[11px] font-bold mb-1 flex items-center justify-between ${
-                          isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-                        }`}>
-                          <span>Presentación / Empaque / Variante</span>
-                          <span className={`text-[10px] font-bold ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`}>
-                            Toca para abrir ventana:
-                          </span>
-                        </label>
-                        <div className="flex gap-2">
+                            -
+                          </button>
                           <input
-                            type="text"
-                            value={prod.variante}
-                            onClick={() => setPackagingModalItem(prod)}
+                            type="number"
+                            min="1"
+                            value={prod.cantidad === 0 ? '' : prod.cantidad}
                             onChange={(e) =>
-                              handleUpdateProduct(prod.id, 'variante', e.target.value)
+                              handleUpdateProduct(
+                                prod.id,
+                                'cantidad',
+                                e.target.value === '' ? 0 : Math.max(1, parseInt(e.target.value) || 1)
+                              )
                             }
-                            placeholder="Ej. Box de 48 u., Docena (12 u.), Medio Box..."
-                            className={`flex-1 border rounded-xl px-3 py-2 text-xs focus:outline-none ${
-                              isDark
-                                ? 'bg-[#16234F] border-[#223368] text-white placeholder-[#9AA6C9]/60 focus:ring-2 focus:ring-[#FF6FA5]'
-                                : 'bg-white border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/60 focus:ring-2 focus:ring-[#1A2B5C]'
-                            }`}
+                            className="w-12 text-center py-1 text-xs font-black bg-transparent focus:outline-none"
                           />
                           <button
                             type="button"
-                            onClick={() => setPackagingModalItem(prod)}
-                            className={`px-3.5 py-2 rounded-xl font-black text-xs flex items-center gap-1.5 transition active:scale-95 shrink-0 cursor-pointer ${
-                              isDark
-                                ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C]'
-                                : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white'
+                            onClick={() =>
+                              handleUpdateProduct(prod.id, 'cantidad', (prod.cantidad || 0) + 1)
+                            }
+                            className={`px-2 py-1 text-xs font-black cursor-pointer transition ${
+                              isDark ? 'bg-[#0F1B3C] hover:bg-[#1E2D5A]' : 'bg-[#F5EFE0] hover:bg-[#EBE2CF]'
                             }`}
-                            title="Abrir ventana de selección de cajas y docenas"
                           >
-                            <Box className="w-3.5 h-3.5" />
-                            <span>Elegir Box</span>
+                            +
                           </button>
                         </div>
-
-                        {/* Direct Mobile Quick Badge if selected */}
-                        {prod.variante && (
-                          <div className="mt-1.5 flex items-center gap-1.5">
-                            <span className={`text-[10px] font-semibold ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
-                              Seleccionado:
-                            </span>
-                            <span className={`text-xs font-black px-2.5 py-0.5 rounded-lg flex items-center gap-1 border ${
-                              isDark
-                                ? 'bg-[#16234F] text-[#FF6FA5] border-[#223368]'
-                                : 'bg-white text-[#1A2B5C] border-[#E8DFC8]'
-                            }`}>
-                              ✨ {prod.variante}
-                            </span>
-                          </div>
-                        )}
                       </div>
-                    </div>
 
-                    {/* Delete button */}
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveProduct(prod.id)}
-                      className={`p-2 rounded-xl transition-colors mt-6 cursor-pointer ${
-                        isDark
-                          ? 'text-[#9AA6C9] hover:text-rose-400 hover:bg-[#16234F]'
-                          : 'text-[#78716C] hover:text-rose-600 hover:bg-white'
-                      }`}
-                      title="Eliminar artículo"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  {/* Quantity & Unit Price & Subtotal Row */}
-                  <div className={`grid grid-cols-3 gap-2 pt-2 border-t items-center ${
-                    isDark ? 'border-[#223368]' : 'border-[#E8DFC8]'
-                  }`}>
-                    {/* Quantity with touch buttons */}
-                    <div>
-                      <label className={`block text-[10px] uppercase font-bold mb-1 ${
-                        isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-                      }`}>
-                        Cantidad
-                      </label>
-                      <div className={`flex items-center border rounded-xl overflow-hidden ${
-                        isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
-                      }`}>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleUpdateProduct(
-                              prod.id,
-                              'cantidad',
-                              Math.max(0, (prod.cantidad || 0) - 1)
-                            )
-                          }
-                          className={`w-8 h-8 flex items-center justify-center text-base font-bold ${
-                            isDark ? 'text-white hover:bg-[#0F1B3C]' : 'text-[#1A2B5C] hover:bg-[#F5EFE0]'
-                          }`}
-                        >
-                          -
-                        </button>
-                        <input
-                          type="number"
-                          min="0"
-                          value={prod.cantidad === 0 ? '' : prod.cantidad}
-                          onFocus={(e) => e.target.select()}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            handleUpdateProduct(
-                              prod.id,
-                              'cantidad',
-                              val === '' ? 0 : Math.max(0, parseInt(val, 10) || 0)
-                            );
-                          }}
-                          placeholder="0"
-                          className={`w-full bg-transparent text-center text-xs font-black focus:outline-none ${
-                            isDark ? 'text-white' : 'text-[#1A2B5C]'
-                          }`}
-                        />
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleUpdateProduct(
-                              prod.id,
-                              'cantidad',
-                              (prod.cantidad || 0) + 1
-                            )
-                          }
-                          className={`w-8 h-8 flex items-center justify-center text-base font-bold ${
-                            isDark ? 'text-white hover:bg-[#0F1B3C]' : 'text-[#1A2B5C] hover:bg-[#F5EFE0]'
-                          }`}
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Unit Price */}
-                    <div>
-                      <label className={`block text-[10px] uppercase font-bold mb-1 ${
-                        isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-                      }`}>
-                        Precio Unitario (Bs.)
-                      </label>
-                      <div className="relative">
-                        <span className={`absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold ${
-                          isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-                        }`}>
-                          Bs.
+                      {/* Precio Unitario */}
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-[10px] font-bold uppercase ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                          P. Unit (Bs):
                         </span>
                         <input
                           type="number"
+                          step="0.5"
                           min="0"
-                          step="any"
-                          value={prod.precioUnitario === 0 ? '' : (prod.precioUnitario || '')}
-                          onFocus={(e) => e.target.select()}
-                          onChange={(e) => {
-                            const val = e.target.value;
+                          value={prod.precioUnitario === 0 ? '' : prod.precioUnitario}
+                          onChange={(e) =>
                             handleUpdateProduct(
                               prod.id,
                               'precioUnitario',
-                              val === '' ? 0 : Math.max(0, parseFloat(val) || 0)
-                            );
+                              e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
+                            )
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddProduct();
+                            }
                           }}
                           placeholder="0.00"
-                          className={`w-full border rounded-xl py-1.5 pl-9 pr-2 text-xs font-black focus:outline-none ${
+                          className={`w-20 border rounded-xl py-1 px-2 text-xs font-black text-right focus:outline-none ${
                             isDark
-                              ? 'bg-[#16234F] border-[#223368] text-white focus:ring-2 focus:ring-[#FF6FA5]'
-                              : 'bg-white border-[#E8DFC8] text-[#1A2B5C] focus:ring-2 focus:ring-[#1A2B5C]'
+                              ? 'bg-[#0F1B3C] border-[#223368] text-white focus:ring-2 focus:ring-[#FF6FA5]'
+                              : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C] focus:ring-2 focus:ring-[#1A2B5C]'
                           }`}
                         />
                       </div>
-                    </div>
 
-                    {/* Subtotal Display */}
-                    <div className="text-right">
-                      <span className={`block text-[10px] uppercase font-bold mb-0.5 ${
-                        isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-                      }`}>
-                        Subtotal
-                      </span>
-                      <span className={`text-sm font-black font-['Outfit',sans-serif] ${
-                        isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'
-                      }`}>
-                        {formatCurrency(subtotal)}
-                      </span>
+                      {/* Subtotal del Artículo */}
+                      <div className="text-right ml-auto">
+                        <span className={`block text-[9px] uppercase font-bold ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                          Subtotal
+                        </span>
+                        <span className="text-xs sm:text-sm font-black font-['Outfit',sans-serif] text-[#FF6FA5]">
+                          {formatCurrency(subtotal)}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
 
-            {/* Bottom Add Product Button - Always visible at the end of the list */}
-            <button
-              id="add-product-btn-bottom"
-              type="button"
-              onClick={handleAddProduct}
-              className={`w-full py-3 px-4 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border-2 border-dashed transition-all active:scale-[0.99] cursor-pointer ${
-                isDark
-                  ? 'bg-[#0F1B3C]/50 hover:bg-[#16234F] text-[#FF6FA5] border-[#223368] hover:border-[#FF6FA5]/60'
-                  : 'bg-[#FBF7EF] hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8] hover:border-[#1A2B5C]/40'
-              }`}
-            >
-              <Plus className="w-4 h-4 stroke-[3]" />
-              <span>+ Agregar Otro Artículo</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Financial Calculation Summary Card */}
-        <div className={`border rounded-3xl p-5 sm:p-6 shadow-sm space-y-4 ${
-          isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
-        }`}>
-          <h2 className={`text-base font-bold font-['Outfit',sans-serif] flex items-center gap-2 border-b pb-3 ${
-            isDark ? 'text-white border-[#223368]' : 'text-[#1A2B5C] border-[#E8DFC8]'
-          }`}>
-            <DollarSign className={`w-5 h-5 ${isDark ? 'text-[#4FD1B5]' : 'text-[#0F766E]'}`} />
-            Cálculo de Pagos y Saldo (Bolivia)
-          </h2>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
-            {/* Total Calculado */}
-            <div className={`border rounded-2xl p-4 ${
-              isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#FBF7EF] border-[#E8DFC8]'
-            }`}>
-              <span className={`block text-xs font-bold uppercase tracking-wider ${
-                isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
-              }`}>
-                Total Pedido
-              </span>
-              <span className={`text-2xl font-black font-['Outfit',sans-serif] tracking-tight ${
-                isDark ? 'text-white' : 'text-[#1A2B5C]'
-              }`}>
-                {formatCurrency(calculatedTotal)}
-              </span>
-              <p className={`text-[11px] mt-0.5 ${isDark ? 'text-[#9AA6C9]/70' : 'text-[#78716C]/80'}`}>
-                Calculado automáticamente
-              </p>
-            </div>
-
-            {/* Pagado (Abono Manual) */}
-            <div className={`border rounded-2xl p-4 space-y-2 ${
-              isDark ? 'bg-[#0F1B3C] border-[#4FD1B5]/30' : 'bg-[#E6FFFA] border-[#99F6E4]'
-            }`}>
-              <label className={`block text-xs font-bold uppercase tracking-wider ${
-                isDark ? 'text-[#4FD1B5]' : 'text-[#0D9488]'
-              }`}>
-                Monto Pagado / Abono (Bs.)
-              </label>
-              <div className="relative">
-                <span className={`absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold ${
-                  isDark ? 'text-[#4FD1B5]' : 'text-[#0D9488]'
-                }`}>
-                  Bs.
-                </span>
-                <input
-                  id="input-order-pagado"
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={pagado === 0 ? '' : pagado}
-                  onFocus={(e) => e.target.select()}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setPagado(val === '' ? 0 : Math.max(0, parseFloat(val) || 0));
-                  }}
-                  placeholder="0.00"
-                  className={`w-full border rounded-xl py-2 pl-9 pr-3 text-base font-black focus:outline-none ${
-                    isDark
-                      ? 'bg-[#16234F] border-[#4FD1B5]/50 text-[#4FD1B5] focus:ring-2 focus:ring-[#4FD1B5]'
-                      : 'bg-white border-[#99F6E4] text-[#0F766E] focus:ring-2 focus:ring-[#0F766E]'
-                  }`}
-                />
-              </div>
-
-              {/* Quick Payment Shortcut Chips */}
-              <div className="flex gap-1">
+              {/* Botón para agregar otro artículo directamente al final de la lista sin subir al inicio */}
+              <div className="pt-1">
                 <button
+                  id="btn-add-product-list-bottom"
                   type="button"
-                  onClick={() => handleSetQuickPayment('zero')}
-                  className={`flex-1 py-1 rounded-lg text-[10px] font-bold border transition ${
+                  onClick={handleAddProduct}
+                  className={`w-full py-2.5 px-4 rounded-xl border-2 border-dashed font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.99] cursor-pointer ${
                     isDark
-                      ? 'bg-[#16234F] text-[#9AA6C9] hover:text-white border-[#223368]'
-                      : 'bg-white text-[#1A2B5C] hover:bg-[#F5EFE0] border-[#E8DFC8]'
+                      ? 'border-[#FF6FA5]/40 hover:border-[#FF6FA5] bg-[#FF6FA5]/10 hover:bg-[#FF6FA5]/15 text-[#FF6FA5]'
+                      : 'border-[#1A2B5C]/30 hover:border-[#1A2B5C] bg-[#1A2B5C]/5 hover:bg-[#1A2B5C]/10 text-[#1A2B5C]'
                   }`}
                 >
-                  Bs. 0
+                  <Plus className="w-4 h-4 stroke-[2.5]" />
+                  <span>Agregar Otro Artículo (#{productos.length + 1})</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Bloque 3: Cobro y Liquidación (Compacto) */}
+          <div
+            className={`border rounded-2xl p-3.5 sm:p-4 space-y-3 shadow-sm ${
+              isDark ? 'bg-[#0F1B3C]/70 border-[#223368]' : 'bg-[#FBF7EF]/80 border-[#E8DFC8]'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span
+                className={`text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
+                  isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'
+                }`}
+              >
+                <DollarSign className="w-3.5 h-3.5" />
+                <span>Cobro y Saldo</span>
+              </span>
+
+              {/* Atajos de pago en 1 clic */}
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleSetQuickPayment('full')}
+                  className={`px-2 py-0.5 text-[10px] font-bold rounded-lg border transition cursor-pointer ${
+                    pagado === calculatedTotal && calculatedTotal > 0
+                      ? 'bg-emerald-600 text-white border-emerald-600'
+                      : isDark
+                      ? 'bg-[#16234F] text-[#4FD1B5] border-[#4FD1B5]/40'
+                      : 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                  }`}
+                >
+                  Total Pagado
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSetQuickPayment('half')}
-                  className={`flex-1 py-1 rounded-lg text-[10px] font-bold border transition ${
-                    isDark
-                      ? 'bg-[#16234F] text-[#9AA6C9] hover:text-white border-[#223368]'
-                      : 'bg-white text-[#1A2B5C] hover:bg-[#F5EFE0] border-[#E8DFC8]'
+                  className={`px-2 py-0.5 text-[10px] font-bold rounded-lg border transition cursor-pointer ${
+                    pagado > 0 && pagado === Number((calculatedTotal / 2).toFixed(2))
+                      ? 'bg-amber-600 text-white border-amber-600'
+                      : isDark
+                      ? 'bg-[#16234F] text-amber-300 border-amber-800/40'
+                      : 'bg-amber-50 text-amber-800 border-amber-200'
                   }`}
                 >
-                  50%
+                  50% Anticipo
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleSetQuickPayment('full')}
-                  className={`flex-1 py-1 rounded-lg text-[10px] font-black border transition ${
-                    isDark
-                      ? 'bg-[#4FD1B5] text-[#064E3B] border-[#4FD1B5]'
-                      : 'bg-[#0F766E] text-white border-[#0F766E]'
+                  onClick={() => handleSetQuickPayment('zero')}
+                  className={`px-2 py-0.5 text-[10px] font-bold rounded-lg border transition cursor-pointer ${
+                    pagado === 0
+                      ? 'bg-rose-600 text-white border-rose-600'
+                      : isDark
+                      ? 'bg-[#16234F] text-rose-300 border-rose-800/40'
+                      : 'bg-rose-50 text-rose-800 border-rose-200'
                   }`}
                 >
-                  Total
+                  Por Cobrar
                 </button>
               </div>
             </div>
 
-            {/* Saldo Pendiente */}
-            <div
-              className={`border rounded-2xl p-4 transition-colors ${
-                calculatedSaldo <= 0
-                  ? isDark
-                    ? 'bg-[#0F1B3C] border-[#4FD1B5]/30'
-                    : 'bg-[#E6FFFA] border-[#99F6E4]'
-                  : isDark
-                  ? 'bg-[#0F1B3C] border-[#FFA26B]/30'
-                  : 'bg-[#FFF7ED] border-[#FED7AA]'
-              }`}
-            >
-              <span className={`block text-xs font-bold uppercase tracking-wider ${
-                calculatedSaldo <= 0
-                  ? isDark ? 'text-[#4FD1B5]' : 'text-[#0D9488]'
-                  : isDark ? 'text-[#FFA26B]' : 'text-[#EA580C]'
-              }`}>
-                Saldo Pendiente
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              {/* Monto Pagado */}
+              <div>
+                <label
+                  className={`block text-[10px] font-bold uppercase tracking-wider mb-1 ${
+                    isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                  }`}
+                >
+                  Monto Pagado (Bs.)
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  value={pagado === 0 ? '' : pagado}
+                  onChange={(e) =>
+                    setPagado(e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)
+                  }
+                  placeholder="0.00"
+                  className={`w-full border rounded-xl py-2 px-3 text-sm font-black focus:outline-none ${
+                    isDark
+                      ? 'bg-[#16234F] border-[#223368] text-white focus:ring-2 focus:ring-[#FF6FA5]'
+                      : 'bg-white border-[#E8DFC8] text-[#1A2B5C] focus:ring-2 focus:ring-[#1A2B5C]'
+                  }`}
+                />
+              </div>
+
+              {/* Saldo Resultante */}
+              <div>
+                <label
+                  className={`block text-[10px] font-bold uppercase tracking-wider mb-1 ${
+                    isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
+                  }`}
+                >
+                  Saldo Pendiente
+                </label>
+                <div
+                  className={`py-2 px-3 rounded-xl border text-sm font-black flex items-center justify-between font-['Outfit',sans-serif] ${
+                    calculatedSaldo > 0
+                      ? isDark
+                        ? 'bg-amber-950/50 text-[#FFA26B] border-amber-800/40'
+                        : 'bg-amber-50 text-[#C2410C] border-amber-200'
+                      : isDark
+                      ? 'bg-emerald-950/50 text-[#4FD1B5] border-emerald-800/40'
+                      : 'bg-emerald-50 text-[#0F766E] border-emerald-200'
+                  }`}
+                >
+                  <span>{formatCurrency(calculatedSaldo)}</span>
+                  {calculatedSaldo === 0 ? (
+                    <span className="text-[10px] font-bold">✓ Pagado</span>
+                  ) : (
+                    <span className="text-[10px] font-bold">Por cobrar</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </form>
+
+        {/* Modal Sticky Footer (Siempre visible en Celular, Tablet y PC) */}
+        <div
+          className={`shrink-0 p-3 sm:p-4 border-t flex flex-col sm:flex-row items-center justify-between gap-3 ${
+            isDark
+              ? 'bg-[#0F1B3C] border-[#223368]'
+              : 'bg-[#FBF7EF] border-[#E8DFC8]'
+          }`}
+        >
+          {/* Resumen de Totales */}
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
+            <div>
+              <span className={`block text-[9px] uppercase font-bold ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                Total Venta
+              </span>
+              <span className="text-base sm:text-lg font-black font-['Outfit',sans-serif]">
+                {formatCurrency(calculatedTotal)}
+              </span>
+            </div>
+
+            <div className="h-6 w-px bg-slate-300 dark:bg-slate-700" />
+
+            <div>
+              <span className={`block text-[9px] uppercase font-bold ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                Saldo a Cobrar
               </span>
               <span
-                className={`text-2xl font-black font-['Outfit',sans-serif] tracking-tight ${
-                  calculatedSaldo <= 0
-                    ? isDark ? 'text-[#4FD1B5]' : 'text-[#0F766E]'
-                    : isDark ? 'text-[#FFA26B]' : 'text-[#C2410C]'
+                className={`text-sm sm:text-base font-black font-['Outfit',sans-serif] ${
+                  calculatedSaldo > 0 ? 'text-[#FFA26B]' : 'text-emerald-500'
                 }`}
               >
                 {formatCurrency(calculatedSaldo)}
               </span>
+            </div>
+          </div>
+
+          {/* Botones de Acción */}
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              id="footer-add-product-btn"
+              type="button"
+              onClick={handleAddProduct}
+              className={`py-2.5 px-3 sm:px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-1.5 transition active:scale-95 border cursor-pointer shrink-0 ${
+                isDark
+                  ? 'bg-[#1E2D5A] hover:bg-[#253B7A] text-[#FF6FA5] border-[#FF6FA5]/40'
+                  : 'bg-white hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#1A2B5C]/30'
+              }`}
+              title="Agregar nuevo artículo sin subir al inicio (+)"
+            >
+              <Plus className="w-3.5 h-3.5 stroke-[3]" />
+              <span>Artículo</span>
               <span
-                className={`inline-block text-[11px] font-black mt-1 px-2.5 py-0.5 rounded-lg border ${
-                  calculatedSaldo <= 0
-                    ? isDark
-                      ? 'bg-[#4FD1B5]/20 text-[#4FD1B5] border-[#4FD1B5]/30'
-                      : 'bg-[#CCFBF1] text-[#0F766E] border-[#99F6E4]'
-                    : isDark
-                    ? 'bg-[#FFA26B]/20 text-[#FFA26B] border-[#FFA26B]/30'
-                    : 'bg-[#FFEDD5] text-[#C2410C] border-[#FED7AA]'
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                  isDark ? 'bg-[#FF6FA5] text-[#0F1B3C]' : 'bg-[#1A2B5C] text-white'
                 }`}
               >
-                {calculatedSaldo <= 0 ? '✅ Totalmente Pagado' : '⚠️ Pendiente de Cobro'}
+                {productos.length}
               </span>
-            </div>
+            </button>
+
+            <button
+              id="cancel-new-order-modal-btn"
+              type="button"
+              disabled={isSubmitting}
+              onClick={onCancel}
+              className={`flex-1 sm:flex-initial py-2.5 px-3.5 sm:px-4 rounded-xl font-bold text-xs sm:text-sm transition border cursor-pointer ${
+                isDark
+                  ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-white border-[#223368]'
+                  : 'bg-white hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]'
+              }`}
+            >
+              Cancelar
+            </button>
+
+            <button
+              id="confirm-save-order-btn"
+              type="button"
+              disabled={isSubmitting}
+              onClick={handleSaveOrder}
+              className={`flex-1 sm:flex-initial py-2.5 px-5 sm:px-6 rounded-xl font-black text-xs sm:text-sm active:scale-95 shadow-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                isSubmitting ? 'opacity-60 pointer-events-none' : ''
+              } ${
+                isDark
+                  ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C] shadow-[#FF6FA5]/25 border border-[#FF6FA5]'
+                  : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white shadow-[#1A2B5C]/25'
+              }`}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Guardando...</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
+                  <span>Guardar Venta</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row gap-3 pt-2">
+        {/* Botón flotante para agregar artículo desde cualquier posición dentro de la ventana */}
+        <div className="absolute bottom-20 right-3 sm:right-6 z-30 pointer-events-none">
           <button
-            id="confirm-save-order-btn"
-            type="submit"
-            disabled={isSubmitting}
-            className={`flex-1 py-4 px-6 rounded-2xl font-black text-base active:scale-[0.99] shadow-xl flex items-center justify-center gap-2.5 transition-all ${
-              isSubmitting
-                ? 'opacity-60 cursor-not-allowed pointer-events-none'
-                : 'cursor-pointer'
-            } ${
-              isDark
-                ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C] shadow-[#FF6FA5]/25 border border-[#FF6FA5]'
-                : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white shadow-[#1A2B5C]/25'
-            }`}
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Guardando Pedido...</span>
-              </>
-            ) : (
-              <>
-                <CheckCircle2 className="w-5 h-5" />
-                <span>Guardar Pedido Permanentemente</span>
-              </>
-            )}
-          </button>
-
-          <button
-            id="cancel-confirmation-btn"
+            id="fab-add-product-modal-btn"
             type="button"
-            disabled={isSubmitting}
-            onClick={onCancel}
-            className={`py-3.5 px-6 rounded-2xl font-bold text-sm transition-all border ${
-              isSubmitting
-                ? 'opacity-40 cursor-not-allowed pointer-events-none'
-                : 'cursor-pointer'
-            } ${
+            onClick={handleAddProduct}
+            className={`pointer-events-auto py-2.5 px-3.5 sm:px-4 rounded-full font-black text-xs sm:text-sm active:scale-95 shadow-2xl flex items-center gap-1.5 transition-all cursor-pointer border ${
               isDark
-                ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-white border-[#223368]'
-                : 'bg-white hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]'
+                ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C] border-[#FF6FA5]/40 shadow-lg shadow-black/50'
+                : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white border-[#1A2B5C] shadow-lg shadow-black/30'
             }`}
+            title="Agregar nuevo artículo rápidamente (+)"
           >
-            Cancelar
+            <Plus className="w-3.5 h-3.5 stroke-[3]" />
+            <span>Artículo</span>
+            <span
+              className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                isDark ? 'bg-[#0F1B3C]/25 text-[#0F1B3C]' : 'bg-white/20 text-white'
+              }`}
+            >
+              {productos.length}
+            </span>
           </button>
         </div>
-      </form>
 
-      {/* Floating Action Button for Adding Products anywhere without scrolling */}
-      <div className="fixed bottom-6 right-6 z-40 print:hidden">
-        <button
-          id="fab-add-product-btn"
-          type="button"
-          onClick={handleAddProduct}
-          className={`py-3 px-4 sm:px-5 rounded-full font-black text-xs sm:text-sm active:scale-95 shadow-2xl flex items-center gap-2 transition-all cursor-pointer border ${
-            isDark
-              ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C] border-[#FF6FA5]/40 shadow-lg shadow-black/40'
-              : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white border-[#1A2B5C] shadow-lg shadow-black/25'
-          }`}
-          title="Agregar artículo rápidamente (+)"
-        >
-          <Plus className="w-4 h-4 stroke-[3]" />
-          <span>+ Agregar Artículo</span>
-          <span
-            className={`text-[10px] px-2 py-0.5 rounded-full font-bold ml-0.5 ${
-              isDark ? 'bg-[#0F1B3C]/20 text-[#0F1B3C]' : 'bg-white/20 text-white'
-            }`}
-          >
-            {productos.length}
-          </span>
-        </button>
-      </div>
+        {/* Modal de selección de empaque / variante */}
+        {packagingModalItem && (
+          <PackagingSelectionModal
+            isOpen={!!packagingModalItem}
+            onClose={() => setPackagingModalItem(null)}
+            productName={packagingModalItem.nombre || `Producto #${productos.findIndex((p) => p.id === packagingModalItem.id) + 1}`}
+            currentValue={packagingModalItem.variante}
+            onSelect={(presetLabel, suggestedUnits) => {
+              handleUpdateProduct(packagingModalItem.id, 'variante', presetLabel);
+              if (suggestedUnits && (!packagingModalItem.cantidad || packagingModalItem.cantidad === 0)) {
+                handleUpdateProduct(packagingModalItem.id, 'cantidad', 1);
+              }
+            }}
+          />
+        )}
 
-      {/* Packaging Selection Modal for Mobile & Quick selection */}
-      {packagingModalItem && (
-        <PackagingSelectionModal
-          isOpen={!!packagingModalItem}
-          onClose={() => setPackagingModalItem(null)}
-          productName={packagingModalItem.nombre || `Producto #${productos.findIndex((p) => p.id === packagingModalItem.id) + 1}`}
-          currentValue={packagingModalItem.variante}
-          onSelect={(presetLabel, suggestedUnits) => {
-            handleUpdateProduct(packagingModalItem.id, 'variante', presetLabel);
-            if (suggestedUnits && (!packagingModalItem.cantidad || packagingModalItem.cantidad === 0)) {
-              handleUpdateProduct(packagingModalItem.id, 'cantidad', 1);
+        {/* Modal Guía VIKA */}
+        <VikaGuideModal
+          isOpen={isGuideOpen}
+          onClose={() => setIsGuideOpen(false)}
+          onSelectPrompt={() => {
+            if (onOpenVika) {
+              onOpenVika();
             }
           }}
         />
-      )}
-
-      {/* Guide Modal */}
-      <VikaGuideModal
-        isOpen={isGuideOpen}
-        onClose={() => setIsGuideOpen(false)}
-        onSelectPrompt={(prompt) => {
-          if (onOpenVika) {
-            onOpenVika();
-          }
-        }}
-      />
+      </div>
     </div>
   );
 };
