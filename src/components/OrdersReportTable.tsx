@@ -11,6 +11,7 @@ import {
   MapPin,
 } from 'lucide-react';
 import { Order } from '../types';
+import { getWhatsAppUrl } from '../lib/storage';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useFinancialPrivacy } from '../contexts/FinancialPrivacyContext';
@@ -278,21 +279,18 @@ export const OrdersReportTable: React.FC<OrdersReportTableProps> = ({
                         <span className="hidden lg:inline">Ticket</span>
                       </button>
 
-                      {/* Botón WhatsApp / Almacén */}
-                      <button
-                        type="button"
-                        id={`btn-prep-${order.id}`}
-                        onClick={() => onPrepOrder(order)}
-                        className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition active:scale-95 cursor-pointer border flex items-center gap-1 shadow-sm ${
-                          isDark
-                            ? 'bg-[#0F1B3C] hover:bg-[#16234F] text-emerald-300 border-emerald-800/40'
-                            : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200'
-                        }`}
-                        title="Ficha WhatsApp y Nota de Despacho"
+                      {/* Botón WhatsApp Listado */}
+                      <a
+                        id={`btn-wa-${order.id}`}
+                        href={getWhatsAppUrl(order)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2.5 py-1.5 rounded-xl text-xs font-black transition active:scale-95 cursor-pointer flex items-center gap-1 shadow-sm bg-[#25D366] hover:bg-[#20bd5a] text-white"
+                        title="Enviar listado de productos y cobro por WhatsApp al cliente"
                       >
-                        <MessageCircle className="w-3.5 h-3.5 text-emerald-500" />
-                        <span className="hidden lg:inline">WhatsApp</span>
-                      </button>
+                        <MessageCircle className="w-3.5 h-3.5 fill-current" />
+                        <span className="hidden lg:inline">Listado</span>
+                      </a>
                     </div>
                   </td>
                 </tr>
@@ -447,20 +445,17 @@ export const OrdersReportTable: React.FC<OrdersReportTableProps> = ({
                   <span>Ticket</span>
                 </button>
 
-                {/* Botón WhatsApp */}
-                <button
-                  type="button"
-                  onClick={() => onPrepOrder(order)}
-                  className={`flex-1 min-w-[85px] py-2 px-2 rounded-xl text-xs font-bold border flex items-center justify-center gap-1 shadow-sm active:scale-95 cursor-pointer ${
-                    isDark
-                      ? 'bg-[#0F1B3C] text-emerald-300 border-emerald-800/40'
-                      : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                  }`}
-                  title="WhatsApp"
+                {/* Botón WhatsApp Listado */}
+                <a
+                  href={getWhatsAppUrl(order)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 min-w-[85px] py-2 px-2 rounded-xl text-xs font-black border flex items-center justify-center gap-1 shadow-sm active:scale-95 cursor-pointer bg-[#25D366] hover:bg-[#20bd5a] text-white border-[#20bd5a]"
+                  title="Enviar listado por WhatsApp al cliente"
                 >
-                  <MessageCircle className="w-3.5 h-3.5 text-emerald-500" />
-                  <span>WhatsApp</span>
-                </button>
+                  <MessageCircle className="w-3.5 h-3.5 fill-current" />
+                  <span>Listado WA</span>
+                </a>
 
                 {/* Botón Cobrar (si tiene saldo) */}
                 {hasPendingBalance && !isVendedorRole && (

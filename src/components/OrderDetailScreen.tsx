@@ -126,20 +126,18 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
           </button>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Warehouse prep slip for WhatsApp */}
-            <button
-              id="detail-prep-modal-btn"
-              onClick={() => setIsPrepModalOpen(true)}
-              className={`p-2.5 rounded-2xl transition-all flex items-center gap-1.5 text-xs font-bold active:scale-95 border cursor-pointer ${
-                isDark
-                  ? 'bg-[#1E2D5A] hover:bg-[#283C75] text-[#FF6FA5] border-[#223368]'
-                  : 'bg-[#F5EFE0] hover:bg-[#EBE2CF] text-[#1A2B5C] border-[#E8DFC8]'
-              }`}
-              title="Abrir ficha visual de preparación para WhatsApp / Almacén"
+            {/* WhatsApp Listado principal para el cliente */}
+            <a
+              id="detail-whatsapp-header-btn"
+              href={whatsAppUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2.5 rounded-2xl transition-all flex items-center gap-1.5 text-xs font-black active:scale-95 bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-sm cursor-pointer"
+              title="Enviar listado de productos y cobro por WhatsApp"
             >
-              <Package className={`w-4 h-4 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
-              <span>Ficha WhatsApp</span>
-            </button>
+              <MessageCircle className="w-4 h-4 fill-current" />
+              <span>Enviar Listado</span>
+            </a>
 
             <button
               id="detail-print-btn"
@@ -767,7 +765,7 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
           </div>
         )}
 
-        {/* PRIMARY ACTIONS: WHATSAPP + IMPRESIÓN */}
+        {/* PRIMARY ACTIONS: WHATSAPP LISTADO + IMPRESIÓN */}
         <div className="space-y-3 pt-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <a
@@ -775,14 +773,10 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
               href={whatsAppUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className={`py-4 px-6 rounded-2xl font-black text-base active:scale-[0.99] shadow-xl flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
-                isDark
-                  ? 'bg-[#4FD1B5] hover:bg-[#38b2ac] text-[#064E3B] shadow-[#4FD1B5]/25'
-                  : 'bg-[#0F766E] hover:bg-[#0D9488] text-white shadow-[#0F766E]/25'
-              }`}
+              className="py-4 px-6 rounded-2xl font-black text-base active:scale-[0.99] shadow-xl flex items-center justify-center gap-2.5 transition-all cursor-pointer bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-[#25D366]/25"
             >
               <MessageCircle className="w-5 h-5 fill-current" />
-              <span>Enviar Recibo WhatsApp</span>
+              <span>Enviar Listado por WhatsApp</span>
             </a>
 
             <button
@@ -804,14 +798,14 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
             <button
               id="prep-ticket-secondary-btn"
               onClick={() => setIsPrepModalOpen(true)}
-              className={`flex-1 py-3 px-4 rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all border cursor-pointer ${
+              className={`flex-1 py-3 px-4 rounded-2xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all border opacity-80 hover:opacity-100 cursor-pointer ${
                 isDark
-                  ? 'bg-[#1E2D5A] hover:bg-[#283C75] text-[#FF6FA5] border-[#223368]'
-                  : 'bg-[#F5EFE0] hover:bg-[#EBE2CF] text-[#1A2B5C] border-[#E8DFC8]'
+                  ? 'bg-[#1E2D5A]/50 hover:bg-[#283C75] text-[#9AA6C9] border-[#223368]'
+                  : 'bg-[#F5EFE0] hover:bg-[#EBE2CF] text-[#78716C] border-[#E8DFC8]'
               }`}
             >
-              <Package className={`w-4 h-4 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
-              <span>Ficha WhatsApp para Almacén / Empaque</span>
+              <Package className="w-4 h-4" />
+              <span>Ficha Almacén / Empaque (Opcional)</span>
             </button>
 
             <button
@@ -826,12 +820,12 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
               {copied ? (
                 <>
                   <Check className="w-4 h-4 text-emerald-500" />
-                  <span className="text-emerald-500">¡Texto Copiado!</span>
+                  <span className="text-emerald-500">¡Listado Copiado!</span>
                 </>
               ) : (
                 <>
                   <Copy className={`w-4 h-4 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
-                  <span>Copiar Resumen de Cobro</span>
+                  <span>Copiar Listado de Cobro</span>
                 </>
               )}
             </button>

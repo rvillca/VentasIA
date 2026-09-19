@@ -16,9 +16,15 @@ import {
   Loader2,
   AlertTriangle,
   FileText,
+  MessageCircle,
 } from 'lucide-react';
 import { Order, OrderItem } from '../types';
-import { formatCurrency, getNextOrderNumber, formatBoliviaPhone } from '../lib/storage';
+import {
+  formatCurrency,
+  getNextOrderNumber,
+  formatBoliviaPhone,
+  getWhatsAppUrl,
+} from '../lib/storage';
 import { VikaGuideModal } from './VikaGuideModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -316,21 +322,28 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
     );
   };
 
-  // Calculations
-  const calculatedTotal = productos.reduce((sum, item) => {
-    return sum + (item.cantidad || 0) * (item.precioUnitario || 0);
-  }, 0);
+  // Calculations strictly formatted to 2 decimals
+  const calculatedTotal = Number(
+    productos
+      .reduce((sum, item) => {
+        return sum + (item.cantidad || 0) * (item.precioUnitario || 0);
+      }, 0)
+      .toFixed(2)
+  );
 
-  const calculatedSaldo = Math.max(0, calculatedTotal - pagado);
+  const calculatedSaldo = Number(Math.max(0, calculatedTotal - pagado).toFixed(2));
 
   const handleSetQuickPayment = (type: 'zero' | 'half' | 'full') => {
     if (type === 'zero') setPagado(0);
     else if (type === 'half') setPagado(Number((calculatedTotal / 2).toFixed(2)));
-    else if (type === 'full') setPagado(calculatedTotal);
+    else if (type === 'full') setPagado(Number(calculatedTotal.toFixed(2)));
   };
 
-  const handleSaveOrder = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveOrder = async (
+    e?: React.FormEvent,
+    sendWhatsApp: boolean = false
+  ) => {
+    if (e) e.preventDefault();
 
     if (isSubmittingRef.current || isSubmitting) {
       return;
@@ -342,6 +355,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
       .map((p) => ({
         ...p,
         cantidad: Math.max(1, p.cantidad || 1),
+        precioUnitario: Number((p.precioUnitario || 0).toFixed(2)),
       }));
 
     if (cleanProductos.length === 0) {
@@ -355,6 +369,10 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
 
     try {
       const nextNumber = getNextOrderNumber(orders);
+      const finalTotal = Number(calculatedTotal.toFixed(2));
+      const finalPagado = Number(Math.max(0, pagado).toFixed(2));
+      const finalSaldo = Number(Math.max(0, finalTotal - finalPagado).toFixed(2));
+
       const newOrder: Order = {
         id: `ord_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
         orderNumber: nextNumber,
@@ -363,9 +381,9 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
         lugarEntrega: lugarEntrega.trim(),
         observaciones: observaciones.trim(),
         productos: cleanProductos,
-        total: calculatedTotal,
-        pagado: Math.max(0, pagado),
-        saldo: calculatedSaldo,
+        total: finalTotal,
+        pagado: finalPagado,
+        saldo: finalSaldo,
         estado: 'Abierto',
         vendedorUid: userProfile?.uid,
         vendedorNombre: userProfile?.displayName || 'Vendedor',
@@ -374,6 +392,12 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
       };
 
       await onSaveOrder(newOrder);
+
+      // Si se presionó "Guardar y Enviar Listado", abre directamente WhatsApp con el pedido estructurado
+      if (sendWhatsApp) {
+        const waUrl = getWhatsAppUrl(newOrder);
+        window.open(waUrl, '_blank');
+      }
 
       try {
         localStorage.removeItem(DRAFT_STORAGE_KEY);
@@ -873,6 +897,33 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
                         type="text"
                         value={prod.nombre}
                         onChange={(e) => handleUpdateProduct(prod.id, 'nombre', e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (prod.nombre.trim()) {
+                              setPackagingModalItem(prod);
+                            }
+                          }
+                        }}
+                        onBlur={(e) => {
+                          // Abre automáticamente la ventana de boxes al terminar de escribir el nombre
+                          if (
+                            prod.nombre.trim() &&
+                            !prod.variante &&
+                            !packagingModalItem &&
+                            !isSubmittingRef.current &&
+                            !confirmDiscard
+                          ) {
+                            const related = e.relatedTarget as HTMLElement | null;
+                            if (
+                              !related ||
+                              (!related.closest('[data-no-auto-packaging]') &&
+                                !related.closest('#cancel-order-button'))
+                            ) {
+                              setPackagingModalItem(prod);
+                            }
+                          }
+                        }}
                         placeholder="Nombre del artículo (ej. Bolígrafo Kuromi)"
                         className={`flex-1 border rounded-xl py-1.5 px-3 text-xs sm:text-sm font-semibold focus:outline-none ${
                           isDark
@@ -882,6 +933,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
                       />
                       <button
                         type="button"
+                        data-no-auto-packaging="true"
                         onClick={() => handleRemoveProduct(prod.id)}
                         className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/10 transition cursor-pointer shrink-0"
                         title="Eliminar este artículo"
@@ -955,8 +1007,9 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
                           P. Unit (Bs):
                         </span>
                         <input
+                          id={`product-price-input-${prod.id}`}
                           type="number"
-                          step="0.5"
+                          step="any"
                           min="0"
                           value={prod.precioUnitario === 0 ? '' : prod.precioUnitario}
                           onChange={(e) =>
@@ -1086,7 +1139,7 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
                 </label>
                 <input
                   type="number"
-                  step="0.5"
+                  step="any"
                   min="0"
                   value={pagado === 0 ? '' : pagado}
                   onChange={(e) =>
@@ -1134,129 +1187,125 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
         </form>
 
         {/* Modal Sticky Footer (Siempre visible en Celular, Tablet y PC) */}
+        {/* Modal Sticky Footer (Totalmente uniforme en Celular, Tablet y PC) */}
         <div
-          className={`shrink-0 p-3 sm:p-4 border-t flex flex-col sm:flex-row items-center justify-between gap-3 ${
+          className={`shrink-0 p-3 sm:p-4 border-t flex flex-col gap-2.5 sm:gap-3 ${
             isDark
               ? 'bg-[#0F1B3C] border-[#223368]'
               : 'bg-[#FBF7EF] border-[#E8DFC8]'
           }`}
         >
-          {/* Resumen de Totales */}
-          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
-            <div>
-              <span className={`block text-[9px] uppercase font-bold ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
-                Total Venta
-              </span>
-              <span className="text-base sm:text-lg font-black font-['Outfit',sans-serif]">
-                {formatCurrency(calculatedTotal)}
-              </span>
+          {/* Fila 1: Resumen de Totales y Saldo con Espacio Amplio */}
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-3 sm:gap-5">
+              <div>
+                <span className={`block text-[9px] uppercase font-bold tracking-wider ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                  Total Venta
+                </span>
+                <span className="text-base sm:text-lg font-black font-['Outfit',sans-serif]">
+                  {formatCurrency(calculatedTotal)}
+                </span>
+              </div>
+
+              <div className="h-7 w-px bg-slate-300 dark:bg-slate-700" />
+
+              <div>
+                <span className={`block text-[9px] uppercase font-bold tracking-wider ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                  Pagado
+                </span>
+                <span className="text-sm sm:text-base font-black font-['Outfit',sans-serif] text-emerald-600 dark:text-emerald-400">
+                  {formatCurrency(pagado)}
+                </span>
+              </div>
+
+              <div className="h-7 w-px bg-slate-300 dark:bg-slate-700" />
+
+              <div>
+                <span className={`block text-[9px] uppercase font-bold tracking-wider ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                  Saldo a Cobrar
+                </span>
+                <span
+                  className={`text-sm sm:text-base font-black font-['Outfit',sans-serif] ${
+                    calculatedSaldo > 0 ? 'text-[#FFA26B]' : 'text-emerald-500'
+                  }`}
+                >
+                  {formatCurrency(calculatedSaldo)}
+                </span>
+              </div>
             </div>
 
-            <div className="h-6 w-px bg-slate-300 dark:bg-slate-700" />
-
-            <div>
-              <span className={`block text-[9px] uppercase font-bold ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
-                Saldo a Cobrar
-              </span>
-              <span
-                className={`text-sm sm:text-base font-black font-['Outfit',sans-serif] ${
-                  calculatedSaldo > 0 ? 'text-[#FFA26B]' : 'text-emerald-500'
-                }`}
-              >
-                {formatCurrency(calculatedSaldo)}
+            <div className="hidden sm:block">
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                isDark
+                  ? 'bg-[#16234F] text-[#9AA6C9] border-[#223368]'
+                  : 'bg-white text-[#78716C] border-[#E8DFC8]'
+              }`}>
+                {productos.length} {productos.length === 1 ? 'artículo' : 'artículos'}
               </span>
             </div>
           </div>
 
-          {/* Botones de Acción */}
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <button
-              id="footer-add-product-btn"
-              type="button"
-              onClick={handleAddProduct}
-              className={`py-2.5 px-3 sm:px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-1.5 transition active:scale-95 border cursor-pointer shrink-0 ${
-                isDark
-                  ? 'bg-[#1E2D5A] hover:bg-[#253B7A] text-[#FF6FA5] border-[#FF6FA5]/40'
-                  : 'bg-white hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#1A2B5C]/30'
-              }`}
-              title="Agregar nuevo artículo sin subir al inicio (+)"
-            >
-              <Plus className="w-3.5 h-3.5 stroke-[3]" />
-              <span>Artículo</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                  isDark ? 'bg-[#FF6FA5] text-[#0F1B3C]' : 'bg-[#1A2B5C] text-white'
-                }`}
-              >
-                {productos.length}
-              </span>
-            </button>
-
+          {/* Fila 2: Cuadrícula de 3 Botones 100% Uniformes en Ancho, Alto y Estilo */}
+          <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full">
+            {/* 1. Cancelar */}
             <button
               id="cancel-new-order-modal-btn"
               type="button"
               disabled={isSubmitting}
               onClick={onCancel}
-              className={`flex-1 sm:flex-initial py-2.5 px-3.5 sm:px-4 rounded-xl font-bold text-xs sm:text-sm transition border cursor-pointer ${
+              className={`w-full h-11 sm:h-12 px-2 sm:px-4 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all active:scale-95 border shadow-sm cursor-pointer whitespace-nowrap ${
                 isDark
-                  ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-white border-[#223368]'
-                  : 'bg-white hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]'
+                  ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-[#9AA6C9] hover:text-white border-[#223368]'
+                  : 'bg-stone-100 hover:bg-stone-200 text-stone-700 hover:text-stone-900 border-stone-300'
               }`}
             >
-              Cancelar
+              <X className="w-4 h-4 shrink-0" />
+              <span>Cancelar</span>
             </button>
 
+            {/* 2. Guardar Venta */}
             <button
               id="confirm-save-order-btn"
               type="button"
               disabled={isSubmitting}
-              onClick={handleSaveOrder}
-              className={`flex-1 sm:flex-initial py-2.5 px-5 sm:px-6 rounded-xl font-black text-xs sm:text-sm active:scale-95 shadow-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              onClick={(e) => handleSaveOrder(e, false)}
+              className={`w-full h-11 sm:h-12 px-2 sm:px-4 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-md border cursor-pointer whitespace-nowrap ${
                 isSubmitting ? 'opacity-60 pointer-events-none' : ''
               } ${
                 isDark
-                  ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C] shadow-[#FF6FA5]/25 border border-[#FF6FA5]'
-                  : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white shadow-[#1A2B5C]/25'
+                  ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C] border-[#ff5b97] shadow-[#FF6FA5]/25'
+                  : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white border-[#142247] shadow-[#1A2B5C]/20'
               }`}
+              title="Guardar la venta en el sistema sin abrir WhatsApp"
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin shrink-0" />
                   <span>Guardando...</span>
                 </>
               ) : (
                 <>
-                  <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
+                  <CheckCircle2 className="w-4 h-4 stroke-[2.5] shrink-0" />
                   <span>Guardar Venta</span>
                 </>
               )}
             </button>
-          </div>
-        </div>
 
-        {/* Botón flotante para agregar artículo desde cualquier posición dentro de la ventana */}
-        <div className="absolute bottom-20 right-3 sm:right-6 z-30 pointer-events-none">
-          <button
-            id="fab-add-product-modal-btn"
-            type="button"
-            onClick={handleAddProduct}
-            className={`pointer-events-auto py-2.5 px-3.5 sm:px-4 rounded-full font-black text-xs sm:text-sm active:scale-95 shadow-2xl flex items-center gap-1.5 transition-all cursor-pointer border ${
-              isDark
-                ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C] border-[#FF6FA5]/40 shadow-lg shadow-black/50'
-                : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white border-[#1A2B5C] shadow-lg shadow-black/30'
-            }`}
-            title="Agregar nuevo artículo rápidamente (+)"
-          >
-            <Plus className="w-3.5 h-3.5 stroke-[3]" />
-            <span>Artículo</span>
-            <span
-              className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
-                isDark ? 'bg-[#0F1B3C]/25 text-[#0F1B3C]' : 'bg-white/20 text-white'
+            {/* 3. Enviar WhatsApp */}
+            <button
+              id="confirm-save-and-whatsapp-btn"
+              type="button"
+              disabled={isSubmitting}
+              onClick={(e) => handleSaveOrder(e, true)}
+              className={`w-full h-11 sm:h-12 px-2 sm:px-4 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-md bg-[#25D366] hover:bg-[#20bd5a] text-white border border-[#1ebc56] shadow-[#25D366]/25 cursor-pointer whitespace-nowrap ${
+                isSubmitting ? 'opacity-60 pointer-events-none' : ''
               }`}
+              title="Guardar la venta y enviar listado de cobro detallado por WhatsApp"
             >
-              {productos.length}
-            </span>
-          </button>
+              <MessageCircle className="w-4 h-4 fill-current shrink-0" />
+              <span>Enviar WhatsApp</span>
+            </button>
+          </div>
         </div>
 
         {/* Modal de selección de empaque / variante */}
@@ -1267,10 +1316,20 @@ export const NewOrderScreen: React.FC<NewOrderScreenProps> = ({
             productName={packagingModalItem.nombre || `Producto #${productos.findIndex((p) => p.id === packagingModalItem.id) + 1}`}
             currentValue={packagingModalItem.variante}
             onSelect={(presetLabel, suggestedUnits) => {
-              handleUpdateProduct(packagingModalItem.id, 'variante', presetLabel);
+              const currentId = packagingModalItem.id;
+              handleUpdateProduct(currentId, 'variante', presetLabel);
               if (suggestedUnits && (!packagingModalItem.cantidad || packagingModalItem.cantidad === 0)) {
-                handleUpdateProduct(packagingModalItem.id, 'cantidad', 1);
+                handleUpdateProduct(currentId, 'cantidad', 1);
               }
+              setPackagingModalItem(null);
+              // Enfocar automáticamente el campo de Precio Unitario para ingreso continuo y ultra veloz
+              setTimeout(() => {
+                const priceInput = document.getElementById(`product-price-input-${currentId}`) as HTMLInputElement | null;
+                if (priceInput) {
+                  priceInput.focus();
+                  priceInput.select?.();
+                }
+              }, 120);
             }}
           />
         )}

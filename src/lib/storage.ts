@@ -975,7 +975,7 @@ export function getNextOrderNumber(orders: Order[]): number {
 export function formatCurrency(amount: number): string {
   const num = Number(amount || 0);
   const formatted = new Intl.NumberFormat('es-BO', {
-    minimumFractionDigits: num % 1 === 0 ? 0 : 2,
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(num);
   return `Bs. ${formatted}`;

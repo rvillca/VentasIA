@@ -1418,11 +1418,7 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
                           type="button"
                           disabled={completingId === order.id}
                           onClick={(e) => handleQuickCompleteBalance(order, e)}
-                          className={`py-1.5 px-2.5 rounded-xl text-xs font-black flex items-center gap-1 transition shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer ${
-                            isDark
-                              ? 'bg-[#4FD1B5] hover:bg-[#38b2ac] text-[#064E3B]'
-                              : 'bg-[#0F766E] hover:bg-[#0D9488] text-white'
-                          }`}
+                          className="h-8 px-2.5 rounded-xl text-xs font-black flex items-center gap-1 transition shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer bg-[#0F766E] hover:bg-[#0D9488] text-white dark:bg-[#4FD1B5] dark:hover:bg-[#38b2ac] dark:text-[#064E3B]"
                           title="Completar saldo en 1 clic (marcar pagado al 100%)"
                         >
                           <DollarSign className="w-3.5 h-3.5" />
@@ -1430,23 +1426,18 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
                         </button>
                       )}
 
-                      {/* Warehouse Preparation Photo & WhatsApp Slip */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPrepOrder(order);
-                        }}
-                        className={`py-1.5 px-2.5 rounded-xl text-xs font-bold flex items-center gap-1 transition shadow-sm active:scale-95 cursor-pointer ${
-                          isDark
-                            ? 'bg-[#1E2D5A] hover:bg-[#283C75] text-[#FF6FA5] border border-[#223368]'
-                            : 'bg-[#F5EFE0] hover:bg-[#EBE2CF] text-[#1A2B5C] border border-[#E8DFC8]'
-                        }`}
-                        title="Ficha visual de empaque para WhatsApp"
+                      {/* WhatsApp Receipt / Listado button - Principal para enviar al cliente */}
+                      <a
+                        href={getWhatsAppUrl(order)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-8 px-2.5 sm:px-3 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-sm active:scale-95 bg-[#25D366] hover:bg-[#20bd5a] text-white border border-[#1ebc56] cursor-pointer"
+                        title="Enviar listado de productos y cobro al cliente por WhatsApp"
                       >
-                        <Package className={`w-3.5 h-3.5 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
-                        <span className="hidden sm:inline">Ficha WhatsApp</span>
-                      </button>
+                        <MessageCircle className="w-3.5 h-3.5 fill-current" />
+                        <span>Enviar Listado</span>
+                      </a>
 
                       {/* Thermal Ticket */}
                       <button
@@ -1455,10 +1446,10 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
                           e.stopPropagation();
                           setPrintOrder(order);
                         }}
-                        className={`p-2 rounded-xl transition-colors flex items-center gap-1 text-xs font-semibold border cursor-pointer ${
+                        className={`h-8 px-2.5 sm:px-3 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all border cursor-pointer active:scale-95 shadow-sm ${
                           isDark
-                            ? 'bg-[#0F1B3C] hover:bg-[#1E2D5A] text-white border-[#223368]'
-                            : 'bg-[#F5EFE0] hover:bg-[#EBE2CF] text-[#1A2B5C] border-[#E8DFC8]'
+                            ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-white border-[#223368]'
+                            : 'bg-white hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]'
                         }`}
                         title="Imprimir ticket térmico"
                       >
@@ -1466,21 +1457,23 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
                         <span className="hidden sm:inline">Ticket</span>
                       </button>
 
-                      {/* WhatsApp Receipt link */}
-                      <a
-                        href={getWhatsAppUrl(order)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className={`p-2 rounded-xl transition-colors flex items-center gap-1 text-xs font-semibold border ${
+                      {/* Warehouse Preparation Photo & Slip (Opcional) */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPrepOrder(order);
+                        }}
+                        className={`h-8 px-2 sm:px-2.5 rounded-xl text-xs font-medium flex items-center gap-1 transition-all opacity-80 hover:opacity-100 border cursor-pointer active:scale-95 ${
                           isDark
-                            ? 'bg-[#4FD1B5]/20 hover:bg-[#4FD1B5]/30 text-[#4FD1B5] border-[#4FD1B5]/40'
-                            : 'bg-[#CCFBF1] hover:bg-[#99F6E4] text-[#0F766E] border-[#99F6E4]'
+                            ? 'bg-[#1E2D5A]/50 hover:bg-[#283C75] text-[#9AA6C9] border-[#223368]'
+                            : 'bg-[#F5EFE0] hover:bg-[#EBE2CF] text-[#78716C] border-[#E8DFC8]'
                         }`}
-                        title="Enviar comprobante por WhatsApp"
+                        title="Ficha visual de empaque para almacén (opcional)"
                       >
-                        <MessageCircle className="w-4 h-4" />
-                      </a>
+                        <Package className="w-3.5 h-3.5" />
+                        <span className="hidden lg:inline text-[11px]">Ficha Almacén</span>
+                      </button>
 
                       <div
                         className={`p-1 transition-colors ${

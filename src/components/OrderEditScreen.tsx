@@ -16,6 +16,7 @@ import {
 import { Order, OrderItem, OrderStatus } from '../types';
 import { formatCurrency, formatBoliviaPhone } from '../lib/storage';
 import { PackagingSelectionModal } from './PackagingSelectionModal';
+import { PackagingQuickSelector } from './PackagingQuickSelector';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -409,33 +410,12 @@ export const OrderEditScreen: React.FC<OrderEditScreenProps> = ({
                   </div>
 
                   {/* Packaging Selection Trigger */}
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
+                  <div>
+                    <PackagingQuickSelector
                       value={prod.variante}
-                      onClick={() => setPackagingModalItem(prod)}
-                      onChange={(e) =>
-                        handleUpdateProduct(prod.id, 'variante', e.target.value)
-                      }
-                      placeholder="Presentación (ej. Box de 24 u., Docena...)"
-                      className={`flex-1 border rounded-xl px-3 py-1.5 text-xs focus:outline-none transition ${
-                        isDark
-                          ? 'bg-[#16234F] border-[#223368] text-white focus:ring-2 focus:ring-[#FF6FA5]'
-                          : 'bg-white border-[#E8DFC8] text-[#1A2B5C] focus:ring-2 focus:ring-[#1A2B5C]'
-                      }`}
+                      onChange={(val) => handleUpdateProduct(prod.id, 'variante', val)}
+                      onOpenCustomModal={() => setPackagingModalItem(prod)}
                     />
-                    <button
-                      type="button"
-                      onClick={() => setPackagingModalItem(prod)}
-                      className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0 transition cursor-pointer ${
-                        isDark
-                          ? 'bg-[#FF6FA5] text-[#0F1B3C] hover:bg-[#ff85b3]'
-                          : 'bg-[#1A2B5C] text-white hover:bg-[#253B7A]'
-                      }`}
-                    >
-                      <Box className="w-3.5 h-3.5" />
-                      <span>Elegir Box</span>
-                    </button>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-end pt-1">

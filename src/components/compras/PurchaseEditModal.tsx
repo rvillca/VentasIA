@@ -386,7 +386,6 @@ export const PurchaseEditModal: React.FC<PurchaseEditModalProps> = ({
                       <input
                         type="text"
                         value={item.variante || ''}
-                        onClick={() => setPackagingModalIndex(index)}
                         onChange={(e) => handleItemChange(index, 'variante', e.target.value)}
                         placeholder="Ej. Box de 48 u., Docena (12 u.), Medio Box..."
                         className="flex-1 bg-white border border-[#E8DFC8] rounded-xl px-3 py-2 text-xs font-medium text-[#1A2B5C] placeholder-[#78716C]/60 focus:outline-none focus:ring-2 focus:ring-[#1A2B5C]"

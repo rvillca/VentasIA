@@ -17,6 +17,7 @@ import {
   Calendar,
   RotateCcw,
   XCircle,
+  MessageCircle,
 } from 'lucide-react';
 import { Order } from '../types';
 import {
@@ -653,7 +654,21 @@ export const ShippingPendingScreen: React.FC<ShippingPendingScreenProps> = ({
                     isDark ? 'border-[#223368]' : 'border-[#E8DFC8]'
                   }`}
                 >
-                  {/* Preparation sheet / WhatsApp photo button */}
+                  {/* WhatsApp Listado button */}
+                  <a
+                    id={`btn-whatsapp-listado-${order.id}`}
+                    href={getWhatsAppUrl(order)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex-1 py-2 px-3 rounded-2xl font-black text-xs flex items-center justify-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer bg-[#25D366] hover:bg-[#20bd5a] text-white"
+                    title="Enviar listado de productos y cobro por WhatsApp al cliente"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5 fill-current" />
+                    <span>Enviar Listado</span>
+                  </a>
+
+                  {/* Preparation sheet / Warehouse slip (Opcional) */}
                   <button
                     id={`btn-prep-modal-${order.id}`}
                     type="button"
@@ -661,15 +676,15 @@ export const ShippingPendingScreen: React.FC<ShippingPendingScreenProps> = ({
                       e.stopPropagation();
                       setPrepOrder(order);
                     }}
-                    className={`flex-1 py-2 px-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer ${
+                    className={`py-2 px-3 rounded-2xl font-medium text-xs flex items-center justify-center gap-1.5 transition active:scale-95 border cursor-pointer opacity-75 hover:opacity-100 ${
                       isDark
-                        ? 'bg-[#FF6FA5] text-[#0F1B3C] hover:bg-[#ff85b3]'
-                        : 'bg-[#1A2B5C] text-white hover:bg-[#253B7A]'
+                        ? 'bg-[#1E2D5A]/50 hover:bg-[#283C75] text-[#9AA6C9] border-[#223368]'
+                        : 'bg-[#F5EFE0] hover:bg-[#EBE2CF] text-[#78716C] border-[#E8DFC8]'
                     }`}
-                    title="Abrir ficha visual de preparación y foto para WhatsApp"
+                    title="Ficha visual de preparación para almacén (opcional)"
                   >
                     <Package className="w-3.5 h-3.5" />
-                    <span>Ficha WhatsApp</span>
+                    <span className="hidden sm:inline text-[11px]">Ficha Almacén</span>
                   </button>
 
                   {/* 1-Click Complete balance button if pending (Only Supervisor and Jefe) */}
