@@ -21,6 +21,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { Order } from '../../types';
+import { matchesOrderSearch } from '../../lib/searchUtils';
 import { useFinancialPrivacy } from '../../contexts/FinancialPrivacyContext';
 import { useTheme } from '../../contexts/ThemeContext';
 
@@ -128,9 +129,12 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
 
   // 2. Apply secondary quick filters (seller, status, payment status, search query)
   const fullyFilteredOrders = useMemo(() => {
-    const query = searchQuery.toLowerCase().trim();
+    const hasSearch = searchQuery.trim().length > 0;
+    const baseOrders = hasSearch
+      ? orders.filter((o) => !o.archivado)
+      : periodFilteredOrders;
 
-    return periodFilteredOrders.filter((o) => {
+    return baseOrders.filter((o) => {
       // Seller filter
       if (selectedSeller !== 'all') {
         const s = (o.vendedorNombre || '').trim();
@@ -150,30 +154,14 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
         if (selectedPaymentStatus === 'pagado' && saldo > 0) return false;
       }
 
-      // Search query
-      if (query) {
-        const clientName = (o.cliente || (o as any).clienteNombre || '').toLowerCase();
-        const orderNum = (o.orderNumber || (o as any).numeroPedido || o.id || '').toString().toLowerCase();
-        const sellerName = (o.vendedorNombre || '').toLowerCase();
-        const phone = (o.telefono || (o as any).clienteTelefono || '').toLowerCase();
-        const productMatch = (o.productos || []).some((p) =>
-          (p.nombre || '').toLowerCase().includes(query)
-        );
-
-        if (
-          !clientName.includes(query) &&
-          !orderNum.includes(query) &&
-          !sellerName.includes(query) &&
-          !phone.includes(query) &&
-          !productMatch
-        ) {
-          return false;
-        }
+      // Search query (orderNumber #165, 165, cliente, teléfono, etc.)
+      if (!matchesOrderSearch(o, searchQuery)) {
+        return false;
       }
 
       return true;
     });
-  }, [periodFilteredOrders, selectedSeller, selectedStatus, selectedPaymentStatus, searchQuery]);
+  }, [orders, periodFilteredOrders, selectedSeller, selectedStatus, selectedPaymentStatus, searchQuery]);
 
   // Totals calculations for quick decision making (simple and clear numbers)
   const totals = useMemo(() => {

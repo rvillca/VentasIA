@@ -24,6 +24,7 @@ import {
   formatBoliviaPhone,
   formatBoliviaWhatsAppDigits,
 } from '../lib/storage';
+import { matchesOrderSearch, matchesPurchaseSearch } from '../lib/searchUtils';
 import { useTheme } from '../contexts/ThemeContext';
 import { useFinancialPrivacy } from '../contexts/FinancialPrivacyContext';
 import { BalanceToggleBtn } from './BalanceToggleBtn';
@@ -126,26 +127,12 @@ export const SeguimientoScreen: React.FC<SeguimientoScreenProps> = ({
   // Search filtering
   const filteredVentas = useMemo(() => {
     if (!searchTerm || !searchTerm.trim()) return ventasPendientes;
-    const term = (searchTerm || '').toLowerCase().trim();
-    return ventasPendientes.filter(
-      (v) =>
-        (v.cliente || '').toLowerCase().includes(term) ||
-        (v.telefono || '').includes(term) ||
-        String(v.orderNumber ?? '').includes(term) ||
-        (v.destino || '').toLowerCase().includes(term)
-    );
+    return ventasPendientes.filter((v) => matchesOrderSearch(v, searchTerm));
   }, [ventasPendientes, searchTerm]);
 
   const filteredCompras = useMemo(() => {
     if (!searchTerm || !searchTerm.trim()) return comprasPendientes;
-    const term = (searchTerm || '').toLowerCase().trim();
-    return comprasPendientes.filter(
-      (c) =>
-        (c.proveedor || '').toLowerCase().includes(term) ||
-        (c.telefonoProveedor && c.telefonoProveedor.includes(term)) ||
-        String(c.purchaseNumber ?? '').includes(term) ||
-        (c.numeroFacturaRecibo && c.numeroFacturaRecibo.toLowerCase().includes(term))
-    );
+    return comprasPendientes.filter((c) => matchesPurchaseSearch(c, searchTerm));
   }, [comprasPendientes, searchTerm]);
 
   // WhatsApp reminder generator for client
@@ -361,7 +348,7 @@ export const SeguimientoScreen: React.FC<SeguimientoScreenProps> = ({
           <Search className="w-4 h-4 text-[#78716C] absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Buscar por cliente, proveedor, teléfono..."
+            placeholder="Buscar por # de pedido o compra, cliente, teléfono..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-3 py-1.5 text-xs bg-[#FBF7EF] border border-[#E8DFC8] rounded-xl text-[#1A2B5C] placeholder-[#78716C]/60 focus:outline-none focus:ring-2 focus:ring-[#1A2B5C]/20"

@@ -20,6 +20,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { Order, OrderStatus } from '../../types';
+import { matchesOrderSearch } from '../../lib/searchUtils';
 import { useFinancialPrivacy } from '../../contexts/FinancialPrivacyContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { formatBoliviaWhatsAppDigits } from '../../lib/storage';
@@ -77,33 +78,35 @@ export const SalesHistoryAuditReport: React.FC<SalesHistoryAuditReportProps> = (
       const orderDate = new Date(o.createdAt);
       if (isNaN(orderDate.getTime())) return false;
 
-      // 1. Period filter
-      if (period === 'today') {
-        if (orderDate.toDateString() !== now.toDateString()) return false;
-      } else if (period === 'this_week') {
-        const day = now.getDay();
-        const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-        const mon = new Date(now);
-        mon.setDate(diff);
-        mon.setHours(0, 0, 0, 0);
-        if (orderDate < mon) return false;
-      } else if (period === '7days') {
-        const past7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        if (orderDate < past7) return false;
-      } else if (period === 'this_month') {
-        if (
-          orderDate.getMonth() !== now.getMonth() ||
-          orderDate.getFullYear() !== now.getFullYear()
-        ) {
-          return false;
+      // 1. Period filter (solo si no hay búsqueda activa por pedido o cliente)
+      if (!searchTerm.trim()) {
+        if (period === 'today') {
+          if (orderDate.toDateString() !== now.toDateString()) return false;
+        } else if (period === 'this_week') {
+          const day = now.getDay();
+          const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+          const mon = new Date(now);
+          mon.setDate(diff);
+          mon.setHours(0, 0, 0, 0);
+          if (orderDate < mon) return false;
+        } else if (period === '7days') {
+          const past7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          if (orderDate < past7) return false;
+        } else if (period === 'this_month') {
+          if (
+            orderDate.getMonth() !== now.getMonth() ||
+            orderDate.getFullYear() !== now.getFullYear()
+          ) {
+            return false;
+          }
+        } else if (period === '30days') {
+          const past30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          if (orderDate < past30) return false;
+        } else if (period === 'custom') {
+          const start = new Date(customStartDate + 'T00:00:00');
+          const end = new Date(customEndDate + 'T23:59:59');
+          if (orderDate < start || orderDate > end) return false;
         }
-      } else if (period === '30days') {
-        const past30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        if (orderDate < past30) return false;
-      } else if (period === 'custom') {
-        const start = new Date(customStartDate + 'T00:00:00');
-        const end = new Date(customEndDate + 'T23:59:59');
-        if (orderDate < start || orderDate > end) return false;
       }
 
       // 2. Seller filter
@@ -124,18 +127,9 @@ export const SalesHistoryAuditReport: React.FC<SalesHistoryAuditReportProps> = (
         if ((o.saldo || 0) > 0) return false;
       }
 
-      // 5. Search term (orderNumber, cliente, telefono, lugarEntrega, productos)
+      // 5. Search term flexible (#165, 165, cliente, teléfono, etc.)
       if (searchTerm.trim()) {
-        const term = searchTerm.toLowerCase();
-        const matchNumber = String(o.orderNumber).includes(term);
-        const matchCliente = (o.cliente || '').toLowerCase().includes(term);
-        const matchTel = (o.telefono || '').includes(term);
-        const matchPlace = (o.lugarEntrega || '').toLowerCase().includes(term);
-        const matchProducts = (o.productos || []).some((p) =>
-          (p.nombre || '').toLowerCase().includes(term)
-        );
-
-        if (!matchNumber && !matchCliente && !matchTel && !matchPlace && !matchProducts) {
+        if (!matchesOrderSearch(o, searchTerm)) {
           return false;
         }
       }

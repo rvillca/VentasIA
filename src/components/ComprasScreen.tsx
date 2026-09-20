@@ -32,6 +32,7 @@ import {
   Box,
 } from 'lucide-react';
 import { Purchase, PurchaseItem, PurchaseStatus } from '../types';
+import { matchesPurchaseSearch } from '../lib/searchUtils';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useFinancialPrivacy } from '../contexts/FinancialPrivacyContext';
@@ -149,31 +150,27 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
         if (p.archivado) return false;
       }
 
-      // Date filter
+      // Date filter (se omite si hay búsqueda activa para no esconder la compra buscada)
       const pDate = new Date(p.fechaCompra || p.createdAt);
       let matchDate = true;
-      if (periodFilter === 'today') {
-        matchDate = pDate.toDateString() === now.toDateString();
-      } else if (periodFilter === '7days') {
-        const past7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        matchDate = pDate >= past7;
-      } else if (periodFilter === 'this_month') {
-        matchDate =
-          pDate.getMonth() === now.getMonth() &&
-          pDate.getFullYear() === now.getFullYear();
+      if (!searchTerm || !searchTerm.trim()) {
+        if (periodFilter === 'today') {
+          matchDate = pDate.toDateString() === now.toDateString();
+        } else if (periodFilter === '7days') {
+          const past7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          matchDate = pDate >= past7;
+        } else if (periodFilter === 'this_month') {
+          matchDate =
+            pDate.getMonth() === now.getMonth() &&
+            pDate.getFullYear() === now.getFullYear();
+        }
       }
 
       // Status filter
       const matchStatus = statusFilter === 'all' || p.estado === statusFilter;
 
-      // Search filter
-      const search = (searchTerm || '').toLowerCase().trim();
-      const matchSearch =
-        !search ||
-        (p.proveedor || '').toLowerCase().includes(search) ||
-        (p.numeroFacturaRecibo && p.numeroFacturaRecibo.toLowerCase().includes(search)) ||
-        (p.compradorNombre && p.compradorNombre.toLowerCase().includes(search)) ||
-        (p.productos || []).some((item) => (item?.nombre || '').toLowerCase().includes(search));
+      // Search filter (por número de compra #, proveedor, factura, etc.)
+      const matchSearch = matchesPurchaseSearch(p, searchTerm);
 
       return matchDate && matchStatus && matchSearch;
     });
@@ -613,7 +610,7 @@ export const ComprasScreen: React.FC<ComprasScreenProps> = ({ purchases = [] }) 
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar por proveedor, recibo o producto..."
+                placeholder="Buscar por # de compra (ej: 10 o #10), proveedor, recibo..."
                 className="w-full bg-white border border-[#E8DFC8] rounded-xl py-2.5 pl-10 pr-4 text-xs sm:text-sm text-[#1A2B5C] placeholder-[#78716C]/50 focus:outline-none focus:ring-2 focus:ring-[#1A2B5C]"
               />
               {searchTerm && (

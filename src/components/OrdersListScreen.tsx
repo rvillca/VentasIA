@@ -33,6 +33,7 @@ import {
   completeOrderBalanceInFirestore,
   formatArticleItem,
 } from '../lib/storage';
+import { matchesOrderSearch } from '../lib/searchUtils';
 import { ThermalPrintModal } from './ThermalPrintModal';
 import { OrderPreparationCardModal } from './OrderPreparationCardModal';
 import { OrdersReportTable } from './OrdersReportTable';
@@ -191,11 +192,6 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
       return false;
     }
 
-    // When user types a search term, search across all active orders so they always find any sale
-    if (searchTerm.trim().length > 0 && dateFilter !== 'archivados') {
-      return !order.archivado;
-    }
-
     if (dateFilter === 'all') return true;
 
     // Regla de negocio solicitada: En los filtros de 'today', 'yesterday', 'specific_date', 'this_week' y 'this_month',
@@ -255,7 +251,7 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
   // Orders scoped to the chosen date period
   const dateScopedOrders = useMemo(() => {
     return orders.filter((o) => isDateInSelectedRange(o));
-  }, [orders, dateFilter]);
+  }, [orders, dateFilter, selectedCustomDate]);
 
   // Financial summary counters for the selected period (excluding Anulados)
   const validOrders = dateScopedOrders.filter((o) => o.estado !== 'Anulado');
@@ -282,20 +278,18 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
     }
   };
 
-  // Filtered orders calculation
+  // Filtered orders calculation:
+  // Si el usuario escribe una búsqueda (ej: #165, cliente, teléfono),
+  // se busca sobre todos los pedidos activos para que NUNCA se oculte un pedido por el filtro de fecha.
   const filteredOrders = useMemo(() => {
-    return dateScopedOrders.filter((order) => {
-      // Text search match
-      const term = (searchTerm || '').toLowerCase().trim();
-      const matchSearch =
-        !term ||
-        (order.cliente || '').toLowerCase().includes(term) ||
-        (order.telefono || '').includes(term) ||
-        (order.lugarEntrega || '').toLowerCase().includes(term) ||
-        (order.observaciones || '').toLowerCase().includes(term) ||
-        (order.vendedorNombre && order.vendedorNombre.toLowerCase().includes(term)) ||
-        String(order.orderNumber ?? '').includes(term) ||
-        (order.productos || []).some((p) => (p?.nombre || '').toLowerCase().includes(term));
+    const hasSearch = searchTerm.trim().length > 0;
+    const baseOrders = hasSearch
+      ? (dateFilter === 'archivados' ? orders.filter((o) => !!o.archivado) : orders.filter((o) => !o.archivado))
+      : dateScopedOrders;
+
+    return baseOrders.filter((order) => {
+      // Búsqueda flexible por número de pedido (#165, 165, 0165), cliente, teléfono, etc.
+      const matchSearch = matchesOrderSearch(order, searchTerm);
 
       // Status chip match
       let matchFilter = true;
@@ -306,7 +300,7 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
 
       return matchSearch && matchFilter;
     });
-  }, [dateScopedOrders, searchTerm, filter]);
+  }, [orders, dateScopedOrders, searchTerm, filter, dateFilter]);
 
   return (
     <>
@@ -847,7 +841,7 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar por cliente, teléfono, vendedora, producto o # pedido..."
+              placeholder="Buscar por # de pedido (ej: 165 o #165), cliente, teléfono, producto..."
               className={`w-full border rounded-xl py-2.5 pl-10 pr-9 text-sm focus:outline-none transition-all ${
                 isDark
                   ? 'bg-[#0F1B3C] border-[#223368] text-white placeholder-[#9AA6C9]/60 focus:ring-2 focus:ring-[#FF6FA5]'

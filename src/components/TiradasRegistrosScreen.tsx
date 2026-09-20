@@ -27,6 +27,7 @@ import {
   completeOrderBalanceInFirestore,
   formatArticleItem,
 } from '../lib/storage';
+import { matchesOrderSearch } from '../lib/searchUtils';
 import { ThermalPrintModal } from './ThermalPrintModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -100,18 +101,8 @@ export const TiradasRegistrosScreen: React.FC<TiradasRegistrosScreenProps> = ({
 
   // Search filter inside the selected Tirada
   const filteredTiradaOrders = useMemo(() => {
-    const term = (searchTerm || '').toLowerCase().trim();
-    if (!term) return tiradaOrders;
-
-    return tiradaOrders.filter((order) => {
-      return (
-        (order.cliente || '').toLowerCase().includes(term) ||
-        (order.telefono || '').includes(term) ||
-        String(order.orderNumber ?? '').includes(term) ||
-        (order.lugarEntrega || '').toLowerCase().includes(term) ||
-        (order.productos || []).some((p) => (p?.nombre || '').toLowerCase().includes(term))
-      );
-    });
+    if (!searchTerm || !searchTerm.trim()) return tiradaOrders;
+    return tiradaOrders.filter((order) => matchesOrderSearch(order, searchTerm));
   }, [tiradaOrders, searchTerm]);
 
   // Financial calculations for the selected Tirada (excluding Anulado)
@@ -355,7 +346,7 @@ export const TiradasRegistrosScreen: React.FC<TiradasRegistrosScreenProps> = ({
           }`} />
           <input
             type="text"
-            placeholder="Filtrar pedidos dentro de esta tirada..."
+            placeholder="Buscar por # de pedido, cliente, producto..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className={`w-full pl-10 pr-4 py-2.5 rounded-2xl text-xs sm:text-sm font-medium border transition-colors outline-none ${

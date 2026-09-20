@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { Order, Purchase } from '../types';
 import { formatCurrency, formatBoliviaPhone, formatArticleItem } from '../lib/storage';
+import { matchesOrderSearch } from '../lib/searchUtils';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useFinancialPrivacy } from '../contexts/FinancialPrivacyContext';
@@ -152,11 +153,13 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
 
   // Shipping specific filtered orders (excluding archived)
   const filteredShippingOrders = useMemo(() => {
+    const hasSearch = shippingSearch && shippingSearch.trim().length > 0;
+
     return orders.filter((order) => {
       if (order.archivado) return false;
 
       const orderDate = new Date(order.createdAt);
-      const matchDate = isDateInSelectedRange(orderDate);
+      const matchDate = hasSearch ? true : isDateInSelectedRange(orderDate);
 
       const actualShipper =
         order.enviadoPorNombre || order.despachadoPorNombre || (order.estado === 'Entregado' ? order.vendedorNombre : '');
@@ -172,18 +175,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
       const matchStatus =
         shippingStatusFilter === 'all' || order.estado === shippingStatusFilter;
 
-      let matchSearch = true;
-      if (shippingSearch && shippingSearch.trim()) {
-        const term = shippingSearch.toLowerCase().trim();
-        matchSearch =
-          (order.cliente || '').toLowerCase().includes(term) ||
-          (order.lugarEntrega || '').toLowerCase().includes(term) ||
-          (order.telefono || '').includes(term) ||
-          `#${order.orderNumber}`.includes(term) ||
-          (order.vendedorNombre && order.vendedorNombre.toLowerCase().includes(term)) ||
-          (order.enviadoPorNombre && order.enviadoPorNombre.toLowerCase().includes(term)) ||
-          (order.despachadoPorNombre && order.despachadoPorNombre.toLowerCase().includes(term));
-      }
+      const matchSearch = matchesOrderSearch(order, shippingSearch);
 
       return matchDate && matchShipper && matchSeller && matchStatus && matchSearch;
     });

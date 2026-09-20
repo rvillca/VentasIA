@@ -27,6 +27,7 @@ import {
   formatArticleItem,
   getWhatsAppUrl,
 } from '../lib/storage';
+import { matchesOrderSearch } from '../lib/searchUtils';
 import { OrderPreparationCardModal } from './OrderPreparationCardModal';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -151,7 +152,12 @@ export const ShippingPendingScreen: React.FC<ShippingPendingScreenProps> = ({
 
   // Filtered orders to display
   const displayedOrders = useMemo(() => {
-    return periodOrders
+    const hasSearch = searchTerm.trim().length > 0;
+    const baseOrders = hasSearch
+      ? orders.filter((o) => !o.archivado && o.estado !== 'Anulado')
+      : periodOrders;
+
+    return baseOrders
       .filter((o) => {
         // Status filter: pending (Abierto) by default, or delivered (Entregado), or all
         if (shippingStatusFilter === 'pending') return o.estado === 'Abierto';
@@ -163,20 +169,9 @@ export const ShippingPendingScreen: React.FC<ShippingPendingScreenProps> = ({
         if (filterPayment === 'paid') return o.saldo <= 0;
         return true;
       })
-      .filter((o) => {
-        if (!searchTerm || !searchTerm.trim()) return true;
-        const term = (searchTerm || '').toLowerCase().trim();
-        return (
-          (o.cliente || '').toLowerCase().includes(term) ||
-          (o.lugarEntrega || '').toLowerCase().includes(term) ||
-          (o.telefono || '').includes(term) ||
-          `#${o.orderNumber}`.includes(term) ||
-          (o.vendedorNombre && o.vendedorNombre.toLowerCase().includes(term)) ||
-          (o.productos || []).some((p) => (p?.nombre || '').toLowerCase().includes(term))
-        );
-      })
+      .filter((o) => matchesOrderSearch(o, searchTerm))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [periodOrders, shippingStatusFilter, filterPayment, searchTerm]);
+  }, [orders, periodOrders, shippingStatusFilter, filterPayment, searchTerm]);
 
   const handleQuickCompleteBalance = async (order: Order, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -379,7 +374,7 @@ export const ShippingPendingScreen: React.FC<ShippingPendingScreenProps> = ({
             <input
               id="shipping-search-input"
               type="text"
-              placeholder="Buscar por cliente, destino, vendedora, producto o # pedido..."
+              placeholder="Buscar por # de pedido (ej: 165 o #165), cliente, destino..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className={`w-full border rounded-xl py-2 pl-10 pr-4 text-xs sm:text-sm focus:outline-none transition ${
@@ -661,11 +656,11 @@ export const ShippingPendingScreen: React.FC<ShippingPendingScreenProps> = ({
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="flex-1 py-2 px-3 rounded-2xl font-black text-xs flex items-center justify-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer bg-[#25D366] hover:bg-[#20bd5a] text-white"
+                    className="flex-1 h-9 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer bg-[#25D366] hover:bg-[#20bd5a] text-white border border-[#1ebc56]"
                     title="Enviar listado de productos y cobro por WhatsApp al cliente"
                   >
                     <MessageCircle className="w-3.5 h-3.5 fill-current" />
-                    <span>Enviar Listado</span>
+                    <span>Enviar WhatsApp</span>
                   </a>
 
                   {/* Preparation sheet / Warehouse slip (Opcional) */}
@@ -676,7 +671,7 @@ export const ShippingPendingScreen: React.FC<ShippingPendingScreenProps> = ({
                       e.stopPropagation();
                       setPrepOrder(order);
                     }}
-                    className={`py-2 px-3 rounded-2xl font-medium text-xs flex items-center justify-center gap-1.5 transition active:scale-95 border cursor-pointer opacity-75 hover:opacity-100 ${
+                    className={`h-9 px-3 rounded-xl font-medium text-xs flex items-center justify-center gap-1.5 transition active:scale-95 border cursor-pointer opacity-80 hover:opacity-100 ${
                       isDark
                         ? 'bg-[#1E2D5A]/50 hover:bg-[#283C75] text-[#9AA6C9] border-[#223368]'
                         : 'bg-[#F5EFE0] hover:bg-[#EBE2CF] text-[#78716C] border-[#E8DFC8]'
@@ -694,7 +689,7 @@ export const ShippingPendingScreen: React.FC<ShippingPendingScreenProps> = ({
                       type="button"
                       disabled={completingId === order.id}
                       onClick={(e) => handleQuickCompleteBalance(order, e)}
-                      className="py-2 px-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1 shadow transition active:scale-95 disabled:opacity-50 cursor-pointer"
+                      className="h-9 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1 shadow transition active:scale-95 disabled:opacity-50 cursor-pointer"
                       title="Completar saldo en 1 clic (marcar 100% pagado)"
                     >
                       <DollarSign className="w-3.5 h-3.5" />
@@ -707,7 +702,7 @@ export const ShippingPendingScreen: React.FC<ShippingPendingScreenProps> = ({
                     id={`btn-deliver-${order.id}`}
                     type="button"
                     onClick={(e) => onToggleStatus(order.id, e)}
-                    className={`py-2 px-3 rounded-2xl border font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer ${
+                    className={`h-9 px-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer ${
                       isDelivered
                         ? isDark
                           ? 'bg-[#0F1B3C] border-emerald-500/40 text-emerald-400 hover:bg-emerald-950/40'

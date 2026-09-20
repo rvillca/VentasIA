@@ -765,53 +765,27 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
           </div>
         )}
 
-        {/* PRIMARY ACTIONS: WHATSAPP LISTADO + IMPRESIÓN */}
+        {/* PRIMARY ACTIONS: STANDARDIZED 3-BUTTON BAR */}
         <div className="space-y-3 pt-2">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <a
-              id="send-whatsapp-main-btn"
-              href={whatsAppUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="py-4 px-6 rounded-2xl font-black text-base active:scale-[0.99] shadow-xl flex items-center justify-center gap-2.5 transition-all cursor-pointer bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-[#25D366]/25"
-            >
-              <MessageCircle className="w-5 h-5 fill-current" />
-              <span>Enviar Listado por WhatsApp</span>
-            </a>
-
-            <button
-              id="print-ticket-main-btn"
-              type="button"
-              onClick={() => setIsPrintModalOpen(true)}
-              className={`py-4 px-6 rounded-2xl font-black text-base active:scale-[0.99] shadow-xl flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
-                isDark
-                  ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C] shadow-[#FF6FA5]/25'
-                  : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white shadow-[#1A2B5C]/25'
-              }`}
-            >
-              <Printer className="w-5 h-5" />
-              <span>Imprimir Ticket Térmico</span>
-            </button>
-          </div>
-
+          {/* Secondary actions: Ficha Almacén & Copiar */}
           <div className="flex flex-col sm:flex-row gap-2">
             <button
               id="prep-ticket-secondary-btn"
               onClick={() => setIsPrepModalOpen(true)}
-              className={`flex-1 py-3 px-4 rounded-2xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all border opacity-80 hover:opacity-100 cursor-pointer ${
+              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all border opacity-80 hover:opacity-100 cursor-pointer ${
                 isDark
                   ? 'bg-[#1E2D5A]/50 hover:bg-[#283C75] text-[#9AA6C9] border-[#223368]'
                   : 'bg-[#F5EFE0] hover:bg-[#EBE2CF] text-[#78716C] border-[#E8DFC8]'
               }`}
             >
-              <Package className="w-4 h-4" />
-              <span>Ficha Almacén / Empaque (Opcional)</span>
+              <Package className="w-3.5 h-3.5" />
+              <span>Ficha Almacén / Empaque</span>
             </button>
 
             <button
               id="copy-summary-btn"
               onClick={handleCopyReceipt}
-              className={`flex-1 py-3 px-4 rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all border cursor-pointer ${
+              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all border cursor-pointer ${
                 isDark
                   ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-white border-[#223368]'
                   : 'bg-white hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]'
@@ -819,16 +793,60 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
             >
               {copied ? (
                 <>
-                  <Check className="w-4 h-4 text-emerald-500" />
+                  <Check className="w-3.5 h-3.5 text-emerald-500" />
                   <span className="text-emerald-500">¡Listado Copiado!</span>
                 </>
               ) : (
                 <>
-                  <Copy className={`w-4 h-4 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
+                  <Copy className={`w-3.5 h-3.5 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
                   <span>Copiar Listado de Cobro</span>
                 </>
               )}
             </button>
+          </div>
+
+          {/* Standardized 3-Button Layout matching NewOrderScreen */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 pt-1">
+            {/* 1. Volver */}
+            <button
+              type="button"
+              onClick={onBack}
+              className={`w-full h-11 sm:h-12 px-2 sm:px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all active:scale-95 border cursor-pointer whitespace-nowrap ${
+                isDark
+                  ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-[#9AA6C9] hover:text-white border-[#223368]'
+                  : 'bg-[#F5EFE0] hover:bg-[#EBE2CF] text-[#78716C] hover:text-[#1A2B5C] border-[#E8DFC8]'
+              }`}
+            >
+              <ArrowLeft className="w-4 h-4 shrink-0" />
+              <span>Volver</span>
+            </button>
+
+            {/* 2. Imprimir Ticket */}
+            <button
+              id="print-ticket-main-btn"
+              type="button"
+              onClick={() => setIsPrintModalOpen(true)}
+              className={`w-full h-11 sm:h-12 px-2 sm:px-4 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-md border cursor-pointer whitespace-nowrap ${
+                isDark
+                  ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C] border-[#ff5b97] shadow-[#FF6FA5]/25'
+                  : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white border-[#142247] shadow-[#1A2B5C]/20'
+              }`}
+            >
+              <Printer className="w-4 h-4 shrink-0" />
+              <span>Imprimir Ticket</span>
+            </button>
+
+            {/* 3. Enviar WhatsApp */}
+            <a
+              id="send-whatsapp-main-btn"
+              href={whatsAppUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full h-11 sm:h-12 px-2 sm:px-4 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-md bg-[#25D366] hover:bg-[#20bd5a] text-white border border-[#1ebc56] shadow-[#25D366]/25 cursor-pointer whitespace-nowrap"
+            >
+              <MessageCircle className="w-4 h-4 fill-current shrink-0" />
+              <span>Enviar WhatsApp</span>
+            </a>
           </div>
         </div>
       </div>
