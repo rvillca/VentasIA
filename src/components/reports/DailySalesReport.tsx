@@ -1530,7 +1530,7 @@ export const DailySalesReport: React.FC<DailySalesReportProps> = ({
                     isDark ? 'text-white' : 'text-[#1A2B5C]'
                   }`}
                 >
-                  Desglose por Vendedora (Día)
+                  Desglose por Personal de Ventas (Día)
                 </h3>
                 <span className={`text-[11px] ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
                   Pedidos registrados, total vendido y cobrado por persona
@@ -1552,7 +1552,7 @@ export const DailySalesReport: React.FC<DailySalesReportProps> = ({
               <div className="py-10 text-center space-y-2">
                 <Users className="w-8 h-8 mx-auto text-[#78716C] opacity-40" />
                 <p className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
-                  Sin ventas de vendedoras en esta fecha.
+                  Sin ventas de personal en esta fecha.
                 </p>
               </div>
             ) : (

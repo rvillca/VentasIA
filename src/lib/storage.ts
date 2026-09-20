@@ -15,6 +15,7 @@ import {
 import { db } from './firebase';
 import { Order, AppUser, Purchase, PurchaseStatus } from '../types';
 import { formatArticleItem, parseArticleFormat } from './packaging';
+import { isOrderDeliveryLocked } from './orderSecurity';
 export { formatArticleItem, parseArticleFormat };
 
 const ORDERS_COLLECTION = 'orders';
@@ -892,22 +893,54 @@ export async function markOrderAsDeliveredInFirestore(
     despachadoPorUid: enviadoPorUid || '',
     fechaEnvio: nowIso,
     despachadoAt: nowIso,
+    entregadoAt: nowIso,
+    desbloqueadoTemporalmente: false,
+    desbloqueadoAt: deleteField(),
+    desbloqueadoPor: deleteField(),
     updatedAt: nowIso,
   });
 }
 
-// Reopen order back to open/pending shipping
-export async function reopenOrderInFirestore(orderId: string): Promise<void> {
+// Reopen delivered or closed order back to open/pending shipping (Admin or Supervisor with PIN)
+export async function reopenOrderInFirestore(
+  orderId: string,
+  reabiertoPor?: string,
+  aprobadoConPinAdmin?: boolean
+): Promise<void> {
   const docRef = doc(db, ORDERS_COLLECTION, orderId);
   const nowIso = new Date().toISOString();
   await updateDoc(docRef, {
     estado: 'Abierto',
+    reabiertoPor: reabiertoPor || 'Administrador',
+    reabiertoAt: nowIso,
+    aprobadoConPinAdmin: !!aprobadoConPinAdmin,
+    desbloqueadoTemporalmente: true,
+    desbloqueadoAt: nowIso,
+    desbloqueadoPor: reabiertoPor || 'Administrador',
     enviadoPorNombre: deleteField(),
     enviadoPorUid: deleteField(),
     despachadoPorNombre: deleteField(),
     despachadoPorUid: deleteField(),
     fechaEnvio: deleteField(),
     despachadoAt: deleteField(),
+    entregadoAt: deleteField(),
+    updatedAt: nowIso,
+  });
+}
+
+// Unlock delivered order temporarily to allow modifications (Admin or Supervisor with PIN)
+export async function unlockDeliveredOrderTemporarilyInFirestore(
+  orderId: string,
+  unlockedBy: string,
+  aprobadoConPinAdmin = false
+): Promise<void> {
+  const docRef = doc(db, ORDERS_COLLECTION, orderId);
+  const nowIso = new Date().toISOString();
+  await updateDoc(docRef, {
+    desbloqueadoTemporalmente: true,
+    desbloqueadoAt: nowIso,
+    desbloqueadoPor: unlockedBy,
+    aprobadoConPinAdmin,
     updatedAt: nowIso,
   });
 }
@@ -932,10 +965,20 @@ export async function anularOrderInFirestore(
   motivo: string
 ): Promise<void> {
   const docRef = doc(db, ORDERS_COLLECTION, orderId);
+  const snap = await getDoc(docRef);
+  if (snap.exists()) {
+    const data = snap.data() as Order;
+    if (isOrderDeliveryLocked(data)) {
+      throw new Error(
+        'Esta venta fue entregada hace más de 7 días y está bloqueada por normativa contable. No es posible anularla.'
+      );
+    }
+  }
+
   await updateDoc(docRef, {
     estado: 'Anulado',
     anuladoPor,
-    motivoAnulacion: motivo || 'Venta anulada por vendedor',
+    motivoAnulacion: motivo || 'Venta anulada',
     anuladoAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   });

@@ -74,6 +74,13 @@ export interface Order {
   despachadoPorNombre?: string;
   fechaEnvio?: string;
   despachadoAt?: string;
+  entregadoAt?: string;
+  desbloqueadoTemporalmente?: boolean;
+  desbloqueadoAt?: string;
+  desbloqueadoPor?: string;
+  reabiertoPor?: string;
+  reabiertoAt?: string;
+  aprobadoConPinAdmin?: boolean;
   anuladoPor?: string;
   motivoAnulacion?: string;
   anuladoAt?: string;

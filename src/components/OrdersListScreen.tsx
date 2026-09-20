@@ -25,8 +25,10 @@ import {
   List,
   LayoutGrid,
   Eye,
+  Lock,
 } from 'lucide-react';
 import { Order, OrderStatus } from '../types';
+import { isOrderDeliveryLocked } from '../lib/orderSecurity';
 import {
   formatCurrency,
   getWhatsAppUrl,
@@ -268,6 +270,10 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
   const handleQuickCompleteBalance = async (order: Order, e: React.MouseEvent) => {
     e.stopPropagation();
     if (order.saldo <= 0 || order.estado === 'Anulado') return;
+    if (isOrderDeliveryLocked(order) && !isJefe) {
+      onSelectOrder(order);
+      return;
+    }
     setCompletingId(order.id);
     try {
       await completeOrderBalanceInFirestore(order.id, order.total);
@@ -1140,7 +1146,7 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
                                 : 'text-[#1A2B5C] group-hover:text-[#1A2B5C]'
                             }`}
                           >
-                            {order.cliente || 'Clienta sin nombre'}
+                            {order.cliente || 'Cliente sin nombre'}
                           </h3>
 
                           {/* Badge when displayed in Today/Week/Month due to pending balance or open status */}
@@ -1165,7 +1171,7 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
                                   ? 'text-[#9AA6C9] bg-[#0F1B3C] border-[#223368]'
                                   : 'text-[#78716C] bg-[#F5EFE0] border-[#E8DFC8]'
                               }`}
-                              title="Vendedora que registró la venta"
+                              title="Vendedor(a) que registró la venta"
                             >
                               <User className={`w-3 h-3 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
                               <span>{order.vendedorNombre}</span>
@@ -1182,6 +1188,19 @@ export const OrdersListScreen: React.FC<OrdersListScreenProps> = ({
                             >
                               <Truck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                               <span>Enviado: {order.enviadoPorNombre || order.despachadoPorNombre}</span>
+                            </span>
+                          )}
+                          {isDelivered && isOrderDeliveryLocked(order) && (
+                            <span
+                              className={`text-[10px] px-2 py-0.5 rounded-lg font-black flex items-center gap-1 border shrink-0 ${
+                                isDark
+                                  ? 'bg-rose-950/70 text-rose-300 border-rose-800/50'
+                                  : 'bg-rose-50 text-rose-700 border-rose-200'
+                              }`}
+                              title="Pedido entregado hace más de 7 días. Modificaciones y anulación bloqueadas por seguridad contable."
+                            >
+                              <Lock className="w-3 h-3 text-rose-500" />
+                              <span>Protegido (+7d)</span>
                             </span>
                           )}
                         </div>

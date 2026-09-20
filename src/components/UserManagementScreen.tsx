@@ -633,7 +633,7 @@ export const UserManagementScreen: React.FC = () => {
         <Shield className="w-12 h-12 text-rose-500 mx-auto mb-3" />
         <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>Acceso Restringido</h2>
         <p className={`text-sm mt-1 ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
-          Solo el Jefe y el Supervisor pueden acceder a la gestión y restablecimiento de claves del equipo.
+          Solo los roles de Administración y Supervisión pueden acceder a la gestión y restablecimiento de claves del equipo.
         </p>
       </div>
     );
@@ -902,7 +902,7 @@ export const UserManagementScreen: React.FC = () => {
                     }`}
                   >
                     <Briefcase className="w-4 h-4" />
-                    <span>Vendedor</span>
+                    <span>Vendedor(a)</span>
                   </button>
 
                   <button
@@ -919,7 +919,7 @@ export const UserManagementScreen: React.FC = () => {
                     }`}
                   >
                     <ShoppingBag className="w-4 h-4" />
-                    <span>Comprador</span>
+                    <span>Comprador(a)</span>
                   </button>
 
                   <button
@@ -936,7 +936,7 @@ export const UserManagementScreen: React.FC = () => {
                     }`}
                   >
                     <Eye className="w-4 h-4" />
-                    <span>Supervisor</span>
+                    <span>Supervisor(a)</span>
                   </button>
                 </div>
               </div>
@@ -1267,7 +1267,7 @@ export const UserManagementScreen: React.FC = () => {
 
                           {isJefeAccount && (
                             <span className="text-[9px] bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded-full font-bold">
-                              👑 Jefe
+                              👑 Administrador(a)
                             </span>
                           )}
 
@@ -1315,7 +1315,7 @@ export const UserManagementScreen: React.FC = () => {
                           {u.twoFactorRequired && u.twoFactorEnabled && (
                             <span
                               className="text-[9px] bg-purple-500/15 text-purple-600 dark:text-purple-300 border border-purple-500/30 px-1.5 py-0.5 rounded-full font-bold"
-                              title="2FA Exigido por el Administrador"
+                              title="2FA Exigido por Administración"
                             >
                               ⚡ Obligatorio
                             </span>
@@ -1388,10 +1388,10 @@ export const UserManagementScreen: React.FC = () => {
                           } ${isJefeAccount ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
                           title={isJefeAccount ? 'La cuenta del Jefe siempre mantiene su rol' : 'Cambiar rol rápidamente'}
                         >
-                          <option value="jefe">👑 Jefe / Admin</option>
-                          <option value="supervisor">📊 Supervisor</option>
-                          <option value="comprador">🛒 Comprador</option>
-                          <option value="vendedor">💼 Vendedor</option>
+                          <option value="jefe">👑 Administrador(a)</option>
+                          <option value="supervisor">📊 Supervisor(a)</option>
+                          <option value="comprador">🛒 Comprador(a)</option>
+                          <option value="vendedor">💼 Vendedor(a)</option>
                         </select>
                       ) : (
                         <span
@@ -1749,7 +1749,7 @@ export const UserManagementScreen: React.FC = () => {
                     }`}
                   >
                     <Briefcase className="w-4 h-4" />
-                    <span>Vendedor</span>
+                    <span>Vendedor(a)</span>
                   </button>
 
                   <button
@@ -1766,7 +1766,7 @@ export const UserManagementScreen: React.FC = () => {
                     }`}
                   >
                     <ShoppingBag className="w-4 h-4" />
-                    <span>Comprador</span>
+                    <span>Comprador(a)</span>
                   </button>
 
                   <button
@@ -1783,7 +1783,7 @@ export const UserManagementScreen: React.FC = () => {
                     }`}
                   >
                     <Eye className="w-4 h-4" />
-                    <span>Supervisor</span>
+                    <span>Supervisor(a)</span>
                   </button>
 
                   <button
@@ -1800,7 +1800,7 @@ export const UserManagementScreen: React.FC = () => {
                     }`}
                   >
                     <Shield className="w-4 h-4" />
-                    <span>👑 Jefe</span>
+                    <span>👑 Administrador(a)</span>
                   </button>
                 </div>
               </div>

@@ -12,9 +12,15 @@ import {
   FileText,
   Box,
   Loader2,
+  Lock,
+  ShieldAlert,
+  KeyRound,
+  X,
 } from 'lucide-react';
 import { Order, OrderItem, OrderStatus } from '../types';
 import { formatCurrency, formatBoliviaPhone } from '../lib/storage';
+import { isOrderDeliveryLocked, getDeliveryLockInfo } from '../lib/orderSecurity';
+import { AdminApprovalPinModal } from './AdminApprovalPinModal';
 import { PackagingSelectionModal } from './PackagingSelectionModal';
 import { PackagingQuickSelector } from './PackagingQuickSelector';
 import { useAuth } from '../contexts/AuthContext';
@@ -31,8 +37,16 @@ export const OrderEditScreen: React.FC<OrderEditScreenProps> = ({
   onSave,
   onCancel,
 }) => {
-  const { userProfile } = useAuth();
+  const { userProfile, isJefe, isSupervisor } = useAuth();
   const { isDark } = useTheme();
+
+  // 7-day lock check
+  const isLocked = isOrderDeliveryLocked(order);
+  const lockInfo = getDeliveryLockInfo(order);
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [pinAuthorized, setPinAuthorized] = useState(false);
+  const [lockError, setLockError] = useState<string | null>(null);
+
   const [cliente, setCliente] = useState(order.cliente);
   const [telefono, setTelefono] = useState(order.telefono);
   const [lugarEntrega, setLugarEntrega] = useState(order.lugarEntrega);
@@ -106,13 +120,26 @@ export const OrderEditScreen: React.FC<OrderEditScreenProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLockError(null);
+
     if (isSubmittingRef.current || isSubmitting) {
       console.warn('Prevented duplicate save in OrderEditScreen');
       return;
     }
 
+    if (isLocked && !isJefe && !pinAuthorized) {
+      if (isSupervisor) {
+        setIsPinModalOpen(true);
+        return;
+      }
+      setLockError(
+        'Modificación denegada: Este pedido fue entregado hace más de 7 días y está bloqueado. Requiere autorización de la Administración o PIN de Aprobación.'
+      );
+      return;
+    }
+
     if (!cliente.trim()) {
-      alert('Por favor ingresa el nombre de la clienta.');
+      alert('Por favor ingresa el nombre del cliente.');
       return;
     }
 
@@ -152,6 +179,21 @@ export const OrderEditScreen: React.FC<OrderEditScreenProps> = ({
         lugarEntrega: lugarEntrega.trim(),
         observaciones: observaciones.trim(),
         estado,
+        ...(isLocked && isJefe
+          ? {
+              desbloqueadoTemporalmente: true,
+              desbloqueadoAt: nowIso,
+              desbloqueadoPor: userProfile?.displayName || userProfile?.email || 'Administrador(a)',
+            }
+          : {}),
+        ...(isLocked && pinAuthorized
+          ? {
+              desbloqueadoTemporalmente: true,
+              aprobadoConPinAdmin: true,
+              desbloqueadoAt: nowIso,
+              desbloqueadoPor: userProfile?.displayName || userProfile?.email || 'Supervisor(a)',
+            }
+          : {}),
         ...shippingData,
         productos: productos.map((p) => ({
           ...p,
@@ -199,6 +241,53 @@ export const OrderEditScreen: React.FC<OrderEditScreenProps> = ({
         </h1>
       </div>
 
+      {/* Lock Warning Banner */}
+      {isLocked && (
+        <div className="p-4 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-300 text-xs flex items-center justify-between gap-3 font-semibold">
+          <div className="flex items-center gap-2.5">
+            <Lock className="w-5 h-5 text-rose-500 shrink-0" />
+            <div className="space-y-0.5">
+              <span className="font-bold block">
+                Pedido entregado el {lockInfo.formattedDeliveryDate} (+7 días transcurridos)
+              </span>
+              <span className="opacity-90 font-normal block">
+                {isJefe
+                  ? 'Como Administrador(a) tienes permiso para modificar este registro protegido.'
+                  : pinAuthorized
+                  ? '✓ Autorización aprobada con PIN de Administración para guardar los cambios.'
+                  : 'Este registro está protegido contra modificaciones. Los cambios requieren autorización con PIN de Administración.'}
+              </span>
+            </div>
+          </div>
+          {!isJefe && !pinAuthorized && isSupervisor && (
+            <button
+              type="button"
+              onClick={() => setIsPinModalOpen(true)}
+              className="py-2 px-3.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0 cursor-pointer"
+            >
+              <KeyRound className="w-3.5 h-3.5" />
+              <span>Autorizar con PIN</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {lockError && (
+        <div className="p-3.5 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-600 dark:text-rose-300 text-xs flex items-center justify-between gap-2 font-bold animate-fade-in">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 shrink-0" />
+            <span>{lockError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setLockError(null)}
+            className="p-1 hover:opacity-75 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Customer & Location Details */}
         <div
@@ -214,7 +303,7 @@ export const OrderEditScreen: React.FC<OrderEditScreenProps> = ({
             }`}
           >
             <User className={`w-4 h-4 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
-            Datos de la Clienta
+            Datos del Cliente
           </h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -224,7 +313,7 @@ export const OrderEditScreen: React.FC<OrderEditScreenProps> = ({
                   isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
                 }`}
               >
-                Nombre de la Clienta *
+                Nombre del Cliente *
               </label>
               <input
                 type="text"
@@ -688,6 +777,19 @@ export const OrderEditScreen: React.FC<OrderEditScreenProps> = ({
           }}
         />
       )}
+
+      {/* Admin Approval PIN Modal */}
+      <AdminApprovalPinModal
+        isOpen={isPinModalOpen}
+        onClose={() => setIsPinModalOpen(false)}
+        onApproved={() => {
+          setPinAuthorized(true);
+          setIsPinModalOpen(false);
+          setLockError(null);
+        }}
+        orderNumber={order.orderNumber}
+        actionDescription="guardar modificaciones en este pedido entregado hace más de 7 días"
+      />
     </div>
   );
 };

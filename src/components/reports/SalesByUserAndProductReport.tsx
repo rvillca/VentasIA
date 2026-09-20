@@ -270,7 +270,7 @@ export const SalesByUserAndProductReport: React.FC<SalesByUserAndProductReportPr
             Datos de Ventas por Usuarios y Productos
           </h2>
           <p className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
-            Supervisión detallada de vendedoras, volúmenes de venta, ticket promedio y artículos con mayor rotación.
+            Supervisión detallada del equipo de ventas, volúmenes de venta, ticket promedio y artículos con mayor rotación.
           </p>
         </div>
 
@@ -364,7 +364,7 @@ export const SalesByUserAndProductReport: React.FC<SalesByUserAndProductReportPr
         >
           <div className="flex items-center justify-between mb-2">
             <span className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
-              Vendedoras Activas
+              Vendedores(as) Activos(as)
             </span>
             <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center">
               <Users className="w-4 h-4" />
@@ -460,7 +460,7 @@ export const SalesByUserAndProductReport: React.FC<SalesByUserAndProductReportPr
         </div>
       </div>
 
-      {/* SECTION 1: VENTAS POR USUARIOS / VENDEDORAS */}
+      {/* SECTION 1: VENTAS POR USUARIOS / VENDEDORES(AS) */}
       {(viewSection === 'both' || viewSection === 'users') && (
         <div
           className={`border rounded-3xl p-4 sm:p-6 shadow-sm space-y-4 ${
@@ -479,7 +479,7 @@ export const SalesByUserAndProductReport: React.FC<SalesByUserAndProductReportPr
                       isDark ? 'text-white' : 'text-[#1A2B5C]'
                     }`}
                   >
-                    1. Rendimiento y Ventas por Vendedora / Usuario
+                    1. Rendimiento y Ventas por Vendedor(a) / Usuario
                   </h3>
                   <p className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
                     Ranking ordenado por volumen total vendido en {(periodLabel || '').toLowerCase()}.
@@ -495,7 +495,7 @@ export const SalesByUserAndProductReport: React.FC<SalesByUserAndProductReportPr
               <thead>
                 <tr className={isDark ? 'bg-[#0F1B3C] text-[#9AA6C9]' : 'bg-[#FBF7EF] text-[#78716C]'}>
                   <th className="py-3 px-3.5 font-bold">#</th>
-                  <th className="py-3 px-3.5 font-bold">Usuario / Vendedora</th>
+                  <th className="py-3 px-3.5 font-bold">Usuario / Vendedor(a)</th>
                   <th className="py-3 px-3.5 font-bold text-center">Pedidos</th>
                   <th className="py-3 px-3.5 font-bold text-right">Total Vendido</th>
                   <th className="py-3 px-3.5 font-bold text-right">Ticket Prom.</th>
@@ -759,7 +759,7 @@ export const SalesByUserAndProductReport: React.FC<SalesByUserAndProductReportPr
                   Ventas Registradas
                 </span>
                 <h3 className={`text-lg font-black font-['Outfit',sans-serif] ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
-                  Vendedora: {selectedSellerOrdersModal.sellerName}
+                  Vendedor(a): {selectedSellerOrdersModal.sellerName}
                 </h3>
               </div>
               <button

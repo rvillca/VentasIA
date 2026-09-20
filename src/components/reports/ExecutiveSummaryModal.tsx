@@ -169,8 +169,8 @@ export const ExecutiveSummaryModal: React.FC<ExecutiveSummaryModalProps> = ({
     });
     lines.push('');
 
-    lines.push('--- DESEMPEÑO POR VENDEDORA ---');
-    lines.push('Ranking,Vendedora,Pedidos Concretados,Total Vendido (Bs.),Ticket Promedio (Bs.),Cobrado (Bs.),Saldo Pendiente (Bs.),Participación %');
+    lines.push('--- DESEMPEÑO POR PERSONAL DE VENTAS ---');
+    lines.push('Ranking,Vendedor(a),Pedidos Concretados,Total Vendido (Bs.),Ticket Promedio (Bs.),Cobrado (Bs.),Saldo Pendiente (Bs.),Participación %');
     data.topSellers.forEach((s, idx) => {
       lines.push(
         `#${idx + 1},"${s.name.replace(/"/g, '""')}",${s.count},${s.total.toFixed(2)},${s.ticketPromedio.toFixed(2)},${s.cobrado.toFixed(2)},${s.porCobrar.toFixed(2)},${s.sharePercent.toFixed(1)}%`
@@ -213,7 +213,7 @@ export const ExecutiveSummaryModal: React.FC<ExecutiveSummaryModalProps> = ({
     text += `• Saldo por Cobrar: *Bs. ${data.current.totalPorCobrar.toLocaleString('es-BO', { minimumFractionDigits: 2 })}*\n\n`;
 
     if (data.topSellers.length > 0) {
-      text += `🏆 *TOP VENDEDORAS:*\n`;
+      text += `🏆 *TOP VENTAS:*\n`;
       data.topSellers.slice(0, 5).forEach((s, idx) => {
         text += `${idx + 1}. *${s.name}*: Bs. ${s.total.toLocaleString('es-BO', { minimumFractionDigits: 2 })} (${s.count} pedidos | Prom: Bs. ${s.ticketPromedio.toFixed(1)})\n`;
       });
@@ -479,7 +479,7 @@ export const ExecutiveSummaryModal: React.FC<ExecutiveSummaryModalProps> = ({
                     3. Desempeño del Equipo de Ventas
                   </h4>
                 </div>
-                <span className="text-[11px] text-stone-500">{data.topSellers.length} vendedoras</span>
+                <span className="text-[11px] text-stone-500">{data.topSellers.length} integrantes</span>
               </div>
 
               {data.topSellers.length === 0 ? (
@@ -490,7 +490,7 @@ export const ExecutiveSummaryModal: React.FC<ExecutiveSummaryModalProps> = ({
                     <thead>
                       <tr className="border-b border-stone-200 text-stone-500 font-bold">
                         <th className="py-2 pr-2">#</th>
-                        <th className="py-2 pr-2">Vendedora</th>
+                        <th className="py-2 pr-2">Vendedor(a)</th>
                         <th className="py-2 pr-2 text-center">Peds</th>
                         <th className="py-2 pr-2 text-right">Total Bs.</th>
                         <th className="py-2 text-right">Ticket</th>
@@ -596,7 +596,7 @@ export const ExecutiveSummaryModal: React.FC<ExecutiveSummaryModalProps> = ({
 
               <div className="p-3 bg-white/80 rounded-xl border border-[#E8DFC8]">
                 <span className="text-[10px] text-stone-500 uppercase font-bold block">
-                  Vendedora Estrella
+                  Líder de Ventas
                 </span>
                 <p className="font-bold text-[#1A2B5C] mt-0.5">
                   {bestSeller

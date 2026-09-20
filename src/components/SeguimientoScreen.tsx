@@ -173,7 +173,7 @@ export const SeguimientoScreen: React.FC<SeguimientoScreenProps> = ({
                   isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
                 }`}
               >
-                Gestión operativa de cuentas por cobrar a clientas y deudas con proveedores
+                Gestión operativa de cuentas por cobrar a clientes y deudas con proveedores
               </p>
             </div>
           </div>

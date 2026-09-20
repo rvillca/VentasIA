@@ -32,11 +32,12 @@ import {
   removeSavedBiometricDevice,
 } from '../lib/webauthn';
 import { SavedBiometricDevice } from '../types';
+import { getAdminApprovalPin, setAdminApprovalPin, DEFAULT_ADMIN_PIN } from '../lib/orderSecurity';
 
 interface UserSecurityModalProps {
   isOpen: boolean;
   onClose: () => void;
-  defaultTab?: '2fa' | 'biometrics' | 'inactivity' | 'password';
+  defaultTab?: '2fa' | 'biometrics' | 'inactivity' | 'password' | 'pin';
 }
 
 export const UserSecurityModal: React.FC<UserSecurityModalProps> = ({
@@ -47,6 +48,7 @@ export const UserSecurityModal: React.FC<UserSecurityModalProps> = ({
   const {
     currentUser,
     userProfile,
+    isJefe,
     changeMyPassword,
     enableTwoFactor,
     disableTwoFactor,
@@ -56,7 +58,24 @@ export const UserSecurityModal: React.FC<UserSecurityModalProps> = ({
   } = useAuth();
   const { isDark } = useTheme();
 
-  const [activeTab, setActiveTab] = useState<'2fa' | 'biometrics' | 'inactivity' | 'password'>(defaultTab);
+  const [activeTab, setActiveTab] = useState<'2fa' | 'biometrics' | 'inactivity' | 'password' | 'pin'>(defaultTab);
+
+  // Admin Approval PIN State
+  const [adminPin, setAdminPin] = useState('');
+  const [adminPinConfirm, setAdminPinConfirm] = useState('');
+  const [currentAdminPin, setCurrentAdminPin] = useState<string>('');
+  const [showAdminPinValue, setShowAdminPinValue] = useState(false);
+  const [pinLoading, setPinLoading] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [pinSuccess, setPinSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen && isJefe) {
+      getAdminApprovalPin().then((p) => {
+        setCurrentAdminPin(p);
+      });
+    }
+  }, [isOpen, isJefe]);
 
   // Biometrics (WebAuthn / Passkeys) State
   const [isBioSupported, setIsBioSupported] = useState(false);
@@ -316,6 +335,40 @@ export const UserSecurityModal: React.FC<UserSecurityModalProps> = ({
     }
   };
 
+  const handleSaveAdminPin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPinError(null);
+    setPinSuccess(null);
+
+    const cleanPin = adminPin.trim();
+    if (!cleanPin) {
+      setPinError('Ingresa el nuevo PIN de aprobación.');
+      return;
+    }
+    if (cleanPin.length < 4) {
+      setPinError('El PIN debe tener al menos 4 dígitos o caracteres.');
+      return;
+    }
+    if (cleanPin !== adminPinConfirm.trim()) {
+      setPinError('La confirmación del PIN no coincide.');
+      return;
+    }
+
+    try {
+      setPinLoading(true);
+      await setAdminApprovalPin(cleanPin, userProfile?.displayName || userProfile?.email || 'Administración');
+      setCurrentAdminPin(cleanPin);
+      setAdminPin('');
+      setAdminPinConfirm('');
+      setPinSuccess('¡PIN de Aprobación de Administración guardado y actualizado con éxito!');
+      setTimeout(() => setPinSuccess(null), 3500);
+    } catch (err: any) {
+      setPinError(err.message || 'Error al guardar el PIN de aprobación.');
+    } finally {
+      setPinLoading(false);
+    }
+  };
+
   const copySecretToClipboard = () => {
     if (setupSecret) {
       navigator.clipboard.writeText(setupSecret);
@@ -382,7 +435,7 @@ export const UserSecurityModal: React.FC<UserSecurityModalProps> = ({
 
         {/* Tab Navigation */}
         <div
-          className={`grid grid-cols-2 sm:grid-cols-4 gap-1 p-1 rounded-2xl border text-xs font-bold ${
+          className={`grid ${isJefe ? 'grid-cols-2 sm:grid-cols-5' : 'grid-cols-2 sm:grid-cols-4'} gap-1 p-1 rounded-2xl border text-xs font-bold ${
             isDark ? 'bg-[#0F1B3C] border-[#223368]' : 'bg-[#F5EFE0] border-[#E8DFC8]'
           }`}
         >
@@ -474,6 +527,31 @@ export const UserSecurityModal: React.FC<UserSecurityModalProps> = ({
             <KeyRound className="w-3.5 h-3.5 shrink-0" />
             <span className="truncate">Contraseña</span>
           </button>
+
+          {isJefe && (
+            <button
+              id="tab-security-pin"
+              type="button"
+              onClick={() => {
+                setActiveTab('pin');
+                setPinError(null);
+                setPinSuccess(null);
+              }}
+              className={`py-2 px-1.5 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                activeTab === 'pin'
+                  ? isDark
+                    ? 'bg-[#FF6FA5] text-[#0F1B3C] font-black shadow-sm'
+                    : 'bg-[#1A2B5C] text-white shadow-sm'
+                  : isDark
+                  ? 'text-[#9AA6C9] hover:text-white'
+                  : 'text-[#78716C] hover:text-[#1A2B5C]'
+              }`}
+              title="PIN de autorización para que supervisores reabran ventas de más de 7 días"
+            >
+              <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">PIN Admin</span>
+            </button>
+          )}
         </div>
 
         {/* TAB 1: 2FA (TOTP) */}
@@ -1275,6 +1353,127 @@ export const UserSecurityModal: React.FC<UserSecurityModalProps> = ({
             >
               {passwordLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
               <span>Actualizar Contraseña</span>
+            </button>
+          </form>
+        )}
+
+        {/* TAB 5: PIN DE APROBACIÓN DE ADMINISTRADORA (Solo Jefe) */}
+        {activeTab === 'pin' && isJefe && (
+          <form onSubmit={handleSaveAdminPin} className="space-y-4">
+            <div
+              className={`p-4 rounded-2xl border space-y-2 text-xs leading-relaxed ${
+                isDark
+                  ? 'bg-[#0F1B3C] border-[#223368] text-[#9AA6C9]'
+                  : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#78716C]'
+              }`}
+            >
+              <div className="flex items-center gap-2 font-bold text-amber-500">
+                <ShieldAlert className="w-4 h-4 shrink-0" />
+                <span>PIN Maestro de Aprobación para Supervisores</span>
+              </div>
+              <p>
+                Por seguridad contable, los pedidos marcados como <strong>Entregados hace más de 7 días</strong> quedan bloqueados.
+              </p>
+              <p>
+                Solo tú (como Administradora) puedes reabrirlos directamente, o los <strong>Supervisores</strong> cuando tú les proporciones este PIN de aprobación para autorizar la reapertura o modificación.
+              </p>
+              {currentAdminPin && (
+                <div className={`p-2.5 rounded-xl border flex items-center justify-between mt-2 ${
+                  isDark ? 'bg-[#16234F] border-[#223368]' : 'bg-white border-[#E8DFC8]'
+                }`}>
+                  <span className="font-semibold text-[11px]">PIN actual configurado:</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-black text-sm tracking-widest text-[#FF6FA5]">
+                      {showAdminPinValue ? currentAdminPin : '••••'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowAdminPinValue(!showAdminPinValue)}
+                      className="p-1 rounded text-xs opacity-70 hover:opacity-100"
+                    >
+                      {showAdminPinValue ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {pinSuccess && (
+              <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 text-xs flex items-center gap-2 font-bold">
+                <Check className="w-4 h-4 shrink-0" />
+                <span>{pinSuccess}</span>
+              </div>
+            )}
+
+            {pinError && (
+              <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-500 text-xs flex items-center gap-2 font-bold">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{pinError}</span>
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <label
+                htmlFor="new-admin-pin"
+                className={`text-xs font-bold block ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}
+              >
+                Nuevo PIN de Aprobación (4 a 8 dígitos)
+              </label>
+              <input
+                id="new-admin-pin"
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={8}
+                required
+                value={adminPin}
+                onChange={(e) => setAdminPin(e.target.value)}
+                placeholder="Ejemplo: 2026"
+                className={`w-full border rounded-xl py-2.5 px-3 text-sm font-mono tracking-widest focus:outline-none transition ${
+                  isDark
+                    ? 'bg-[#0F1B3C] border-[#223368] text-white placeholder-[#9AA6C9]/60 focus:ring-2 focus:ring-[#FF6FA5]'
+                    : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/60 focus:ring-2 focus:ring-[#1A2B5C]'
+                }`}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label
+                htmlFor="confirm-admin-pin"
+                className={`text-xs font-bold block ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}
+              >
+                Confirmar Nuevo PIN
+              </label>
+              <input
+                id="confirm-admin-pin"
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={8}
+                required
+                value={adminPinConfirm}
+                onChange={(e) => setAdminPinConfirm(e.target.value)}
+                placeholder="Repite el nuevo PIN"
+                className={`w-full border rounded-xl py-2.5 px-3 text-sm font-mono tracking-widest focus:outline-none transition ${
+                  isDark
+                    ? 'bg-[#0F1B3C] border-[#223368] text-white placeholder-[#9AA6C9]/60 focus:ring-2 focus:ring-[#FF6FA5]'
+                    : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C] placeholder-[#78716C]/60 focus:ring-2 focus:ring-[#1A2B5C]'
+                }`}
+              />
+            </div>
+
+            <button
+              id="submit-change-admin-pin-btn"
+              type="submit"
+              disabled={pinLoading}
+              className={`w-full py-3 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition shadow-md cursor-pointer ${
+                isDark
+                  ? 'bg-[#FF6FA5] hover:bg-[#FF85B3] text-[#0F1B3C]'
+                  : 'bg-[#1A2B5C] hover:bg-[#253A7A] text-white'
+              }`}
+            >
+              {pinLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+              <span>Guardar PIN de Aprobación</span>
             </button>
           </form>
         )}

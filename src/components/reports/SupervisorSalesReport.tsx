@@ -318,7 +318,7 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
         'Total (Bs)',
         'Cobrado (Bs)',
         'Saldo (Bs)',
-        'Vendedor',
+        'Vendedor(a)',
         'Estado',
       ];
       rows = fullyFilteredOrders.map((o) => {
@@ -339,7 +339,7 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
       });
     } else if (viewMode === 'usuarios') {
       headers = [
-        'Vendedor / Usuario',
+        'Vendedor(a) / Usuario',
         'Pedidos Realizados',
         'Total Facturado (Bs)',
         'Total Cobrado (Bs)',
@@ -628,7 +628,7 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
               }`}
             >
               <Users className="w-3.5 h-3.5" />
-              <span>Por Vendedor ({usersSummary.length})</span>
+              <span>Por Vendedor(a) ({usersSummary.length})</span>
             </button>
 
             <button
@@ -652,7 +652,7 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar por N° pedido, cliente, celular, vendedor..."
+              placeholder="Buscar por N° pedido, cliente, celular, vendedor(a)..."
               className="w-full rounded-xl pl-9 pr-8 py-2 text-xs border focus:outline-none transition bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C] placeholder-stone-400 focus:border-[#1A2B5C] font-medium"
             />
             {searchQuery && (
@@ -671,13 +671,13 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
         <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-[#E8DFC8]">
           {/* Seller Filter */}
           <div className="flex items-center gap-1.5 text-xs">
-            <span className="text-[11px] font-extrabold text-stone-600">Vendedor:</span>
+            <span className="text-[11px] font-extrabold text-stone-600">Vendedor(a):</span>
             <select
               value={selectedSeller}
               onChange={(e) => setSelectedSeller(e.target.value)}
               className="rounded-xl px-2.5 py-1.5 text-xs border font-semibold focus:outline-none cursor-pointer bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C]"
             >
-              <option value="all">Todos los vendedores</option>
+              <option value="all">Todos(as) los vendedores(as)</option>
               {availableSellers.map((s) => (
                 <option key={s} value={s}>
                   {s}
@@ -760,7 +760,7 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
                   <th className="py-3 px-3 whitespace-nowrap">N° Celular</th>
                   <th className="py-3 px-3 text-right whitespace-nowrap">Total</th>
                   <th className="py-3 px-3 text-right whitespace-nowrap">Cobrado</th>
-                  <th className="py-3 px-3">Vendedor</th>
+                  <th className="py-3 px-3">Vendedor(a)</th>
                   <th className="py-3 px-3 text-center whitespace-nowrap">Acción</th>
                 </tr>
               </thead>
@@ -888,7 +888,7 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
           <div className="px-4 py-3 border-b border-[#E8DFC8] flex items-center justify-between bg-[#FAF8F5]">
             <span className="text-xs font-black text-[#1A2B5C] flex items-center gap-1.5">
               <Users className="w-4 h-4 text-blue-600" />
-              Rendimiento por Vendedor ({usersSummary.length} activos en el período)
+              Rendimiento por Vendedor(a) ({usersSummary.length} activos(as) en el período)
             </span>
             <span className="text-[11px] text-stone-600 font-semibold">
               Ordenado por volumen facturado
@@ -900,7 +900,7 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
               <thead>
                 <tr className="border-b font-black uppercase text-[11px] tracking-wider bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]">
                   <th className="py-3 px-4">#</th>
-                  <th className="py-3 px-4">Vendedor / Usuario</th>
+                  <th className="py-3 px-4">Vendedor(a) / Usuario</th>
                   <th className="py-3 px-4 text-center">N° Pedidos</th>
                   <th className="py-3 px-4 text-center">Unidades</th>
                   <th className="py-3 px-4 text-right">Total Facturado</th>
@@ -913,7 +913,7 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
                 {usersSummary.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-10 text-center text-stone-500 font-semibold">
-                      No hay registros de vendedores en este período.
+                      No hay registros de vendedores(as) en este período.
                     </td>
                   </tr>
                 ) : (
@@ -1088,7 +1088,7 @@ export const SupervisorSalesReport: React.FC<SupervisorSalesReportProps> = ({
               </div>
 
               <div className="p-3.5 rounded-xl border bg-[#FBF7EF] border-[#E8DFC8]">
-                <span className="block text-[10px] font-black uppercase text-stone-500">Vendedor:</span>
+                <span className="block text-[10px] font-black uppercase text-stone-500">Vendedor(a):</span>
                 <span className="font-black text-sm text-[#1A2B5C] block truncate mt-0.5">
                   {inspectOrder.vendedorNombre || 'Sin asignar'}
                 </span>

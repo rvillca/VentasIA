@@ -24,6 +24,7 @@ import {
   savePurchaseToFirestore,
   INITIAL_SAMPLE_PURCHASES,
 } from './lib/storage';
+import { isOrderDeliveryLocked } from './lib/orderSecurity';
 import { useAuth } from './contexts/AuthContext';
 import { useTheme } from './contexts/ThemeContext';
 import { CheckCircle2 } from 'lucide-react';
@@ -173,6 +174,15 @@ export default function App() {
 
   const handleUpdateOrder = async (updatedOrder: Order) => {
     try {
+      if (
+        isOrderDeliveryLocked(updatedOrder) &&
+        !isJefe &&
+        !updatedOrder.aprobadoConPinAdmin &&
+        !updatedOrder.desbloqueadoTemporalmente
+      ) {
+        showToast('🔒 Modificación bloqueada: Pedido entregado hace más de 7 días.');
+        return;
+      }
       await updateOrderInFirestore(updatedOrder.id, updatedOrder);
       setActiveTab('detail');
       showToast(`Venta #${updatedOrder.orderNumber} actualizada.`);
@@ -195,12 +205,28 @@ export default function App() {
     const dispatcherName = userProfile?.displayName || userProfile?.email || 'Usuario';
     const dispatcherUid = userProfile?.uid || '';
 
+    // Security check: if un-delivering an order delivered > 7 days ago
+    if (nextStatus === 'Abierto' && isOrderDeliveryLocked(target)) {
+      if (!isJefe && !isSupervisor) {
+        setSelectedOrderId(target.id);
+        setActiveTab('detail');
+        showToast('🔒 Registro bloqueado: Entregado hace más de 7 días. Solo Admin o Supervisor con PIN.');
+        return;
+      }
+      if (!isJefe && isSupervisor) {
+        setSelectedOrderId(target.id);
+        setActiveTab('detail');
+        showToast('🔑 Ingresa el PIN de Aprobación de Administrador para reabrir este pedido.');
+        return;
+      }
+    }
+
     try {
       if (nextStatus === 'Entregado') {
         await markOrderAsDeliveredInFirestore(orderId, dispatcherName, dispatcherUid);
         showToast(`Pedido #${target.orderNumber} marcado como Entregado por ${dispatcherName}`);
       } else {
-        await reopenOrderInFirestore(orderId);
+        await reopenOrderInFirestore(orderId, dispatcherName, false);
         showToast(`Pedido #${target.orderNumber} reabierto como Pendiente de Envío`);
       }
     } catch (err) {
@@ -211,7 +237,12 @@ export default function App() {
 
   const handleAnularOrder = async (orderId: string, motivo: string) => {
     try {
-      const sellerName = userProfile?.displayName || userProfile?.email || 'Vendedor';
+      const target = orders.find((o) => o.id === orderId);
+      if (target && isOrderDeliveryLocked(target)) {
+        showToast('🔒 No es posible anular una venta entregada que ya está bloqueada (+7 días).');
+        return;
+      }
+      const sellerName = userProfile?.displayName || userProfile?.email || 'Ventas';
       await anularOrderInFirestore(orderId, sellerName, motivo);
       showToast('Venta anulada correctamente.');
     } catch (err) {

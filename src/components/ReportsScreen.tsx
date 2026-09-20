@@ -535,7 +535,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
               Dashboard Analítico
             </span>
             <span className="text-xs text-[#78716C]">
-              {isJefe ? '👑 Jefe / Admin' : isSupervisor ? '📊 Supervisor' : '🛒 Comprador'}
+              {isJefe ? '👑 Administrador(a)' : isSupervisor ? '📊 Supervisor(a)' : '🛒 Comprador(a)'}
             </span>
           </div>
           <h1 className="text-xl sm:text-2xl font-black tracking-tight font-['Outfit',sans-serif] text-[#1A2B5C]">
@@ -678,7 +678,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
                 }`}
               >
                 <Users className="w-3.5 h-3.5 text-blue-400" />
-                <span>3. Vendedores</span>
+                <span>3. Ventas por Usuario</span>
               </button>
 
               <button
@@ -847,7 +847,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
                   onChange={(e) => setShippingShipperFilter(e.target.value)}
                   className="text-xs font-bold border rounded-xl px-2.5 py-1.5 focus:outline-none transition bg-[#FBF7EF] text-[#1A2B5C] border-[#E8DFC8]"
                 >
-                  <option value="all">Todos los despachadores</option>
+                  <option value="all">Todo el personal de despacho</option>
                   {allShippers.map((s) => (
                     <option key={s} value={s}>
                       {s}
@@ -857,13 +857,13 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
               </div>
 
               <div className="flex items-center gap-1.5">
-                <span className="text-xs text-[#78716C]">Vendedora:</span>
+                <span className="text-xs text-[#78716C]">Vendedor(a):</span>
                 <select
                   value={shippingSellerFilter}
                   onChange={(e) => setShippingSellerFilter(e.target.value)}
                   className="text-xs font-bold border rounded-xl px-2.5 py-1.5 focus:outline-none transition bg-[#FBF7EF] text-[#1A2B5C] border-[#E8DFC8]"
                 >
-                  <option value="all">Todas las vendedoras</option>
+                  <option value="all">Todo el personal de ventas</option>
                   {allSellers.map((s) => (
                     <option key={s} value={s}>
                       {s}
@@ -1189,7 +1189,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({ orders, purchases 
                 <thead>
                   <tr className="border-b border-[#E8DFC8] text-[#78716C] uppercase tracking-wider text-[10px]">
                     <th className="py-2.5 px-3 font-bold">N° Pedido</th>
-                    <th className="py-2.5 px-3 font-bold">Vendedora (Registro)</th>
+                    <th className="py-2.5 px-3 font-bold">Personal de Ventas (Registro)</th>
                     <th className="py-2.5 px-3 font-bold">Despachado / Enviado Por</th>
                     <th className="py-2.5 px-3 font-bold">Fecha Registro & Envío</th>
                     <th className="py-2.5 px-3 font-bold">Cliente & Contacto</th>

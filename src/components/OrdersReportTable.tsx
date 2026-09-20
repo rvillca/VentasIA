@@ -9,9 +9,11 @@ import {
   CheckCircle2,
   DollarSign,
   MapPin,
+  Lock,
 } from 'lucide-react';
 import { Order } from '../types';
 import { getWhatsAppUrl } from '../lib/storage';
+import { isOrderDeliveryLocked } from '../lib/orderSecurity';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useFinancialPrivacy } from '../contexts/FinancialPrivacyContext';
@@ -125,7 +127,7 @@ export const OrdersReportTable: React.FC<OrdersReportTableProps> = ({
                   {/* Cliente */}
                   <td className="py-2.5 px-3">
                     <div className="font-bold font-['Outfit',sans-serif] group-hover:text-[#FF6FA5] transition-colors leading-tight text-xs sm:text-sm">
-                      {order.cliente || 'Clienta sin nombre'}
+                      {order.cliente || 'Cliente sin nombre'}
                     </div>
                     <div className="flex flex-wrap items-center gap-2 mt-0.5">
                       {order.telefono && (
@@ -217,7 +219,14 @@ export const OrdersReportTable: React.FC<OrdersReportTableProps> = ({
                         }`}
                         title="Toca para cambiar estado entre Abierto y Entregado"
                       >
-                        {isDelivered ? '✓ Entregado' : '⏳ Abierto'}
+                        {isDelivered ? (
+                          <span className="flex items-center gap-1">
+                            {isOrderDeliveryLocked(order) && <Lock className="w-2.5 h-2.5 text-rose-500" />}
+                            <span>✓ Entregado</span>
+                          </span>
+                        ) : (
+                          '⏳ Abierto'
+                        )}
                       </button>
                     )}
                   </td>
@@ -351,7 +360,7 @@ export const OrdersReportTable: React.FC<OrdersReportTableProps> = ({
                       isDark ? 'text-white' : 'text-[#1A2B5C]'
                     }`}
                   >
-                    {order.cliente || 'Clienta sin nombre'}
+                    {order.cliente || 'Cliente sin nombre'}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -363,7 +372,7 @@ export const OrdersReportTable: React.FC<OrdersReportTableProps> = ({
                     {formatBalance(order.total)}
                   </span>
                   <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border flex items-center gap-1 ${
                       isAnulado
                         ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border-rose-200'
                         : isDelivered
@@ -371,7 +380,8 @@ export const OrdersReportTable: React.FC<OrdersReportTableProps> = ({
                         : 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border-purple-200'
                     }`}
                   >
-                    {isAnulado ? 'Anulado' : isDelivered ? 'Entregado' : 'Abierto'}
+                    {isDelivered && isOrderDeliveryLocked(order) && <Lock className="w-2.5 h-2.5 text-rose-500" />}
+                    <span>{isAnulado ? 'Anulado' : isDelivered ? 'Entregado' : 'Abierto'}</span>
                   </span>
                 </div>
               </div>

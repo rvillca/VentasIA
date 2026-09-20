@@ -313,7 +313,7 @@ export const DatabaseMaintenanceScreen: React.FC = () => {
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="text-[10px] uppercase font-black tracking-widest px-2.5 py-0.5 rounded-full bg-[#FF6FA5]/20 text-[#FF6FA5] border border-[#FF6FA5]/30">
-                👑 Exclusivo Admin / Jefa
+                👑 Exclusivo Administración / Jefatura
               </span>
               <span className={`text-xs ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
                 Panel de Integridad & Almacenamiento

@@ -100,7 +100,7 @@ export const PurchaseAnularModal: React.FC<PurchaseAnularModalProps> = ({
         }`}>
           <div className="flex items-center gap-2 font-bold">
             <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
-            <span>¿Estás seguro de anular este registro de compra?</span>
+            <span>¿Confirmas anular este registro de compra?</span>
           </div>
           <p className={`text-[11px] pl-6 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
             Total a anular: <strong>{formatCurrency(purchase.total)}</strong>. La compra quedará registrada como <strong>Anulada</strong> en el historial y sus montos no afectarán los balances activos ni las deudas por pagar.

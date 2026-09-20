@@ -240,7 +240,7 @@ export const SalesHistoryAuditReport: React.FC<SalesHistoryAuditReportProps> = (
             Historial de Ventas para Revisión de Supervisión
           </h2>
           <p className="text-xs text-white/80 max-w-2xl leading-relaxed">
-            Permite inspeccionar cada pedido en detalle, verificar qué vendedora lo registró, qué productos se vendieron,
+            Permite inspeccionar cada pedido en detalle, verificar qué persona de ventas lo registró, qué productos se vendieron,
             el estado de entrega y si existen cobros pendientes.
           </p>
         </div>
@@ -468,7 +468,7 @@ export const SalesHistoryAuditReport: React.FC<SalesHistoryAuditReportProps> = (
 
           {/* Seller Dropdown */}
           <div className="flex items-center gap-1.5">
-            <span className="font-bold text-[#78716C] dark:text-[#9AA6C9]">Vendedora:</span>
+            <span className="font-bold text-[#78716C] dark:text-[#9AA6C9]">Vendedor(a):</span>
             <select
               value={selectedSeller}
               onChange={(e) => setSelectedSeller(e.target.value)}
@@ -478,7 +478,7 @@ export const SalesHistoryAuditReport: React.FC<SalesHistoryAuditReportProps> = (
                   : 'bg-[#FBF7EF] border-[#E8DFC8] text-[#1A2B5C]'
               }`}
             >
-              <option value="all">Todas las vendedoras</option>
+              <option value="all">Todo el personal de ventas</option>
               {allSellers.map((s) => (
                 <option key={s} value={s}>
                   {s}
@@ -560,7 +560,7 @@ export const SalesHistoryAuditReport: React.FC<SalesHistoryAuditReportProps> = (
                 <th className="py-3 px-3.5 font-bold">N° Pedido</th>
                 <th className="py-3 px-3.5 font-bold">Fecha / Hora</th>
                 <th className="py-3 px-3.5 font-bold">Cliente</th>
-                <th className="py-3 px-3.5 font-bold">Vendedora</th>
+                <th className="py-3 px-3.5 font-bold">Vendedor(a)</th>
                 <th className="py-3 px-3.5 font-bold">Productos</th>
                 <th className="py-3 px-3.5 font-bold">Lugar Entrega</th>
                 <th className="py-3 px-3.5 font-bold text-right">Total (Bs.)</th>
@@ -773,7 +773,7 @@ export const SalesHistoryAuditReport: React.FC<SalesHistoryAuditReportProps> = (
 
                 <div>
                   <span className="text-[10px] font-bold uppercase text-[#78716C] dark:text-[#9AA6C9]">
-                    Vendedora Responsable
+                    Personal de Ventas Responsable
                   </span>
                   <p className="font-bold text-blue-600 dark:text-blue-400">
                     {auditOrderModal.vendedorNombre || 'Sin asignar'}

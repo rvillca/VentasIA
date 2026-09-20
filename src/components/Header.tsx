@@ -156,12 +156,12 @@ export const Header: React.FC<HeaderProps> = ({
                     }`}
                   >
                     {role === 'jefe'
-                      ? '👑 Jefa / Admin'
+                      ? '👑 Administrador(a)'
                       : role === 'supervisor'
-                      ? '📊 Supervisora'
+                      ? '📊 Supervisor(a)'
                       : role === 'comprador'
-                      ? '🛒 Compradora'
-                      : '💼 Vendedora'}
+                      ? '🛒 Comprador(a)'
+                      : '💼 Vendedor(a)'}
                   </span>
                 </div>
                 {userProfile?.twoFactorEnabled ? (

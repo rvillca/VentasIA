@@ -652,8 +652,8 @@ export const ComparativeSalesReport: React.FC<ComparativeSalesReportProps> = ({
     });
     lines.push('');
 
-    lines.push('--- DESEMPEÑO POR VENDEDORA ---');
-    lines.push('Posición,Vendedora,Pedidos,Total Vendido (Bs.),Ticket Promedio (Bs.),Cobrado (Bs.),Saldo Pendiente (Bs.),% Participación,Crecimiento %');
+    lines.push('--- DESEMPEÑO POR PERSONAL DE VENTAS ---');
+    lines.push('Posición,Vendedor(a),Pedidos,Total Vendido (Bs.),Ticket Promedio (Bs.),Cobrado (Bs.),Saldo Pendiente (Bs.),% Participación,Crecimiento %');
     sellersRanking.forEach((s, idx) => {
       lines.push(
         `#${idx + 1},"${s.name.replace(/"/g, '""')}",${s.count},${s.total.toFixed(2)},${s.ticketPromedio.toFixed(2)},${s.cobrado.toFixed(2)},${s.porCobrar.toFixed(2)},${s.sharePercent.toFixed(1)}%,${s.growthPercent !== null ? s.growthPercent.toFixed(1) + '%' : 'N/A'}`
@@ -849,7 +849,7 @@ export const ComparativeSalesReport: React.FC<ComparativeSalesReportProps> = ({
           {/* Seller Filter */}
           {allSellers.length > 0 && (
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-[#78716C]">Vendedora:</span>
+              <span className="text-xs font-bold text-[#78716C]">Vendedor(a):</span>
               <select
                 value={selectedSeller}
                 onChange={(e) => setSelectedSeller(e.target.value)}
@@ -1284,7 +1284,7 @@ export const ComparativeSalesReport: React.FC<ComparativeSalesReportProps> = ({
               <Award className="w-5 h-5 text-amber-500" />
               <div>
                 <h3 className="text-base font-bold font-['Outfit',sans-serif] text-[#1A2B5C]">
-                  Ranking de Vendedoras del Período
+                  Ranking de Personal de Ventas del Período
                 </h3>
                 <p className="text-xs text-[#78716C]">
                   Total vendido, cantidad de pedidos y ticket promedio
@@ -1292,7 +1292,7 @@ export const ComparativeSalesReport: React.FC<ComparativeSalesReportProps> = ({
               </div>
             </div>
             <span className="text-xs font-black text-[#1A2B5C] bg-[#FBF7EF] border border-[#E8DFC8] px-2.5 py-1 rounded-xl">
-              {sellersRanking.length} vendedoras
+              {sellersRanking.length} integrantes
             </span>
           </div>
 

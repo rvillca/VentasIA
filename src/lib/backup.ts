@@ -222,12 +222,12 @@ export async function downloadFullSystemBackupExcel(): Promise<BackupResult> {
     'Correo de Acceso': u.email,
     'Rol Asignado':
       u.role === 'jefe'
-        ? '👑 Jefa / Admin'
+        ? '👑 Administración / Jefatura'
         : u.role === 'supervisor'
-        ? '📊 Supervisora'
+        ? '📊 Supervisión'
         : u.role === 'comprador'
-        ? '🛒 Compradora'
-        : '💼 Vendedora',
+        ? '🛒 Compras'
+        : '💼 Ventas / Vendedor(a)',
     'Estado Cuenta': u.disabled ? 'Desactivado' : 'Activo',
     'Fecha Creación': formatDateTime(u.createdAt),
     'UID': u.uid,

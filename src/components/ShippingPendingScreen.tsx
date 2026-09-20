@@ -18,8 +18,10 @@ import {
   RotateCcw,
   XCircle,
   MessageCircle,
+  Lock,
 } from 'lucide-react';
 import { Order } from '../types';
+import { isOrderDeliveryLocked } from '../lib/orderSecurity';
 import {
   formatCurrency,
   formatBoliviaPhone,
@@ -176,6 +178,14 @@ export const ShippingPendingScreen: React.FC<ShippingPendingScreenProps> = ({
   const handleQuickCompleteBalance = async (order: Order, e: React.MouseEvent) => {
     e.stopPropagation();
     if (order.saldo <= 0 || order.estado === 'Anulado') return;
+
+    // Security check: if order has been delivered for more than 7 days, it's locked
+    const isLocked = isOrderDeliveryLocked(order);
+    if (isLocked && role !== 'admin') {
+      alert('Este pedido fue entregado hace más de 7 días y está protegido contra modificaciones. Solo un(a) Administrador(a) puede autorizar cambios.');
+      return;
+    }
+
     setCompletingId(order.id);
     try {
       await completeOrderBalanceInFirestore(order.id, order.total);
@@ -711,12 +721,22 @@ export const ShippingPendingScreen: React.FC<ShippingPendingScreenProps> = ({
                         ? 'bg-[#0F1B3C] hover:bg-[#1E2D5A] border-[#223368] text-white'
                         : 'bg-[#FBF7EF] hover:bg-[#E8DFC8] border-[#E8DFC8] text-[#1A2B5C]'
                     }`}
-                    title={isDelivered ? 'Hacer clic para marcar como no despachado' : 'Marcar como entregado y despachado'}
+                    title={
+                      isDelivered
+                        ? isOrderDeliveryLocked(order)
+                          ? 'Entregado hace más de 7 días. Bloqueado (requiere PIN de Administrador(a)).'
+                          : 'Hacer clic para marcar como no despachado'
+                        : 'Marcar como entregado y despachado'
+                    }
                   >
                     {isDelivered ? (
                       <>
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                        <span>Entregado</span>
+                        {isOrderDeliveryLocked(order) ? (
+                          <Lock className="w-3.5 h-3.5 text-rose-500" />
+                        ) : (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                        )}
+                        <span>{isOrderDeliveryLocked(order) ? 'Protegido (+7d)' : 'Entregado'}</span>
                       </>
                     ) : (
                       <>

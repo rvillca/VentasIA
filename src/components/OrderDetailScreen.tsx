@@ -23,6 +23,12 @@ import {
   Share2,
   Truck,
   UserCheck,
+  Lock,
+  Unlock,
+  KeyRound,
+  ShieldAlert,
+  ShieldCheck,
+  X,
 } from 'lucide-react';
 import { Order } from '../types';
 import {
@@ -31,7 +37,10 @@ import {
   getWhatsAppUrl,
   completeOrderBalanceInFirestore,
   formatArticleItem,
+  reopenOrderInFirestore,
 } from '../lib/storage';
+import { getDeliveryLockInfo, isOrderDeliveryLocked } from '../lib/orderSecurity';
+import { AdminApprovalPinModal } from './AdminApprovalPinModal';
 import { ThermalPrintModal } from './ThermalPrintModal';
 import { OrderPreparationCardModal } from './OrderPreparationCardModal';
 import { useAuth } from '../contexts/AuthContext';
@@ -67,10 +76,125 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
   const [isPrepModalOpen, setIsPrepModalOpen] = useState(false);
   const [isCompletingBalance, setIsCompletingBalance] = useState(false);
 
+  // Security Lock (+7 days delivered) state
+  const lockInfo = getDeliveryLockInfo(order);
+  const isLocked = lockInfo.isLocked;
+
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [pinAction, setPinAction] = useState<'edit' | 'reopen' | 'balance'>('reopen');
+  const [showAdminReopenConfirm, setShowAdminReopenConfirm] = useState(false);
+  const [isReopeningLoading, setIsReopeningLoading] = useState(false);
+  const [securityNotice, setSecurityNotice] = useState<string | null>(null);
+
   const isDelivered = order.estado === 'Entregado';
   const isAnulado = order.estado === 'Anulado';
   const hasPendingBalance = order.saldo > 0 && !isAnulado;
   const whatsAppUrl = getWhatsAppUrl(order);
+
+  const handleEditClick = () => {
+    if (isLocked) {
+      if (isJefe) {
+        setPinAction('edit');
+        setShowAdminReopenConfirm(true);
+        return;
+      }
+      if (isSupervisor) {
+        setPinAction('edit');
+        setIsPinModalOpen(true);
+        return;
+      }
+      setSecurityNotice(
+        'Modificación no permitida: Esta venta fue entregada hace más de 7 días y está bloqueada por seguridad contable. Solo Administración o Supervisión con PIN pueden reabrirla.'
+      );
+      return;
+    }
+    onEdit(order);
+  };
+
+  const handleAnularClick = () => {
+    if (isLocked) {
+      setSecurityNotice(
+        'Anulación denegada: Esta venta fue entregada hace más de 7 días y está bloqueada definitivamente. Por seguridad contable, los registros de ventas entregadas y bloqueadas no se pueden anular.'
+      );
+      return;
+    }
+    setShowAnularModal(true);
+  };
+
+  const handleBalanceClick = () => {
+    if (isLocked) {
+      if (isJefe) {
+        handleCompleteBalance();
+        return;
+      }
+      if (isSupervisor) {
+        setPinAction('balance');
+        setIsPinModalOpen(true);
+        return;
+      }
+      setSecurityNotice(
+        'Operación no permitida: El pedido fue entregado hace más de 7 días y está bloqueado. Requiere autorización de Administración.'
+      );
+      return;
+    }
+    handleCompleteBalance();
+  };
+
+  const handleToggleStatusClick = () => {
+    if (isDelivered && isLocked) {
+      if (isJefe) {
+        setPinAction('reopen');
+        setShowAdminReopenConfirm(true);
+        return;
+      }
+      if (isSupervisor) {
+        setPinAction('reopen');
+        setIsPinModalOpen(true);
+        return;
+      }
+      setSecurityNotice(
+        'No puedes reabrir esta venta: Fue entregada hace más de 7 días. Requiere autorización de Administración o Supervisión con PIN.'
+      );
+      return;
+    }
+    onToggleStatus(order.id);
+  };
+
+  const handleAdminDirectReopen = async () => {
+    try {
+      setIsReopeningLoading(true);
+      await reopenOrderInFirestore(
+        order.id,
+        userProfile?.displayName || userProfile?.email || 'Administración',
+        false
+      );
+      setShowAdminReopenConfirm(false);
+      setSecurityNotice(null);
+    } catch (err) {
+      console.error('Error al reabrir pedido:', err);
+    } finally {
+      setIsReopeningLoading(false);
+    }
+  };
+
+  const handlePinApprovalSuccess = async () => {
+    setIsPinModalOpen(false);
+    try {
+      setIsReopeningLoading(true);
+      const supervisorName = userProfile?.displayName || userProfile?.email || 'Supervisión';
+      await reopenOrderInFirestore(order.id, supervisorName, true);
+      setSecurityNotice(null);
+      if (pinAction === 'edit') {
+        onEdit({ ...order, estado: 'Abierto', desbloqueadoTemporalmente: true });
+      } else if (pinAction === 'balance') {
+        await handleCompleteBalance();
+      }
+    } catch (err) {
+      console.error('Error al autorizar reapertura con PIN:', err);
+    } finally {
+      setIsReopeningLoading(false);
+    }
+  };
 
   const handleCopyReceipt = () => {
     const text = generateWhatsAppReceiptText(order);
@@ -156,43 +280,58 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
             {!isAnulado && (
               <button
                 id="detail-edit-btn"
-                onClick={() => onEdit(order)}
+                onClick={handleEditClick}
                 className={`p-2.5 rounded-2xl transition-all flex items-center gap-1.5 text-xs font-bold active:scale-95 border cursor-pointer ${
-                  isDark
+                  isLocked
+                    ? isDark
+                      ? 'bg-rose-950/40 text-rose-300 border-rose-800/40 hover:bg-rose-900/50'
+                      : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                    : isDark
                     ? 'bg-[#16234F] hover:bg-[#1E2D5A] text-white border-[#223368]'
                     : 'bg-white hover:bg-[#F5EFE0] text-[#1A2B5C] border-[#E8DFC8]'
                 }`}
-                title="Editar pedido"
+                title={isLocked ? 'Pedido bloqueado (+7 días entregado). Requiere autorización.' : 'Editar pedido'}
               >
-                <Edit3 className={`w-4 h-4 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
-                <span className="hidden sm:inline">Editar</span>
+                {isLocked ? (
+                  <Lock className="w-4 h-4 text-rose-500" />
+                ) : (
+                  <Edit3 className={`w-4 h-4 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
+                )}
+                <span className="hidden sm:inline">{isLocked ? 'Bloqueado' : 'Editar'}</span>
               </button>
             )}
 
-            {/* VENDEDOR / SUPERVISOR / JEFE: Anular Venta */}
+            {/* Anular Venta */}
             {!isAnulado && (
               <button
                 id="detail-anular-btn"
-                onClick={() => setShowAnularModal(true)}
-                className={`p-2.5 rounded-2xl transition-all flex items-center gap-1.5 text-xs font-bold active:scale-95 border cursor-pointer ${
-                  isDark
-                    ? 'bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border-rose-800/40'
-                    : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
+                onClick={handleAnularClick}
+                disabled={isLocked}
+                className={`p-2.5 rounded-2xl transition-all flex items-center gap-1.5 text-xs font-bold border ${
+                  isLocked
+                    ? 'opacity-40 cursor-not-allowed bg-stone-200/50 text-stone-500 border-stone-300 dark:bg-stone-800/40 dark:text-stone-400 dark:border-stone-700'
+                    : isDark
+                    ? 'bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border-rose-800/40 cursor-pointer active:scale-95'
+                    : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200 cursor-pointer active:scale-95'
                 }`}
-                title="Anular venta"
+                title={
+                  isLocked
+                    ? 'Venta entregada y bloqueada (+7 días). No se puede anular.'
+                    : 'Anular venta'
+                }
               >
                 <XCircle className="w-4 h-4" />
                 <span className="hidden sm:inline">Anular</span>
               </button>
             )}
 
-            {/* SOLO JEFE / ADMIN: Eliminar definitivamente */}
+            {/* SOLO ADMINISTRACIÓN: Eliminar definitivamente */}
             {canDeleteOrders && (
               <button
                 id="detail-delete-btn"
                 onClick={() => setShowDeleteConfirm(true)}
                 className="p-2.5 bg-rose-700 hover:bg-rose-800 active:scale-95 text-white rounded-2xl transition-all flex items-center gap-1.5 text-xs font-bold shadow-md cursor-pointer"
-                title="Eliminar permanentemente (Solo Jefa)"
+                title="Eliminar permanentemente (Solo Administración)"
               >
                 <Trash2 className="w-4 h-4" />
                 <span className="hidden sm:inline">Eliminar</span>
@@ -221,7 +360,7 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
                 rows={3}
                 value={motivoAnulacion}
                 onChange={(e) => setMotivoAnulacion(e.target.value)}
-                placeholder="ej: La clienta canceló por demora / Sin stock..."
+                placeholder="ej: Cliente canceló por demora / Sin stock..."
                 className={`w-full border rounded-xl p-3 text-xs focus:outline-none ${
                   isDark
                     ? 'bg-[#0F1B3C] border-[#223368] text-white placeholder-[#9AA6C9]/60 focus:ring-2 focus:ring-[#FFA26B]'
@@ -266,7 +405,7 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
             }`}
           >
             <p className="font-bold text-sm">
-              ¿Estás segura de que deseas eliminar permanentemente este pedido #{order.orderNumber} de la base de datos?
+              ¿Confirmas que deseas eliminar permanentemente este pedido #{order.orderNumber} de la base de datos?
             </p>
             <div className="flex gap-2">
               <button
@@ -286,6 +425,118 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
                 Cancelar
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Security Alert Toast / Notice */}
+        {securityNotice && (
+          <div className="p-3.5 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-300 text-xs flex items-center justify-between gap-3 font-semibold shadow-sm animate-fade-in">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 shrink-0 text-rose-500" />
+              <span>{securityNotice}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSecurityNotice(null)}
+              className="p-1 hover:opacity-75 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* 7-DAY DELIVERY SECURITY STATUS BANNER */}
+        {isDelivered && isLocked && (
+          <div
+            id="order-delivery-locked-alert"
+            className={`p-4 sm:p-5 rounded-3xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm ${
+              isDark ? 'bg-[#0F1B3C] border-rose-500/40 text-white' : 'bg-rose-50/90 border-rose-200 text-rose-950'
+            }`}
+          >
+            <div className="flex items-start gap-3.5">
+              <div className="p-2.5 rounded-2xl bg-rose-500/20 text-rose-500 shrink-0 border border-rose-500/30">
+                <Lock className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-extrabold text-sm sm:text-base">Registro Protegido (+7 días de entrega)</span>
+                  <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-rose-600 text-white shadow-xs">
+                    Bloqueado
+                  </span>
+                </div>
+                <p className={`text-xs leading-relaxed max-w-2xl ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+                  Entregado el <strong>{lockInfo.formattedDeliveryDate}</strong> ({Math.floor(lockInfo.daysSinceDelivery)} días transcurridos). Por normativa de seguridad y control contable, las ventas entregadas hace más de 7 días no admiten modificaciones ni anulación. Solo el personal de <strong>Administración</strong> puede reabrirlas o <strong>Supervisión con PIN de aprobación</strong>.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {isJefe ? (
+                <button
+                  id="btn-reopen-locked-order-jefe"
+                  type="button"
+                  onClick={() => {
+                    setPinAction('reopen');
+                    setShowAdminReopenConfirm(true);
+                  }}
+                  className={`py-2.5 px-4 rounded-2xl text-xs font-black flex items-center gap-2 shadow-md active:scale-95 transition cursor-pointer ${
+                    isDark
+                      ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C]'
+                      : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white'
+                  }`}
+                >
+                  <Unlock className="w-4 h-4" />
+                  <span>Reabrir Pedido (Administración)</span>
+                </button>
+              ) : isSupervisor ? (
+                <button
+                  id="btn-reopen-locked-order-supervisor"
+                  type="button"
+                  onClick={() => {
+                    setPinAction('reopen');
+                    setIsPinModalOpen(true);
+                  }}
+                  className="py-2.5 px-4 rounded-2xl text-xs font-black flex items-center gap-2 shadow-md active:scale-95 transition cursor-pointer bg-amber-600 hover:bg-amber-500 text-white"
+                >
+                  <KeyRound className="w-4 h-4" />
+                  <span>Reabrir con PIN</span>
+                </button>
+              ) : (
+                <span className="text-xs font-bold text-rose-500 bg-rose-500/10 px-3.5 py-2 rounded-2xl border border-rose-500/20">
+                  🔒 Bloqueado para Personal de Ventas
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Informative banner if delivered but still under 7 days */}
+        {isDelivered && !isLocked && !order.desbloqueadoTemporalmente && (
+          <div
+            className={`p-3 rounded-2xl border flex items-center gap-2.5 text-xs ${
+              isDark ? 'bg-[#0F1B3C]/80 border-emerald-500/30 text-emerald-300' : 'bg-emerald-50 border-emerald-200 text-emerald-900'
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+            <span>
+              Entregado el: <strong>{lockInfo.formattedDeliveryDate}</strong>.
+              Se bloqueará automáticamente contra modificaciones en <strong>{lockInfo.remainingDays} día(s)</strong>.
+            </span>
+          </div>
+        )}
+
+        {/* Informative banner if temporarily unlocked */}
+        {order.desbloqueadoTemporalmente && (
+          <div
+            className={`p-3 rounded-2xl border flex items-center gap-2.5 text-xs ${
+              isDark ? 'bg-[#0F1B3C] border-[#4FD1B5]/40 text-[#4FD1B5]' : 'bg-[#E6FFFA] border-[#99F6E4] text-[#0F766E]'
+            }`}
+          >
+            <Unlock className="w-4 h-4 shrink-0" />
+            <span>
+              Venta desbloqueada / reabierta por <strong>{order.desbloqueadoPor || order.reabiertoPor || 'Administración'}</strong>
+              {order.aprobadoConPinAdmin ? ' (Autorizada con PIN de Administrador(a))' : ''}. Modificaciones habilitadas.
+            </span>
           </div>
         )}
 
@@ -363,7 +614,7 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
               <h1 className={`text-2xl sm:text-3xl font-black font-['Outfit',sans-serif] ${
                 isDark ? 'text-white' : 'text-[#1A2B5C]'
               }`}>
-                {order.cliente || 'Clienta sin nombre'}
+                {order.cliente || 'Cliente sin nombre'}
               </h1>
               <div className={`flex flex-wrap items-center gap-3 text-xs mt-1 capitalize ${
                 isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'
@@ -375,7 +626,7 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
                 {order.vendedorNombre && (
                   <span className={`flex items-center gap-1 font-medium ${isDark ? 'text-white' : 'text-[#1A2B5C]'}`}>
                     <User className={`w-3.5 h-3.5 ${isDark ? 'text-[#FF6FA5]' : 'text-[#1A2B5C]'}`} />
-                    Vendedora: <strong>{order.vendedorNombre}</strong>
+                    Vendedor(a): <strong>{order.vendedorNombre}</strong>
                   </span>
                 )}
               </div>
@@ -385,7 +636,7 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
             {!isAnulado && (
               <button
                 id="detail-toggle-status-btn"
-                onClick={() => onToggleStatus(order.id)}
+                onClick={handleToggleStatusClick}
                 className={`py-3 px-4 rounded-2xl text-xs sm:text-sm font-black flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md cursor-pointer ${
                   isDelivered
                     ? isDark
@@ -685,7 +936,7 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
                     id="complete-balance-direct-btn"
                     type="button"
                     disabled={isCompletingBalance}
-                    onClick={handleCompleteBalance}
+                    onClick={handleBalanceClick}
                     className={`py-2 px-3.5 rounded-2xl text-xs font-black flex items-center gap-1.5 shadow-lg active:scale-95 transition disabled:opacity-50 cursor-pointer ${
                       isDark
                         ? 'bg-[#4FD1B5] hover:bg-[#38b2ac] text-[#064E3B]'
@@ -850,6 +1101,96 @@ export const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Admin Direct Reopen Confirmation Modal (Solo Jefe) */}
+      {showAdminReopenConfirm && (
+        <div
+          id="admin-reopen-confirm-modal"
+          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
+        >
+          <div
+            className={`border rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl space-y-4 ${
+              isDark ? 'bg-[#16234F] border-[#223368] text-white' : 'bg-white border-[#E8DFC8] text-[#1A2B5C]'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border ${
+                  isDark
+                    ? 'bg-[#FF6FA5]/15 border-[#FF6FA5]/30 text-[#FF6FA5]'
+                    : 'bg-rose-50 border-rose-200 text-[#C2410C]'
+                }`}
+              >
+                <Unlock className="w-6 h-6" />
+              </div>
+              <div>
+                <span className={`text-[10px] uppercase font-black tracking-wider block ${
+                  isDark ? 'text-[#FF6FA5]' : 'text-[#C2410C]'
+                }`}>
+                  Autorización de Administración
+                </span>
+                <h3 className="text-lg font-extrabold font-['Outfit',sans-serif]">
+                  Reabrir Pedido #{order.orderNumber}
+                </h3>
+              </div>
+            </div>
+
+            <p className={`text-xs leading-relaxed ${isDark ? 'text-[#9AA6C9]' : 'text-[#78716C]'}`}>
+              Este pedido fue marcado como <strong>Entregado hace más de 7 días</strong> ({lockInfo.formattedDeliveryDate}).
+              Como <strong>Administrador(a)</strong>, tienes autorización directa para reabrir este registro y permitir modificaciones en sus productos, saldos o estado de envío.
+            </p>
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowAdminReopenConfirm(false)}
+                className={`flex-1 py-3 rounded-xl border text-xs font-bold transition cursor-pointer ${
+                  isDark
+                    ? 'bg-[#0F1B3C] hover:bg-[#1E2D5A] border-[#223368] text-[#9AA6C9]'
+                    : 'bg-[#F5EFE0] hover:bg-[#EBE2CF] border-[#E8DFC8] text-[#78716C]'
+                }`}
+              >
+                Cancelar
+              </button>
+              <button
+                id="confirm-admin-direct-reopen-btn"
+                type="button"
+                disabled={isReopeningLoading}
+                onClick={async () => {
+                  await handleAdminDirectReopen();
+                  if (pinAction === 'edit') {
+                    onEdit({ ...order, estado: 'Abierto', desbloqueadoTemporalmente: true });
+                  } else if (pinAction === 'balance') {
+                    await handleCompleteBalance();
+                  }
+                }}
+                className={`flex-1 py-3 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 shadow-md active:scale-95 disabled:opacity-50 cursor-pointer ${
+                  isDark
+                    ? 'bg-[#FF6FA5] hover:bg-[#ff85b3] text-[#0F1B3C]'
+                    : 'bg-[#1A2B5C] hover:bg-[#253B7A] text-white'
+                }`}
+              >
+                {isReopeningLoading ? 'Reabriendo...' : 'Sí, Reabrir Pedido'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Supervisor PIN Approval Modal */}
+      <AdminApprovalPinModal
+        isOpen={isPinModalOpen}
+        onClose={() => setIsPinModalOpen(false)}
+        onApproved={handlePinApprovalSuccess}
+        orderNumber={order.orderNumber}
+        actionDescription={
+          pinAction === 'edit'
+            ? 'modificar los productos o datos de este pedido'
+            : pinAction === 'balance'
+            ? 'liquidar el saldo de esta venta'
+            : 'reabrir este pedido entregado'
+        }
+      />
 
       {/* Thermal Print Modal */}
       <ThermalPrintModal
